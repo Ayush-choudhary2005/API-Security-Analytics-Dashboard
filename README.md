@@ -17,8 +17,6 @@ produce alerts, and normal traffic produces 0 false positives.
 | Correlation | Groupby query on one table | Dedicated Correlation Engine |
 | Attack types | 3 (brute-force, scan, burst) | +4th (payload anomaly) and more |
 
-Be upfront about this table in your demo/viva — it shows deliberate,
-defensible scoping rather than an accidental gap.
 
 ## Project structure
 
@@ -109,11 +107,6 @@ no rules, but
 otherwise            -> severity = low (not shown as an alert)
 ```
 
-Rules take priority because they're deterministic and explainable; the
-statistical score exists to catch things the rules don't.
-
-## Cold start
-
 The statistical score returns 0.0 until an IP has at least 5 prior events
 in its rolling window — before that, detection relies on rules only. This
 is the Phase 1 answer to the cold-start gap; Phase 2 swaps in a real
@@ -126,10 +119,3 @@ Isolation Forest with the same fallback pattern.
 - 0 false positives across 60 normal-traffic events (target: <5%)
 - SDK integration: 3 lines (target: <=5)
 - Dashboard polls every 3s, no manual reload
-
-## Known Phase 1 limitations (say this out loud in your demo)
-
-- Flask's built-in dev server, not production-grade (fine for a capstone demo)
-- No retry buffer if the collector is briefly unreachable — SDK drops the event silently
-- Single-process, single-machine — no horizontal scaling story yet
-- Statistical score is a placeholder for real ML, clearly documented as such
