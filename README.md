@@ -85,7 +85,7 @@ app = Flask(__name__)
 observe(app, collector_url="http://localhost:5001", token="phase1-demo-token")
 ```
 
-3 lines. Everything else (capturing endpoint/method/status/latency/IP/user,
+Everything else (capturing endpoint/method/status/latency/IP/user,
 sending to collector, not blocking the response) happens automatically via
 Flask's before/after_request hooks.
 
