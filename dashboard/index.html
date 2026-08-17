@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>API Security Analytics Dashboard — Phase 1 Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0e1117;
+    --panel: #161b22;
+    --border: #262c36;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --low: #3fb950;
+    --medium: #d29922;
+    --high: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .status-row { display: flex; gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    flex: 1;
+  }
+  .stat-card .label { color: var(--muted); font-size: 12px; }
+  .stat-card .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 14px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.low { background: rgba(63,185,80,0.15); color: var(--low); }
+  .badge.medium { background: rgba(210,153,34,0.15); color: var(--medium); }
+  .badge.high { background: rgba(248,81,73,0.15); color: var(--high); }
+  .alert-row { border-left: 3px solid var(--medium); padding: 8px; margin-bottom: 8px; background: rgba(210,153,34,0.06); border-radius: 4px; }
+  .alert-row.high { border-left-color: var(--high); background: rgba(248,81,73,0.06); }
+  .alert-row .meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .chart-wrap { margin-top: 16px; height: 180px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+  .pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--low); margin-right:6px; }
+</style>
+</head>
+<body>
+  <h1><span class="pulse"></span>API Security Analytics Dashboard — Phase 1 Live Dashboard</h1>
+  <div class="subtitle">Polling every 3s &middot; statistical anomaly scoring (Isolation Forest lands in Phase 2)</div>
+
+  <div class="status-row">
+    <div class="stat-card"><div class="label">Total Events</div><div class="value" id="stat-total">0</div></div>
+    <div class="stat-card"><div class="label">Active Alerts</div><div class="value" id="stat-alerts">0</div></div>
+    <div class="stat-card"><div class="label">High Severity</div><div class="value" id="stat-high">0</div></div>
+    <div class="stat-card"><div class="label">Last Update</div><div class="value" id="stat-time" style="font-size:14px;">—</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Live Request Feed</h2>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Endpoint</th><th>Method</th><th>Status</th><th>IP</th><th>Latency</th><th>Severity</th></tr>
+        </thead>
+        <tbody id="feed-body"></tbody>
+      </table>
+      <div class="chart-wrap"><canvas id="scoreChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>Alerts</h2>
+      <div id="alerts-body"><div class="empty">No alerts yet.</div></div>
+    </div>
+  </div>
+
+<script>
+const POLL_MS = 3000;
+let chart;
+
+function fmtTime(ts) {
+  return new Date(ts * 1000).toLocaleTimeString();
+}
+
+function badge(sev) {
+  return `<span class="badge ${sev}">${sev.toUpperCase()}</span>`;
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  return res.json();
+}
+
+function renderFeed(events) {
+  const body = document.getElementById('feed-body');
+  body.innerHTML = events.slice(0, 15).map(e => `
+    <tr>
+      <td>${fmtTime(e.timestamp)}</td>
+      <td>${e.endpoint}</td>
+      <td>${e.method}</td>
+      <td>${e.status_code}</td>
+      <td>${e.ip}</td>
+      <td>${e.latency_ms.toFixed(1)}ms</td>
+      <td>${badge(e.severity)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderAlerts(alerts) {
+  const body = document.getElementById('alerts-body');
+  if (alerts.length === 0) {
+    body.innerHTML = '<div class="empty">No alerts yet.</div>';
+    return;
+  }
+  body.innerHTML = alerts.slice(0, 10).map(a => `
+    <div class="alert-row ${a.severity}">
+      <div><strong>${a.endpoint}</strong> — ${badge(a.severity)}</div>
+      <div class="meta">
+        IP ${a.ip} &middot; ${fmtTime(a.timestamp)} &middot;
+        score ${a.anomaly_score.toFixed(2)} &middot;
+        rules: ${a.rule_flags.length ? a.rule_flags.join(', ') : 'none'}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderStats(events, alerts) {
+  document.getElementById('stat-total').textContent = events.length;
+  document.getElementById('stat-alerts').textContent = alerts.length;
+  document.getElementById('stat-high').textContent = alerts.filter(a => a.severity === 'high').length;
+  document.getElementById('stat-time').textContent = new Date().toLocaleTimeString();
+}
+
+function initChart() {
+  const ctx = document.getElementById('scoreChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Anomaly Score',
+        data: [],
+        borderColor: '#58a6ff',
+        backgroundColor: 'rgba(88,166,255,0.1)',
+        tension: 0.3,
+        pointRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#8b949e', maxTicksLimit: 6 }, grid: { color: '#262c36' } },
+        y: { ticks: { color: '#8b949e' }, grid: { color: '#262c36' }, beginAtZero: true }
+      },
+      plugins: { legend: { labels: { color: '#8b949e' } } }
+    }
+  });
+}
+
+function updateChart(events) {
+  const ordered = [...events].reverse();
+  chart.data.labels = ordered.map(e => fmtTime(e.timestamp));
+  chart.data.datasets[0].data = ordered.map(e => e.anomaly_score);
+  chart.update('none');
+}
+
+async function poll() {
+  try {
+    const [events, alerts] = await Promise.all([
+      fetchJSON('/events/recent?limit=50'),
+      fetchJSON('/alerts/recent?limit=20'),
+    ]);
+    renderFeed(events);
+    renderAlerts(alerts);
+    renderStats(events, alerts);
+    updateChart(events);
+  } catch (err) {
+    console.error('poll failed', err);
+  }
+}
+
+initChart();
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>
