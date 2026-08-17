@@ -151,8 +151,21 @@ function renderAlerts(alerts) {
 function renderStats(events, alerts) {
   document.getElementById('stat-total').textContent = events.length;
   document.getElementById('stat-alerts').textContent = alerts.length;
-  document.getElementById('stat-high').textContent = alerts.filter(a => a.severity === 'high').length;
+  
+  const highCount = alerts.filter(a => a.severity === 'high').length;
+  const mediumCount = alerts.filter(a => a.severity === 'medium').length;
+  
+  document.getElementById('stat-high').textContent = highCount;
   document.getElementById('stat-time').textContent = new Date().toLocaleTimeString();
+  
+  const pulse = document.querySelector('.pulse');
+  if (highCount > 0) {
+    pulse.style.background = 'var(--high)';
+  } else if (mediumCount > 0) {
+    pulse.style.background = 'var(--medium)';
+  } else {
+    pulse.style.background = 'var(--low)';
+  }
 }
 
 function initChart() {
