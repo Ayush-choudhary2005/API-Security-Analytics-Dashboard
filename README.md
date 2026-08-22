@@ -119,3 +119,38 @@ Isolation Forest with the same fallback pattern.
 - 0 false positives across 60 normal-traffic events (target: <5%)
 - SDK integration: 3 lines (target: <=5)
 - Dashboard polls every 3s, no manual reload
+
+## Architecture Diagram
+
+```mermaid
+flowchart TD
+
+    A[API Application]
+
+    B[SDK Middleware<br/>Telemetry Capture<br/>PII Masking]
+
+    C[Collector API<br/>Authentication<br/>Validation]
+
+    D[Processing Layer<br/><br/>Feature Engineering<br/>Behavior Analytics]
+
+    E[ML Inference Engine<br/><br/>Isolation Forest<br/>Risk Scoring]
+
+    F[Alert Engine]
+
+    G[(Telemetry Storage)]
+
+    H[Presentation Layer<br/><br/>Live Dashboard<br/>Risk Analytics<br/>Threat Monitoring]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+
+    E --> F
+    E --> G
+
+    F --> H
+    G --> H
+
+    
+```
