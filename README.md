@@ -1,121 +1,87 @@
-# ML-O11Y — Phase 1 (Working Demo)
+# API Security Analytics Dashboard — Final Project (Phases 1-3)
 
-A minimal but fully working slice of the full ML-O11Y architecture:
-**SDK → Collector → Detection (rules + statistical score) → Storage → Dashboard**,
-all running end-to-end. This has been tested and confirmed working:
-brute-force, endpoint-scan, and request-burst attacks all correctly
-produce alerts, and normal traffic produces 0 false positives.
+An end-to-end ML-driven API observability and security platform. This project detects zero-day API abuse, behavioral anomalies, and automated attacks using an unsupervised Machine Learning model (Isolation Forest) and investigates them automatically using Generative AI (Google Gemini 3.6-Flash).
 
-## What's real vs. stubbed in Phase 1
+## What's Included
 
-| Piece | Phase 1 (this build) | Phase 2 (planned) |
-|---|---|---|
-| ML model | Statistical z-score/ratio blend | Isolation Forest with rolling retraining |
-| Storage | Single SQLite table | Postgres, Hot/Metadata/Historical stores |
-| Real-time | 3s HTTP polling | WebSocket/SSE gateway |
-| Auth | Static bearer token | Per-tenant auth, tenant isolation |
-| Correlation | Groupby query on one table | Dedicated Correlation Engine |
-| Attack types | 3 (brute-force, scan, burst) | +4th (payload anomaly) and more |
+This capstone project was completed in 3 distinct phases, moving from basic observability to autonomous AI investigation:
 
+### Phase 1: The Telemetry Foundation
+- **SDK**: A 3-line Flask middleware (`sdk/middleware.py`) that asynchronously captures API traffic (IP, latency, status codes, endpoints) without blocking the client response.
+- **Collector**: A backend server (`backend/server.py`) that ingests telemetry via REST and stores it in SQLite.
+- **Traffic Simulation**: Scripts (`demo/generators.py`) to simulate normal human traffic, brute-force logins, endpoint scanning (IDOR/reconnaissance), and burst scraping.
+- **Live Dashboard**: A sleek, dark-themed UI (`dashboard/index.html`) polling every 3 seconds to show live streaming traffic.
 
-## Project structure
+### Phase 2: Unsupervised Machine Learning
+- **Isolation Forest Model**: Replaced static, hard-coded rules (e.g., "block if requests > 50") with a Scikit-Learn `IsolationForest` model.
+- **Behavioral Detection**: The model dynamically learns the "shape" of normal API traffic and flags behavioral deviations (high endpoint entropy, rapid bursts, unusual latency).
+- **Dynamic Thresholds**: Calculates an anomaly score (0-10+). Scores > 5.0 are instantly flagged as `HIGH` severity alerts.
 
-```
-ml-o11y/
+### Phase 3: GenAI Autonomous SOC Analyst
+- **Gemini Integration**: Built a custom investigator agent (`backend/investigator.py`) using `google-genai`.
+- **Context-Aware Prompting**: When an alert fires, the system automatically fetches the offending IP's chronological timeline from the database and builds a context-rich prompt.
+- **Threat Intelligence Reports**: The GenAI model analyzes the traffic patterns, explains exactly *why* the ML model flagged it, and outputs actionable remediation steps (e.g., rate limiting, X-Forwarded-For inspection, WAF rules).
+- **Inline UI**: Reports render instantly in a beautiful markdown modal directly within the live dashboard.
+
+## Project Structure
+```text
+API-Security-Analytics-Dashboard/
 ├── backend/
-│   ├── db.py          # SQLite schema + helpers (single 'events' table)
-│   ├── detection.py   # feature computation, 3 rules, z-score, fusion logic
-│   └── server.py       # Flask collector: /ingest, /events/recent, /alerts/recent, serves dashboard
+│   ├── db.py                 # SQLite schema + storage layer
+│   ├── detection.py          # ML scoring, feature extraction, alert fusion
+│   ├── investigator.py       # Gemini GenAI Threat Analyst 
+│   ├── train_model.py        # ML training script to fit Isolation Forest
+│   ├── isolation_forest_model.joblib # Saved ML model
+│   └── server.py             # Flask API backend (ingestion & dashboard API)
 ├── sdk/
-│   └── middleware.py   # observe(app, ...) - the installable SDK, <=5 lines to integrate
+│   └── middleware.py         # App instrumentation SDK
 ├── dashboard/
-│   └── index.html      # live polling dashboard (feed, alerts, score chart)
+│   └── index.html            # Real-time frontend UI
 ├── demo/
-│   ├── sample_app.py   # sample API instrumented with the SDK
-│   └── generators.py   # normal traffic + 3 attack simulators
+│   ├── sample_app.py         # Mock vulnerable API service
+│   └── generators.py         # Attack simulators
 └── requirements.txt
 ```
 
-## Setup
+## Setup & Installation
 
+1. **Clone & Virtual Environment**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. **Set your API Key**
+   You need a free Google AI Studio key for Phase 3 to work.
+   ```bash
+   export GEMINI_API_KEY="your_api_key_here"
+   ```
+
+## Running the Live Demo
+
+You will need 3 terminal windows. Make sure your virtual environment is activated and your API key is exported in the first terminal!
+
+**Terminal 1 — API Server (Collector & GenAI)**
 ```bash
-cd ml-o11y
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+source venv/bin/activate
+export GEMINI_API_KEY="your_api_key_here"
+python backend/server.py
 ```
+> Open your browser to http://127.0.0.1:5001 to view the Live Dashboard.
 
-## Running the full demo (3 terminals)
-
-**Terminal 1 — Collector backend**
+**Terminal 2 — Sample Application (The Target)**
 ```bash
-cd backend
-python3 server.py
+source venv/bin/activate
+python demo/sample_app.py
 ```
-Runs on http://localhost:5001. Open that URL in a browser — this is your dashboard.
+> Note: Check if the sample app successfully started on port 5000 or 5002.
 
-**Terminal 2 — Sample app (the "developer's API" being monitored)**
+**Terminal 3 — Run Attacks**
 ```bash
-cd demo
-python3 sample_app.py
-```
-Runs on http://localhost:5000.
-
-**Terminal 3 — Generate demo traffic**
-```bash
-cd demo
-python3 generators.py all        # normal traffic, then all 3 attacks in sequence
+source venv/bin/activate
+python demo/generators.py all 
 ```
 
-Other options:
-```bash
-python3 generators.py normal        # just background traffic
-python3 generators.py brute_force   # just the brute-force attack
-python3 generators.py scan          # just the endpoint-scan attack
-python3 generators.py burst         # just the request-burst attack
+Watch the dashboard! The attacks will trigger the Machine Learning threshold, populating the Alerts panel. Click **Investigate** on any alert to generate an AI Threat Report.
 ```
-
-Watch the dashboard (Terminal 1's URL) update live as Terminal 3 runs.
-
-## SDK integration (what a "developer" actually writes)
-
-```python
-from middleware import observe
-app = Flask(__name__)
-observe(app, collector_url="http://localhost:5001", token="phase1-demo-token")
-```
-
-Everything else (capturing endpoint/method/status/latency/IP/user,
-sending to collector, not blocking the response) happens automatically via
-Flask's before/after_request hooks.
-
-## Attack taxonomy (Phase 1)
-
-| Attack | Feature | Rule threshold |
-|---|---|---|
-| Brute-force login | failed-auth (401/403) count per IP / 60s | > 5 |
-| Endpoint enumeration | unique endpoints per IP / 60s | > 15 |
-| Request burst | requests per IP / 10s | > 30 |
-
-## Fusion logic
-
-```
-2+ rules fired      -> severity = high
-1 rule fired         -> severity = medium
-no rules, but
-  anomaly_score > 2.5 -> severity = medium
-otherwise            -> severity = low (not shown as an alert)
-```
-
-The statistical score returns 0.0 until an IP has at least 5 prior events
-in its rolling window — before that, detection relies on rules only. This
-is the Phase 1 answer to the cold-start gap; Phase 2 swaps in a real
-Isolation Forest with the same fallback pattern.
-
-## Success metrics (validated during this build)
-
-- Telemetry appears in `/events/recent` within ~1s of the request (well under 3s target)
-- All 3 attack types produced a correctly-labeled alert during testing
-- 0 false positives across 60 normal-traffic events (target: <5%)
-- SDK integration: 3 lines (target: <=5)
-- Dashboard polls every 3s, no manual reload

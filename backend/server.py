@@ -88,6 +88,13 @@ def alerts_recent():
     return jsonify(db.get_recent_alerts(limit))
 
 
+@app.route("/api/investigate/<int:alert_id>", methods=["GET"])
+def investigate(alert_id):
+    import investigator
+    report = investigator.generate_threat_report(alert_id)
+    return jsonify({"report": report})
+
+
 if __name__ == "__main__":
     db.init_db()
     print(f"Collector starting. Token: {API_TOKEN}")

@@ -15,8 +15,18 @@ payload-size anomaly is deferred to Phase 2):
 
 import time
 import statistics
+import os
+import joblib
 
 from db import get_events_since
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "isolation_forest_model.joblib")
+try:
+    ml_model = joblib.load(MODEL_PATH)
+    print("SUCCESS: Phase 2 Isolation Forest ML model loaded!")
+except FileNotFoundError:
+    ml_model = None
+    print("WARNING: No ML model found, using Phase 1 statistical scores.")
 
 # ---- Thresholds (tune these later; documented so they're easy to defend) ----
 BRUTE_FORCE_WINDOW_SEC = 60
@@ -68,23 +78,32 @@ def apply_rules(features: dict) -> list:
 
 def compute_anomaly_score(features: dict, history: list) -> float:
     """
-    Statistical stand-in for ML in Phase 1 (documented explicitly as such —
-    see README 'What's real vs stubbed'). Combines z-scores of the three
-    features against this IP's own running mean/std.
-
-    If there's not enough history yet (cold start), returns 0.0 — this IS
-    the cold-start strategy for Phase 1: rules-only until enough events
-    exist to compute a meaningful baseline.
+    Phase 2 ML Scoring: Uses the trained Isolation Forest to score the event.
+    Falls back to statistical z-scores if the model file is missing.
     """
+    if ml_model is not None:
+        # Format the live features as a 2D array for scikit-learn
+        X_live = [[
+            features.get("latency_ms", 0),
+            features.get("failed_auth_count", 0),
+            features.get("unique_endpoints", 0),
+            features.get("request_count_10s", 0)
+        ]]
+        
+        # score_samples returns a negative score. More negative = more anomalous.
+        raw_score = ml_model.score_samples(X_live)[0]
+        
+        # Invert and scale it into a positive risk score (0 to 10+)
+        risk_score = max(0, -raw_score * 10)
+        return round(risk_score, 3)
+
+    # --- Phase 1 Fallback Logic below ---
     MIN_HISTORY_FOR_SCORING = 5
 
     if len(history) < MIN_HISTORY_FOR_SCORING:
         return 0.0
 
-    # Build per-event feature series from history to get a mean/std baseline.
-    # (Cheap approximation: treat each historical event's own request_count
-    # in the prior 10s as a sample — good enough for Phase 1 demo purposes.)
-    counts = [1 for _ in history]  # placeholder series length guard
+    counts = [1 for _ in history]
     latencies = [e["latency_ms"] for e in history]
 
     z_scores = []
@@ -97,9 +116,6 @@ def compute_anomaly_score(features: dict, history: list) -> float:
             if std > 0:
                 z_scores.append(abs((current_value - mean) / std))
 
-    # Also fold in the rule features directly as a simple magnitude signal
-    # scaled against their own thresholds, so the score reacts even when
-    # latency alone looks normal.
     z_scores.append(features["failed_auth_count"] / BRUTE_FORCE_THRESHOLD)
     z_scores.append(features["unique_endpoints"] / SCAN_THRESHOLD)
     z_scores.append(features["request_count_10s"] / BURST_THRESHOLD)
@@ -115,11 +131,9 @@ def fuse(rule_flags: list, anomaly_score: float) -> str:
     Fusion logic: rules take priority (deterministic, explainable).
     ML/statistical score fills the gap for things rules didn't catch.
     """
-    if len(rule_flags) >= 2:
+    if len(rule_flags) >= 2 or anomaly_score > 5.0:
         return "high"
-    if len(rule_flags) == 1:
-        return "medium"
-    if anomaly_score > ZSCORE_MEDIUM_THRESHOLD:
+    if len(rule_flags) == 1 or anomaly_score > ZSCORE_MEDIUM_THRESHOLD:
         return "medium"
     return "low"
 
@@ -136,6 +150,7 @@ def score_event(event: dict) -> dict:
     history = get_events_since(ip, now_ts - 60)
 
     features = compute_features(ip, now_ts, history)
+    features["latency_ms"] = event["latency_ms"]
     rule_flags = apply_rules(features)
     anomaly_score = compute_anomaly_score(features, history)
     severity = fuse(rule_flags, anomaly_score)
