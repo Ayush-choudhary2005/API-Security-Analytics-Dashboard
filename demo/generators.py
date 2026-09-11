@@ -18,7 +18,7 @@ import time
 import random
 import requests
 
-APP_URL = "http://localhost:5000"
+APP_URL = "http://localhost:5002"
 
 ENDPOINTS = [
     ("GET", "/api/users"),

@@ -1,2 +1,7 @@
 flask>=3.0
 requests>=2.31
+scikit-learn
+pandas
+joblib
+
+google-genai

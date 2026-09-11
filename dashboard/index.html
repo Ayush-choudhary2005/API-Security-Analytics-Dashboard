@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>API Security Analytics Dashboard — Phase 1 Dashboard</title>
+<title>API Security Analytics Dashboard — Phase 2 Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   :root {
     --bg: #0e1117;
@@ -67,11 +68,56 @@
   .chart-wrap { margin-top: 16px; height: 180px; }
   .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
   .pulse { display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--low); margin-right:6px; }
+  .scrollable-alerts { max-height: 520px; overflow-y: auto; padding-right: 8px; }
+  .scrollable-alerts::-webkit-scrollbar { width: 6px; }
+  .scrollable-alerts::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .btn-investigate {
+    background: rgba(88,166,255,0.1); 
+    color: #58a6ff; 
+    border: 1px solid rgba(88,166,255,0.2); 
+    padding: 4px 10px; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 11px;
+    transition: all 0.2s;
+  }
+  .btn-investigate:hover { background: rgba(88,166,255,0.2); }
+  
+  /* Phase 3 Modal UI */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); display: none;
+    justify-content: center; align-items: center; z-index: 1000;
+  }
+  .modal {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    width: 700px; max-width: 90%; max-height: 80vh; display: flex; flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .modal-header {
+    padding: 16px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal-header h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; color: #58a6ff; }
+  .modal-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; transition: color 0.2s;}
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; }
+  .modal-body pre { background: var(--panel); padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--border); }
+  .modal-body code { font-family: monospace; }
+  .modal-body h1, .modal-body h2, .modal-body h3 { color: var(--text); margin-top: 0; }
+  .modal-body p, .modal-body li { color: #c9d1d9; }
+  
+  .loader { 
+    border: 3px solid var(--panel); border-top: 3px solid #58a6ff; 
+    border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite; 
+    display: none; margin: 40px auto; 
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
-  <h1><span class="pulse"></span>API Security Analytics Dashboard — Phase 1 Live Dashboard</h1>
-  <div class="subtitle">Polling every 3s &middot; statistical anomaly scoring (Isolation Forest lands in Phase 2)</div>
+  <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
+  <div class="subtitle">Polling every 3s &middot; Machine Learning anomaly scoring powered by Isolation Forest &middot; GenAI Threat Reports</div>
 
   <div class="status-row">
     <div class="stat-card"><div class="label">Total Events</div><div class="value" id="stat-total">0</div></div>
@@ -94,11 +140,52 @@
 
     <div class="panel">
       <h2>Alerts</h2>
-      <div id="alerts-body"><div class="empty">No alerts yet.</div></div>
+      <div id="alerts-body" class="scrollable-alerts"><div class="empty">No alerts yet.</div></div>
+    </div>
+  </div>
+  
+  <!-- Phase 3 Modal -->
+  <div class="modal-overlay" id="investigate-modal" onclick="if(event.target===this) closeInvestigateModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>✨ GenAI Threat Investigation</h2>
+        <button class="modal-close" onclick="closeInvestigateModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-loader" class="loader"></div>
+        <div id="modal-content"></div>
+      </div>
     </div>
   </div>
 
 <script>
+// Phase 3 Investigate Logic
+function openInvestigateModal(id) {
+  document.getElementById('investigate-modal').style.display = 'flex';
+  document.getElementById('modal-content').innerHTML = '';
+  document.getElementById('modal-loader').style.display = 'block';
+  
+  fetch('/api/investigate/' + id)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('modal-loader').style.display = 'none';
+      if (data.report) {
+        // Render markdown with marked.js
+        document.getElementById('modal-content').innerHTML = marked.parse(data.report);
+      } else {
+        document.getElementById('modal-content').innerText = 'Error loading report.';
+      }
+    })
+    .catch(err => {
+      document.getElementById('modal-loader').style.display = 'none';
+      document.getElementById('modal-content').innerText = 'Fetch failed: ' + err;
+    });
+}
+
+function closeInvestigateModal() {
+  document.getElementById('investigate-modal').style.display = 'none';
+}
+
 const POLL_MS = 3000;
 let chart;
 
@@ -136,9 +223,12 @@ function renderAlerts(alerts) {
     body.innerHTML = '<div class="empty">No alerts yet.</div>';
     return;
   }
-  body.innerHTML = alerts.slice(0, 10).map(a => `
+  body.innerHTML = alerts.map(a => `
     <div class="alert-row ${a.severity}">
-      <div><strong>${a.endpoint}</strong> — ${badge(a.severity)}</div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div><strong>${a.endpoint}</strong> — ${badge(a.severity)}</div>
+        <button onclick="openInvestigateModal(${a.id})" class="btn-investigate">Investigate</button>
+      </div>
       <div class="meta">
         IP ${a.ip} &middot; ${fmtTime(a.timestamp)} &middot;
         score ${a.anomaly_score.toFixed(2)} &middot;
@@ -174,21 +264,32 @@ function initChart() {
     type: 'line',
     data: {
       labels: [],
-      datasets: [{
-        label: 'Anomaly Score',
-        data: [],
-        borderColor: '#58a6ff',
-        backgroundColor: 'rgba(88,166,255,0.1)',
-        tension: 0.3,
-        pointRadius: 2,
-      }]
+      datasets: [
+        {
+          label: 'Anomaly Score',
+          data: [],
+          borderColor: '#58a6ff',
+          backgroundColor: 'rgba(88,166,255,0.1)',
+          tension: 0.3,
+          pointRadius: 2,
+        },
+        {
+          label: 'High Threshold',
+          data: [],
+          borderColor: '#f85149',
+          borderDash: [5, 5],
+          pointRadius: 0,
+          borderWidth: 1,
+          fill: false,
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
         x: { ticks: { color: '#8b949e', maxTicksLimit: 6 }, grid: { color: '#262c36' } },
-        y: { ticks: { color: '#8b949e' }, grid: { color: '#262c36' }, beginAtZero: true }
+        y: { ticks: { color: '#8b949e' }, grid: { color: '#262c36' }, beginAtZero: true, suggestedMax: 6.0 }
       },
       plugins: { legend: { labels: { color: '#8b949e' } } }
     }
@@ -199,6 +300,7 @@ function updateChart(events) {
   const ordered = [...events].reverse();
   chart.data.labels = ordered.map(e => fmtTime(e.timestamp));
   chart.data.datasets[0].data = ordered.map(e => e.anomaly_score);
+  chart.data.datasets[1].data = ordered.map(() => 5.0); // Constant line for the threshold
   chart.update('none');
 }
 
