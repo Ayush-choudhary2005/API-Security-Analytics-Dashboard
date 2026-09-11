@@ -100,6 +100,46 @@ def get_recent_alerts(limit: int = 50):
     return [_row_to_dict(r) for r in rows]
 
 
+def get_alert_stats():
+    """Returns the count of each attack type for the most recent 200 alerts to keep the chart dynamic."""
+    conn = get_conn()
+    rows = conn.execute("SELECT rule_flags, severity, anomaly_score FROM events WHERE severity != 'low' ORDER BY id DESC LIMIT 200").fetchall()
+    conn.close()
+    
+    stats = {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "anomaly": 0}
+    for r in rows:
+        flags_json = r["rule_flags"]
+        
+        if not flags_json:
+            flags = []
+        elif isinstance(flags_json, str):
+            try:
+                flags = json.loads(flags_json)
+            except Exception:
+                flags = []
+        else:
+            flags = flags_json
+            
+        if not isinstance(flags, list):
+            flags = []
+            
+        has_rule = False
+        if "brute_force" in flags:
+            stats["brute_force"] += 1
+            has_rule = True
+        if "endpoint_scan" in flags:
+            stats["endpoint_scan"] += 1
+            has_rule = True
+        if "request_burst" in flags:
+            stats["request_burst"] += 1
+            has_rule = True
+            
+        if not has_rule and r["anomaly_score"] > 2.5:
+            stats["anomaly"] += 1
+            
+    return stats
+
+
 def get_events_since(ip: str, since_timestamp: float):
     """Used by detection.py to compute rolling-window features for one IP."""
     conn = get_conn()

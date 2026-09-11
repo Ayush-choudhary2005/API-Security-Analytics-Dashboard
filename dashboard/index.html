@@ -139,9 +139,17 @@
     <div class="stat-card"><div class="label">Last Update</div><div class="value" id="stat-time" style="font-size:14px;">—</div></div>
   </div>
 
-  <div class="panel" style="margin-bottom: 16px;">
-    <h2>Live Threat Map</h2>
-    <div id="map" style="height: 250px; border-radius: 4px; z-index: 1;"></div>
+  <div class="grid" style="margin-bottom: 16px; grid-template-columns: 2fr 1fr;">
+    <div class="panel">
+      <h2>Live Threat Map</h2>
+      <div id="map" style="height: 250px; border-radius: 4px; z-index: 1;"></div>
+    </div>
+    <div class="panel">
+      <h2>Attack Distribution</h2>
+      <div style="position: relative; height: 250px;">
+        <canvas id="attackPieChart"></canvas>
+      </div>
+    </div>
   </div>
 
   <div class="grid">
@@ -330,6 +338,41 @@ function renderStats(events, alerts, totalEvents) {
   }
 }
 
+let pieChart;
+
+function initPieChart() {
+  const ctx = document.getElementById('attackPieChart').getContext('2d');
+  pieChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Brute Force', 'Endpoint Scan', 'Request Burst', 'Unclassified / ML Anomaly'],
+      datasets: [{
+        data: [0, 0, 0, 0],
+        backgroundColor: ['#d29922', '#58a6ff', '#f85149', '#8b949e'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 10 }, padding: 10 } }
+      },
+      cutout: '70%'
+    }
+  });
+}
+
+function updatePieChart(stats) {
+  pieChart.data.datasets[0].data = [
+    stats.brute_force, 
+    stats.endpoint_scan, 
+    stats.request_burst, 
+    stats.anomaly
+  ];
+  pieChart.update('none');
+}
+
 function initChart() {
   const ctx = document.getElementById('scoreChart').getContext('2d');
   chart = new Chart(ctx, {
@@ -378,22 +421,26 @@ function updateChart(events) {
 
 async function poll() {
   try {
-    const [events, alerts, health] = await Promise.all([
-      fetchJSON('/events/recent?limit=50'),
-      fetchJSON('/alerts/recent?limit=20'),
-      fetchJSON('/health')
+    // Fetch everything, but if stats fails, don't crash the whole dashboard
+    const [events, alerts, health, stats] = await Promise.all([
+      fetchJSON('/events/recent?limit=50').catch(() => []),
+      fetchJSON('/alerts/recent?limit=20').catch(() => []),
+      fetchJSON('/health').catch(() => ({ event_count: 0 })),
+      fetchJSON('/alerts/stats').catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 }))
     ]);
     renderFeed(events);
     renderAlerts(alerts);
     renderStats(events, alerts, health.event_count);
     updateChart(events);
     updateMap(alerts);
+    updatePieChart(stats);
   } catch (err) {
     console.error('poll failed', err);
   }
 }
 
 initChart();
+initPieChart();
 initMap();
 poll();
 setInterval(poll, POLL_MS);
