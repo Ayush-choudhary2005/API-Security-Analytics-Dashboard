@@ -3,9 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <title>API Security Analytics Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
+  /* Dark theme for Leaflet to match the dashboard */
+  .leaflet-container { background: #0e1117; }
+  .leaflet-popup-content-wrapper { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  .leaflet-popup-tip { background: var(--panel); border: 1px solid var(--border); }
+  .leaflet-layer,
+  .leaflet-control-zoom-in,
+  .leaflet-control-zoom-out,
+  .leaflet-control-attribution {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+  }
+
   :root {
     --bg: #0e1117;
     --panel: #161b22;
@@ -126,6 +139,11 @@
     <div class="stat-card"><div class="label">Last Update</div><div class="value" id="stat-time" style="font-size:14px;">—</div></div>
   </div>
 
+  <div class="panel" style="margin-bottom: 16px;">
+    <h2>Live Threat Map</h2>
+    <div id="map" style="height: 250px; border-radius: 4px; z-index: 1;"></div>
+  </div>
+
   <div class="grid">
     <div class="panel">
       <h2>Live Request Feed</h2>
@@ -188,6 +206,60 @@ function closeInvestigateModal() {
 
 const POLL_MS = 3000;
 let chart;
+let map;
+let markers = {};
+
+// Hardcoded demo locations for the private/reserved IPs used in generators.py
+const DEMO_LOCATIONS = {
+  "203.0.113.9": [55.7558, 37.6173], // Moscow (Brute Force)
+  "203.0.113.44": [39.9042, 116.4074], // Beijing (Scan)
+  "203.0.113.77": [37.7749, -122.4194], // San Francisco (Burst)
+};
+
+function initMap() {
+  map = L.map('map').setView([20, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+}
+
+async function updateMap(alerts) {
+  const alertIPs = [...new Set(alerts.map(a => a.ip))];
+  
+  for (const ip of alertIPs) {
+    if (!markers[ip]) {
+      let lat = null, lon = null;
+      
+      if (DEMO_LOCATIONS[ip]) {
+        [lat, lon] = DEMO_LOCATIONS[ip];
+      } else if (ip.startsWith("10.0.0.")) {
+        // Normal traffic in London area
+        lat = 51.5074 + (Math.random() - 0.5) * 5;
+        lon = -0.1278 + (Math.random() - 0.5) * 5;
+      } else {
+        // Real IP fallback
+        try {
+          const res = await fetch(`http://ip-api.com/json/${ip}`);
+          const data = await res.json();
+          if (data.status === "success") {
+            lat = data.lat;
+            lon = data.lon;
+          }
+        } catch(e) {}
+      }
+      
+      if (lat !== null) {
+        markers[ip] = L.circleMarker([lat, lon], {
+          radius: 8, fillColor: "#f85149", color: "#f85149", 
+          weight: 1, opacity: 1, fillOpacity: 0.6
+        }).addTo(map);
+        markers[ip].bindPopup(`<b>Threat Source</b><br>IP: ${ip}`);
+      } else {
+        markers[ip] = true; // Mark processed
+      }
+    }
+  }
+}
 
 function fmtTime(ts) {
   return new Date(ts * 1000).toLocaleTimeString();
@@ -315,12 +387,14 @@ async function poll() {
     renderAlerts(alerts);
     renderStats(events, alerts, health.event_count);
     updateChart(events);
+    updateMap(alerts);
   } catch (err) {
     console.error('poll failed', err);
   }
 }
 
 initChart();
+initMap();
 poll();
 setInterval(poll, POLL_MS);
 </script>
