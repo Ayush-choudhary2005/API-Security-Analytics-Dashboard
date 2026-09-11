@@ -238,8 +238,8 @@ function renderAlerts(alerts) {
   `).join('');
 }
 
-function renderStats(events, alerts) {
-  document.getElementById('stat-total').textContent = events.length;
+function renderStats(events, alerts, totalEvents) {
+  document.getElementById('stat-total').textContent = totalEvents;
   document.getElementById('stat-alerts').textContent = alerts.length;
   
   const highCount = alerts.filter(a => a.severity === 'high').length;
@@ -306,13 +306,14 @@ function updateChart(events) {
 
 async function poll() {
   try {
-    const [events, alerts] = await Promise.all([
+    const [events, alerts, health] = await Promise.all([
       fetchJSON('/events/recent?limit=50'),
       fetchJSON('/alerts/recent?limit=20'),
+      fetchJSON('/health')
     ]);
     renderFeed(events);
     renderAlerts(alerts);
-    renderStats(events, alerts);
+    renderStats(events, alerts, health.event_count);
     updateChart(events);
   } catch (err) {
     console.error('poll failed', err);
