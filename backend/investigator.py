@@ -34,13 +34,14 @@ def generate_threat_report(event_id: int):
     
     history = get_recent_ip_history(event['ip'], limit=100)
     
-    # Format history as a lightweight text table
-    history_lines = ["time | method | endpoint | status | latency"]
-    for idx, h in enumerate(history):
-        # truncate if too many
-        if idx > 30:
-            history_lines.append("... [truncated] ...")
-            break
+    # Truncate to the 30 most recent events (the actual attack) rather than the oldest
+    if len(history) > 30:
+        history = history[-30:]
+        history_lines = ["... [truncated older events] ...", "time | method | endpoint | status | latency"]
+    else:
+        history_lines = ["time | method | endpoint | status | latency"]
+        
+    for h in history:
         history_lines.append(f"{h['timestamp']:.1f} | {h['method']} | {h['endpoint']} | {h['status_code']} | {h['latency_ms']:.1f}ms")
     
     history_text = "\n".join(history_lines)
