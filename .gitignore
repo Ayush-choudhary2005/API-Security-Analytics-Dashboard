@@ -1,1 +1,3 @@
 venv/
+backend/events.db
+backend/isolation_forest_model.joblib
