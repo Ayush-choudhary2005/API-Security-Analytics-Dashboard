@@ -82,13 +82,14 @@ def compute_anomaly_score(features: dict, history: list) -> float:
     Falls back to statistical z-scores if the model file is missing.
     """
     if ml_model is not None:
-        # Format the live features as a 2D array for scikit-learn
-        X_live = [[
-            features.get("latency_ms", 0),
-            features.get("failed_auth_count", 0),
-            features.get("unique_endpoints", 0),
-            features.get("request_count_10s", 0)
-        ]]
+        import pandas as pd
+        # Format the live features as a DataFrame for scikit-learn to avoid feature name warnings
+        X_live = pd.DataFrame([{
+            "latency_ms": features.get("latency_ms", 0),
+            "failed_auth_count": features.get("failed_auth_count", 0),
+            "unique_endpoints": features.get("unique_endpoints", 0),
+            "request_count_10s": features.get("request_count_10s", 0)
+        }])
         
         # score_samples returns a negative score. More negative = more anomalous.
         raw_score = ml_model.score_samples(X_live)[0]
