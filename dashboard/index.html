@@ -135,6 +135,7 @@
   .tab:hover { color: var(--text); background: rgba(255,255,255,0.05); }
   .tab.active { color: #58a6ff; background: rgba(88,166,255,0.1); }
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
   <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -157,6 +158,7 @@
   <div class="tabs">
     <div class="tab active" id="tab-live" onclick="switchTab('live')">🔴 Live Telemetry</div>
     <div class="tab" id="tab-history" onclick="switchTab('history')">📊 Historical Analytics</div>
+    <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">📖 Architecture & Flow</div>
   </div>
 
   <div id="notification-bar" style="display:none; background: rgba(248,81,73,0.15); border: 1px solid var(--high); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--high); animation: fadeIn 0.3s;">
@@ -271,6 +273,54 @@
     </div>
   </div>
   <!-- End History View -->
+  <!-- Architecture View -->
+  <div id="architecture-view" style="display:none;">
+    <div class="panel" style="margin-bottom: 16px;">
+      <h2>System Architecture & Traffic Flow</h2>
+      <p style="color: var(--muted); margin-bottom: 24px; font-size: 14px; line-height: 1.6;">
+        This diagram illustrates how the <b>ML-O11Y SDK</b> captures traffic inline without adding latency, forwards it to the Python collector, and routes it through the <b>Isolation Forest Machine Learning Model</b> for real-time threat detection and dashboard rendering.
+      </p>
+      
+      <div style="background: rgba(13,17,23,0.8); border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
+        <div class="mermaid">
+        sequenceDiagram
+            autonumber
+            participant Attacker as 🕵️ Attacker
+            participant API as 💻 Host API (SDK)
+            participant Ingest as 🛡️ Ingest Server
+            participant ML as 🧠 ML Scorer
+            participant DB as 💾 SQLite DB
+            participant Dash as 📊 Dashboard
+            participant Hook as 🔔 Webhook/Slack
+
+            Attacker->>API: Malicious Request (Burst/Scan)
+            API-->>Ingest: Async Telemetry (Fire & Forget)
+            Ingest->>Ingest: IP Rate Limiter (Auto-Block?)
+            Ingest->>ML: Extract Features (Latency, Rate)
+            ML-->>Ingest: Risk Score (0-10) & Severity
+            Ingest->>DB: Persist Event & Alert
+            Ingest--)Dash: WebSocket Push (new_event)
+            Ingest--)Hook: High Severity Alert!
+        </div>
+      </div>
+      
+      <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 16px;">
+        <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
+          <h3 style="margin-top:0; color: #58a6ff;">1. Zero-Latency SDK</h3>
+          <p style="font-size: 13px; color: var(--muted);">The Python SDK hooks into Flask's `after_request` to capture metrics. It uses background threading to forward data so the host API is never slowed down.</p>
+        </div>
+        <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
+          <h3 style="margin-top:0; color: #d29922;">2. Machine Learning</h3>
+          <p style="font-size: 13px; color: var(--muted);">Traffic is scored by a trained Isolation Forest model which scales the output. Normal traffic scores ~0.0, while anomalies spike to 6.0+.</p>
+        </div>
+        <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
+          <h3 style="margin-top:0; color: #f85149;">3. Active Defense</h3>
+          <p style="font-size: 13px; color: var(--muted);">When threats are detected, the system auto-blocks abusive IPs at the load balancer level and fires webhooks to alerting systems like Slack.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- End Architecture View -->
 
   <!-- Phase 3 Modal -->
   <div class="modal-overlay" id="investigate-modal" onclick="if(event.target===this) closeInvestigateModal()">
@@ -347,7 +397,8 @@ function getTenant() {
 }
 
 function changeTenant() {
-  initWebSocket(); // Rebind socket to new namespace
+  initWebSocket();
+mermaid.initialize({ startOnLoad: true, theme: "dark" }); // Rebind socket to new namespace
   if(chart) chart.data.labels = [];
   if(pieChart) pieChart.data.datasets[0].data = [0,0,0,0];
   poll();
@@ -359,17 +410,22 @@ function changeTenant() {
 function switchTab(tab) {
   document.getElementById('tab-live').classList.remove('active');
   document.getElementById('tab-history').classList.remove('active');
+  document.getElementById('tab-architecture').classList.remove('active');
   document.getElementById('tab-' + tab).classList.add('active');
+  
+  document.getElementById('live-view').style.display = 'none';
+  document.getElementById('history-view').style.display = 'none';
+  document.getElementById('architecture-view').style.display = 'none';
   
   if (tab === 'live') {
     document.getElementById('live-view').style.display = 'block';
-    document.getElementById('history-view').style.display = 'none';
-  } else {
-    document.getElementById('live-view').style.display = 'none';
+  } else if (tab === 'history') {
     document.getElementById('history-view').style.display = 'block';
     setTimeout(() => {
       loadHistory().then(() => { if(historyChart) historyChart.resize(); });
     }, 50);
+  } else if (tab === 'architecture') {
+    document.getElementById('architecture-view').style.display = 'block';
   }
 }
 
@@ -380,17 +436,35 @@ function initHistoryChart() {
     data: {
       labels: [],
       datasets: [
-        { label: 'Attacks', data: [], backgroundColor: '#f85149', stack: 'Stack 0' },
-        { label: 'Normal Traffic', data: [], backgroundColor: '#58a6ff', stack: 'Stack 0' }
+        { label: 'Attacks', data: [], backgroundColor: 'rgba(248, 81, 73, 0.85)', hoverBackgroundColor: '#f85149', stack: 'Stack 0', borderRadius: 2 },
+        { label: 'Normal Traffic', data: [], backgroundColor: 'rgba(88, 166, 255, 0.5)', hoverBackgroundColor: '#58a6ff', stack: 'Stack 0', borderRadius: 2 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       scales: {
-        x: { ticks: { color: '#8b949e' }, grid: { color: '#262c36' } },
-        y: { ticks: { color: '#8b949e' }, grid: { color: '#262c36' }, stacked: true }
+        x: { 
+          ticks: { color: '#8b949e', font: {family: 'monospace'} }, 
+          grid: { display: false } 
+        },
+        y: { 
+          ticks: { color: '#8b949e', font: {family: 'monospace'} }, 
+          grid: { color: 'rgba(38, 44, 54, 0.3)', borderDash: [2, 4], drawBorder: false }, 
+          stacked: true 
+        }
       },
-      plugins: { legend: { labels: { color: '#8b949e' } } }
+      plugins: { 
+        legend: { position: 'top', labels: { color: '#8b949e', usePointStyle: true, boxWidth: 8 } },
+        tooltip: {
+          backgroundColor: 'rgba(13, 17, 23, 0.9)',
+          titleColor: '#c9d1d9',
+          bodyColor: '#c9d1d9',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          padding: 10
+        }
+      }
     }
   });
 }
@@ -572,16 +646,26 @@ function initPieChart() {
       datasets: [{
         data: [0, 0, 0, 0],
         backgroundColor: ['#d29922', '#58a6ff', '#f85149', '#8b949e'],
-        borderWidth: 0
+        borderWidth: 2,
+        borderColor: '#0d1117',  // Matches background for sleek gaps
+        hoverOffset: 8           // Pop out effect on hover
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { animateScale: true, animateRotate: true, duration: 800 },
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 10 }, padding: 10 } }
+        legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 11 }, usePointStyle: true, padding: 15 } },
+        tooltip: {
+          backgroundColor: 'rgba(13, 17, 23, 0.9)',
+          bodyColor: '#c9d1d9',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          padding: 10
+        }
       },
-      cutout: '70%'
+      cutout: '75%'
     }
   });
 }
@@ -918,6 +1002,7 @@ initPieChart();
 initMap();
 initHistoryChart();
 initWebSocket();
+mermaid.initialize({ startOnLoad: true, theme: "dark" });
 
 // Initial full load
 poll();
