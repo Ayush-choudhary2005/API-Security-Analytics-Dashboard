@@ -17,11 +17,16 @@ This capstone project was completed in 3 distinct phases, moving from basic obse
 - **Behavioral Detection**: The model dynamically learns the "shape" of normal API traffic and flags behavioral deviations (high endpoint entropy, rapid bursts, unusual latency).
 - **Dynamic Thresholds**: Calculates an anomaly score (0-10+). Scores > 5.0 are instantly flagged as `HIGH` severity alerts.
 
-### Phase 3: GenAI Autonomous SOC Analyst
-- **Gemini Integration**: Built a custom investigator agent (`backend/investigator.py`) using `google-genai`.
-- **Context-Aware Prompting**: When an alert fires, the system automatically fetches the offending IP's chronological timeline from the database and builds a context-rich prompt.
-- **Threat Intelligence Reports**: The GenAI model analyzes the traffic patterns, explains exactly *why* the ML model flagged it, and outputs actionable remediation steps (e.g., rate limiting, X-Forwarded-For inspection, WAF rules).
-- **Inline UI**: Reports render instantly in a beautiful markdown modal directly within the live dashboard.
+### Phase 3: Automated GenAI Threat Investigations
+* **Gemini AI Integration:** Calls `gemini-3.6-flash` (with automated fallbacks to 3.7 and 3.5 during high demand) to generate human-readable threat intel.
+* **Contextual Prompts:** Feeds the exact 30 most recent chronological events of an attack into the LLM prompt.
+* **Actionable Reports:** Outputs Threat Analysis, ML Interpretation, and Remediation Plans directly in a dashboard modal.
+
+### God-Tier Dashboard Upgrades (New)
+* **Live IP Geolocation Map:** Uses Leaflet.js and OpenStreetMap to plot attacking IPs on a dark-themed world map in real-time. Automatically falls back to IP-API for real-world public IP geolocation.
+* **Attack Distribution Pie Chart:** Dynamic Chart.js doughnut chart showing the distribution of the last 200 attacks (Brute Force, Scan, Burst, ML Anomaly) to visualize active threat trends.
+* **True Database Telemetry:** Dashboard displays the actual total event count across the SQLite database and gracefully handles missing data without crashing.
+* **Optimized ML Pipeline:** Pandas DataFrame integration silences scikit-learn warnings during real-time feature extraction.
 
 ## Architecture Diagram
 
