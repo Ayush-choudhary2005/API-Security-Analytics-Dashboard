@@ -22,7 +22,7 @@ This capstone project was completed in 3 distinct phases, moving from basic obse
 * **Contextual Prompts:** Feeds the exact 30 most recent chronological events of an attack into the LLM prompt.
 * **Actionable Reports:** Outputs Threat Analysis, ML Interpretation, and Remediation Plans directly in a dashboard modal.
 
-### God-Tier Dashboard Upgrades (New)
+### Dashboard Upgrades (New)
 * **Live IP Geolocation Map:** Uses Leaflet.js and OpenStreetMap to plot attacking IPs on a dark-themed world map in real-time. Automatically falls back to IP-API for real-world public IP geolocation.
 * **Attack Distribution Pie Chart:** Dynamic Chart.js doughnut chart showing the distribution of the last 200 attacks (Brute Force, Scan, Burst, ML Anomaly) to visualize active threat trends.
 * **True Database Telemetry:** Dashboard displays the actual total event count across the SQLite database and gracefully handles missing data without crashing.
