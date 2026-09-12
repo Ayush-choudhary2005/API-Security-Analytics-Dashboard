@@ -1,11 +1,13 @@
 """
-server.py — Collector backend (Phase 1).
+server.py — Collector backend with Real-Time WebSocket support.
 
 Endpoints:
   POST /ingest          -> SDK sends telemetry here (bearer token required)
   GET  /events/recent   -> dashboard polls this for the live feed
   GET  /alerts/recent   -> dashboard polls this for the alert panel
+  GET  /alerts/stats    -> attack distribution statistics
   GET  /health          -> quick liveness check
+  WS   /socket.io       -> real-time push channel for dashboard
 
 Run with:  python3 server.py
 """
@@ -13,6 +15,7 @@ Run with:  python3 server.py
 import time
 import os
 from flask import Flask, request, jsonify, send_from_directory
+from flask_socketio import SocketIO
 
 import db
 import detection
@@ -20,6 +23,10 @@ import detection
 DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "..", "dashboard")
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'api-security-dashboard-secret'
+
+# Initialize SocketIO with CORS allowed for local dev
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Static bearer token for Phase 1 (no real auth/tenant isolation yet —
 # that's Phase 2, see architectures.md Security Architecture section).
@@ -73,6 +80,13 @@ def ingest():
     event_id = db.insert_event(scored_event)
     scored_event["id"] = event_id
 
+    # Push the event to all connected dashboard clients via WebSocket
+    socketio.emit('new_event', scored_event)
+
+    # If it's an alert (medium or high), push that too
+    if scored_event.get("severity") in ("medium", "high"):
+        socketio.emit('new_alert', scored_event)
+
     return jsonify(scored_event), 201
 
 
@@ -88,6 +102,11 @@ def alerts_recent():
     return jsonify(db.get_recent_alerts(limit))
 
 
+@app.route("/alerts/stats", methods=["GET"])
+def alerts_stats():
+    return jsonify(db.get_alert_stats())
+
+
 @app.route("/api/investigate/<int:alert_id>", methods=["GET"])
 def investigate(alert_id):
     import investigator
@@ -98,4 +117,4 @@ def investigate(alert_id):
 if __name__ == "__main__":
     db.init_db()
     print(f"Collector starting. Token: {API_TOKEN}")
-    app.run(host="0.0.0.0", port=5001, debug=False, threaded=True)
+    socketio.run(app, host="0.0.0.0", port=5001, debug=False)

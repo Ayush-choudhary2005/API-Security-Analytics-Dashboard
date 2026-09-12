@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <style>
   /* Dark theme for Leaflet to match the dashboard */
   .leaflet-container { background: #0e1117; }
@@ -127,11 +128,19 @@
     display: none; margin: 40px auto; 
   }
   @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 </head>
 <body>
   <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
-  <div class="subtitle">Polling every 3s &middot; Machine Learning anomaly scoring powered by Isolation Forest &middot; GenAI Threat Reports</div>
+  <div class="subtitle">
+    <span id="ws-status" style="color: var(--low);">● WebSocket Connected</span> &middot; 
+    Machine Learning anomaly scoring powered by Isolation Forest &middot; GenAI Threat Reports
+  </div>
+
+  <div id="notification-bar" style="display:none; background: rgba(248,81,73,0.15); border: 1px solid var(--high); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--high); animation: fadeIn 0.3s;">
+    🚨 <strong id="notification-text">New high-severity alert detected!</strong>
+  </div>
 
   <div class="status-row">
     <div class="stat-card"><div class="label">Total Events</div><div class="value" id="stat-total">0</div></div>
@@ -465,11 +474,84 @@ async function poll() {
   }
 }
 
+// ---- WebSocket Real-Time Connection ----
+let notificationTimeout;
+
+function showNotification(text) {
+  const bar = document.getElementById('notification-bar');
+  document.getElementById('notification-text').textContent = text;
+  bar.style.display = 'block';
+  bar.style.animation = 'none';
+  bar.offsetHeight; // trigger reflow
+  bar.style.animation = 'fadeIn 0.3s';
+  
+  clearTimeout(notificationTimeout);
+  notificationTimeout = setTimeout(() => {
+    bar.style.display = 'none';
+  }, 5000);
+}
+
+function initWebSocket() {
+  const socket = io();
+  
+  socket.on('connect', () => {
+    console.log('WebSocket connected');
+    document.getElementById('ws-status').textContent = '● WebSocket Connected';
+    document.getElementById('ws-status').style.color = 'var(--low)';
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('WebSocket disconnected');
+    document.getElementById('ws-status').textContent = '○ Reconnecting...';
+    document.getElementById('ws-status').style.color = 'var(--medium)';
+  });
+  
+  socket.on('new_event', (event) => {
+    // Prepend to feed table live
+    const body = document.getElementById('feed-body');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${fmtTime(event.timestamp)}</td>
+      <td>${event.endpoint}</td>
+      <td>${event.method}</td>
+      <td>${event.status_code}</td>
+      <td>${event.ip}</td>
+      <td>${event.latency_ms.toFixed(1)}ms</td>
+      <td>${badge(event.severity)}</td>
+    `;
+    row.style.animation = 'fadeIn 0.3s';
+    body.insertBefore(row, body.firstChild);
+    
+    // Keep table trimmed to 15 rows
+    while (body.children.length > 15) {
+      body.removeChild(body.lastChild);
+    }
+    
+    // Update timestamp
+    document.getElementById('stat-time').textContent = new Date().toLocaleTimeString();
+  });
+  
+  socket.on('new_alert', (alert) => {
+    // Show notification for high severity
+    if (alert.severity === 'high') {
+      showNotification(`High-severity attack from ${alert.ip} on ${alert.endpoint}!`);
+    } else {
+      showNotification(`Medium-severity alert from ${alert.ip} on ${alert.endpoint}`);
+    }
+  });
+}
+
 initChart();
 initPieChart();
 initMap();
+initWebSocket();
+
+// Initial full load
 poll();
-setInterval(poll, POLL_MS);
+
+// Slow polling fallback for stats, charts, and counters (every 10s instead of 3s)
+setInterval(poll, 10000);
 </script>
 </body>
 </html>
+

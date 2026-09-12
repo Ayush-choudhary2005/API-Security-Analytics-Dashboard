@@ -3,5 +3,5 @@ requests>=2.31
 scikit-learn
 pandas
 joblib
-
+flask-socketio
 google-genai
