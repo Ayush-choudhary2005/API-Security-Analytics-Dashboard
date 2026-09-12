@@ -27,6 +27,10 @@ This capstone project was completed in 3 distinct phases, moving from basic obse
 * **Attack Distribution Pie Chart:** Dynamic Chart.js doughnut chart showing the distribution of the last 200 attacks (Brute Force, Scan, Burst, ML Anomaly) to visualize active threat trends.
 * **True Database Telemetry:** Dashboard displays the actual total event count across the SQLite database and gracefully handles missing data without crashing.
 * **Optimized ML Pipeline:** Pandas DataFrame integration silences scikit-learn warnings during real-time feature extraction.
+* **PDF Export for Threat Reports:** Includes one-click PDF generation of GenAI threat investigations directly from the modal, formatted perfectly for executive reporting.
+* **Real-Time WebSocket Feed:** Replaced passive polling with a `Flask-SocketIO` WebSocket connection. New events and alerts are pushed instantly to the dashboard with smooth fade-in animations.
+* **IP Rate Limiting & Auto-Block:** In-memory sliding window rate limiter that intercepts requests at the `/ingest` layer. Abusive IPs (>50 requests/min) are automatically blocked (`429 Too Many Requests`) for 5 minutes.
+* **Proactive Threat Suggestions:** Warns the operator in the dashboard via a yellow banner when an IP hits 30% of the threshold, allowing for preemptive one-click manual blocking before the attack peaks.
 
 ## Architecture Diagram
 
