@@ -7,6 +7,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   /* Dark theme for Leaflet to match the dashboard */
   .leaflet-container { background: #0e1117; }
@@ -175,11 +176,14 @@
     <div class="modal">
       <div class="modal-header">
         <h2>✨ GenAI Threat Investigation</h2>
-        <button class="modal-close" onclick="closeInvestigateModal()">&times;</button>
+        <div>
+          <button class="btn-investigate" id="export-pdf-btn" style="margin-right: 8px; display: none;" onclick="downloadPDF()">⬇ Export PDF</button>
+          <button class="modal-close" onclick="closeInvestigateModal()">&times;</button>
+        </div>
       </div>
       <div class="modal-body">
-        <div id="modal-loader" class="loader"></div>
         <div id="modal-content"></div>
+        <div class="loader" id="modal-loader"></div>
       </div>
     </div>
   </div>
@@ -190,6 +194,7 @@ function openInvestigateModal(id) {
   document.getElementById('investigate-modal').style.display = 'flex';
   document.getElementById('modal-content').innerHTML = '';
   document.getElementById('modal-loader').style.display = 'block';
+  document.getElementById('export-pdf-btn').style.display = 'none';
   
   fetch('/api/investigate/' + id)
     .then(r => r.json())
@@ -198,6 +203,7 @@ function openInvestigateModal(id) {
       if (data.report) {
         // Render markdown with marked.js
         document.getElementById('modal-content').innerHTML = marked.parse(data.report);
+        document.getElementById('export-pdf-btn').style.display = 'inline-block';
       } else {
         document.getElementById('modal-content').innerText = 'Error loading report.';
       }
@@ -210,6 +216,26 @@ function openInvestigateModal(id) {
 
 function closeInvestigateModal() {
   document.getElementById('investigate-modal').style.display = 'none';
+}
+
+function downloadPDF() {
+  const element = document.getElementById('modal-content');
+  const opt = {
+    margin:       0.5,
+    filename:     'Threat_Report.pdf',
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2 },
+    jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+  };
+  
+  // Temporarily change colors for PDF export (dark text on white background)
+  const originalColor = element.style.color;
+  element.style.color = '#000';
+  
+  html2pdf().set(opt).from(element).save().then(() => {
+    // Restore original colors
+    element.style.color = originalColor;
+  });
 }
 
 const POLL_MS = 3000;
