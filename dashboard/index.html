@@ -142,6 +142,17 @@
     🚨 <strong id="notification-text">New high-severity alert detected!</strong>
   </div>
 
+  <div id="suggestion-bar" style="display:none; background: rgba(210,153,34,0.15); border: 1px solid var(--medium); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--medium); animation: fadeIn 0.3s;">
+    ⚠️ <strong>Suspicious Activity Detected:</strong> 
+    <span id="suggestion-text"></span>
+    <button id="suggestion-block-btn" class="btn-investigate" style="margin-left: 12px; padding: 4px 12px; color: var(--high); border-color: rgba(248,81,73,0.3); background: rgba(248,81,73,0.1);" onclick="">
+      🚫 Block Now
+    </button>
+    <button class="btn-investigate" style="margin-left: 6px; padding: 4px 12px;" onclick="document.getElementById('suggestion-bar').style.display='none';">
+      Dismiss
+    </button>
+  </div>
+
   <div class="status-row">
     <div class="stat-card"><div class="label">Total Events</div><div class="value" id="stat-total">0</div></div>
     <div class="stat-card"><div class="label">Active Alerts</div><div class="value" id="stat-alerts">0</div></div>
@@ -180,6 +191,19 @@
     </div>
   </div>
   
+  <!-- Blocked IPs Panel -->
+  <div class="panel" style="margin-top: 16px;">
+    <h2>🛡️ Blocked IPs <span id="blocked-count" style="color: var(--high);">(0)</span></h2>
+    <div id="blocked-ips-body" style="font-size: 13px;">
+      <div class="empty">No IPs currently blocked.</div>
+    </div>
+    <div style="margin-top: 12px; display: flex; gap: 8px;">
+      <input type="text" id="manual-block-ip" placeholder="Enter IP to block" 
+        style="background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 12px; flex: 1;">
+      <button onclick="manualBlockIP()" class="btn-investigate" style="padding: 6px 14px;">🚫 Block IP</button>
+    </div>
+  </div>
+
   <!-- Phase 3 Modal -->
   <div class="modal-overlay" id="investigate-modal" onclick="if(event.target===this) closeInvestigateModal()">
     <div class="modal">
@@ -408,6 +432,70 @@ function updatePieChart(stats) {
   pieChart.update('none');
 }
 
+// ---- Blocked IPs ----
+function renderBlockedIPs(blocked) {
+  const body = document.getElementById('blocked-ips-body');
+  document.getElementById('blocked-count').textContent = `(${blocked.length})`;
+  
+  if (blocked.length === 0) {
+    body.innerHTML = '<div class="empty">No IPs currently blocked. Auto-block triggers at 50 requests/minute.</div>';
+    return;
+  }
+  
+  body.innerHTML = blocked.map(b => {
+    const isAuto = b.block_type === 'auto';
+    const badgeColor = isAuto ? 'var(--high)' : '#58a6ff';
+    const badgeBg = isAuto ? 'rgba(248,81,73,0.15)' : 'rgba(88,166,255,0.15)';
+    const badgeLabel = isAuto ? '⚡ AUTO-BLOCKED' : '👤 MANUAL BLOCK';
+    const mins = Math.floor(b.remaining_sec / 60);
+    const secs = b.remaining_sec % 60;
+    const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    
+    return `
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
+      <div style="flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span style="background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;">${badgeLabel}</span>
+          <strong style="color: var(--text); font-size: 14px;">${b.ip}</strong>
+        </div>
+        <div style="color: var(--muted); font-size: 11px;">
+          ${b.reason} · Expires in ${timeStr}
+        </div>
+      </div>
+      <button onclick="unblockIP('${b.ip}')" class="btn-investigate" style="padding: 4px 10px; font-size: 11px; color: var(--low); border-color: rgba(63,185,80,0.3);">✓ Unblock</button>
+    </div>`;
+  }).join('');
+}
+
+async function manualBlockIP() {
+  const input = document.getElementById('manual-block-ip');
+  const ip = input.value.trim();
+  if (!ip) return;
+  
+  await fetch('/block-ip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: ip, duration: 300, reason: 'Manually blocked from dashboard' })
+  });
+  
+  input.value = '';
+  // Refresh blocked list
+  const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+  renderBlockedIPs(blocked);
+}
+
+async function unblockIP(ip) {
+  await fetch('/unblock-ip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: ip })
+  });
+  
+  // Refresh blocked list
+  const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+  renderBlockedIPs(blocked);
+}
+
 function initChart() {
   const ctx = document.getElementById('scoreChart').getContext('2d');
   chart = new Chart(ctx, {
@@ -456,12 +544,12 @@ function updateChart(events) {
 
 async function poll() {
   try {
-    // Fetch everything, but if stats fails, don't crash the whole dashboard
-    const [events, alerts, health, stats] = await Promise.all([
+    const [events, alerts, health, stats, blocked] = await Promise.all([
       fetchJSON('/events/recent?limit=50').catch(() => []),
       fetchJSON('/alerts/recent?limit=20').catch(() => []),
       fetchJSON('/health').catch(() => ({ event_count: 0 })),
-      fetchJSON('/alerts/stats').catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 }))
+      fetchJSON('/alerts/stats').catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
+      fetchJSON('/blocked-ips').catch(() => [])
     ]);
     renderFeed(events);
     renderAlerts(alerts);
@@ -469,6 +557,7 @@ async function poll() {
     updateChart(events);
     updateMap(alerts);
     updatePieChart(stats);
+    renderBlockedIPs(blocked);
   } catch (err) {
     console.error('poll failed', err);
   }
@@ -507,7 +596,6 @@ function initWebSocket() {
   });
   
   socket.on('new_event', (event) => {
-    // Prepend to feed table live
     const body = document.getElementById('feed-body');
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -522,22 +610,51 @@ function initWebSocket() {
     row.style.animation = 'fadeIn 0.3s';
     body.insertBefore(row, body.firstChild);
     
-    // Keep table trimmed to 15 rows
     while (body.children.length > 15) {
       body.removeChild(body.lastChild);
     }
     
-    // Update timestamp
     document.getElementById('stat-time').textContent = new Date().toLocaleTimeString();
   });
   
   socket.on('new_alert', (alert) => {
-    // Show notification for high severity
     if (alert.severity === 'high') {
       showNotification(`High-severity attack from ${alert.ip} on ${alert.endpoint}!`);
     } else {
       showNotification(`Medium-severity alert from ${alert.ip} on ${alert.endpoint}`);
     }
+  });
+  
+  socket.on('ip_blocked', async (data) => {
+    showNotification(`🛡️ IP ${data.ip} auto-blocked: ${data.reason}`);
+    // Hide suggestion bar if it was for this IP
+    document.getElementById('suggestion-bar').style.display = 'none';
+    const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+    renderBlockedIPs(blocked);
+  });
+  
+  socket.on('ip_warning', (data) => {
+    const bar = document.getElementById('suggestion-bar');
+    document.getElementById('suggestion-text').textContent = 
+      `IP ${data.ip} has made ${data.count}/${data.limit} requests in the last 60s — likely an attack in progress.`;
+    
+    const blockBtn = document.getElementById('suggestion-block-btn');
+    blockBtn.onclick = async () => {
+      await fetch('/block-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: data.ip, duration: 300, reason: `Preemptively blocked at ${data.count} req/min` })
+      });
+      bar.style.display = 'none';
+      showNotification(`🛡️ IP ${data.ip} blocked preemptively!`);
+      const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+      renderBlockedIPs(blocked);
+    };
+    
+    bar.style.display = 'block';
+    bar.style.animation = 'none';
+    bar.offsetHeight;
+    bar.style.animation = 'fadeIn 0.3s';
   });
 }
 
