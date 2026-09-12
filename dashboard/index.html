@@ -129,13 +129,34 @@
   }
   @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .tab { padding: 8px 16px; color: var(--muted); cursor: pointer; border-radius: 4px; font-weight: 500; font-size: 14px; transition: all 0.2s; }
+  .tab:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+  .tab.active { color: #58a6ff; background: rgba(88,166,255,0.1); }
 </style>
 </head>
 <body>
-  <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
-  <div class="subtitle">
-    <span id="ws-status" style="color: var(--low);">● WebSocket Connected</span> &middot; 
-    Machine Learning anomaly scoring powered by Isolation Forest &middot; GenAI Threat Reports
+  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+      <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
+      <div class="subtitle">
+        <span id="ws-status" style="color: var(--low);">● WebSocket Connected</span> &middot; 
+        Machine Learning anomaly scoring &middot; GenAI Threat Reports
+      </div>
+    </div>
+    <div>
+      <select id="tenant-select" onchange="changeTenant()" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; font-size: 13px;">
+        <option value="phase1-demo-token">Tenant A (Demo)</option>
+        <option value="tenant-b">Tenant B (Acme Corp)</option>
+        <option value="tenant-c">Tenant C (Stark Ind)</option>
+      </select>
+    </div>
+  </div>
+  
+  <div class="tabs">
+    <div class="tab active" id="tab-live" onclick="switchTab('live')">🔴 Live Telemetry</div>
+    <div class="tab" id="tab-history" onclick="switchTab('history')">📊 Historical Analytics</div>
   </div>
 
   <div id="notification-bar" style="display:none; background: rgba(248,81,73,0.15); border: 1px solid var(--high); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--high); animation: fadeIn 0.3s;">
@@ -153,6 +174,7 @@
     </button>
   </div>
 
+  <div id="live-view">
   <div class="status-row">
     <div class="stat-card"><div class="label">Total Events</div><div class="value" id="stat-total">0</div></div>
     <div class="stat-card"><div class="label">Active Alerts</div><div class="value" id="stat-alerts">0</div></div>
@@ -175,22 +197,34 @@
 
   <div class="grid">
     <div class="panel">
-      <h2>Live Request Feed</h2>
+      <h2 style="margin-top:24px;">Live Request Feed</h2>
+      <div style="height: 400px; overflow-y: auto;">
       <table>
         <thead>
           <tr><th>Time</th><th>Endpoint</th><th>Method</th><th>Status</th><th>IP</th><th>Latency</th><th>Severity</th></tr>
         </thead>
         <tbody id="feed-body"></tbody>
       </table>
-      <div class="chart-wrap"><canvas id="scoreChart"></canvas></div>
+      </div>
     </div>
 
     <div class="panel">
-      <h2>Alerts</h2>
-      <div id="alerts-body" class="scrollable-alerts"><div class="empty">No alerts yet.</div></div>
+      <h2 style="margin-top:24px;">Alerts</h2>
+      <div id="alerts-body" class="scrollable-alerts" style="height: 400px; overflow-y: auto;"><div class="empty">No alerts yet.</div></div>
     </div>
   </div>
   
+    <div class="panel" style="margin-top: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h2 style="margin: 0;">Attack Distribution (Time)</h2>
+      <div class="tabs" style="margin-bottom: 0; padding-bottom: 0; border: none;">
+        <div class="tab active" id="btn-30s" onclick="setChartWindow(30, 'btn-30s')" style="padding: 4px 10px; font-size: 12px;">30s</div>
+        <div class="tab" id="btn-1m" onclick="setChartWindow(60, 'btn-1m')" style="padding: 4px 10px; font-size: 12px;">1m</div>
+        <div class="tab" id="btn-5m" onclick="setChartWindow(300, 'btn-5m')" style="padding: 4px 10px; font-size: 12px;">5m</div>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height: 200px;"><canvas id="scoreChart"></canvas></div>
+  </div>
   <!-- Blocked IPs Panel -->
   <div class="panel" style="margin-top: 16px;">
     <h2>🛡️ Blocked IPs <span id="blocked-count" style="color: var(--high);">(0)</span></h2>
@@ -203,6 +237,40 @@
       <button onclick="manualBlockIP()" class="btn-investigate" style="padding: 6px 14px;">🚫 Block IP</button>
     </div>
   </div>
+  </div>
+  <!-- End Live View -->
+
+  <!-- History View -->
+  <div id="history-view" style="display:none;">
+    <div class="panel" style="margin-bottom: 16px;">
+      <h2>Attacks Timeline (Last 60 Minutes)</h2>
+      <div style="height: 250px;">
+        <canvas id="historyTimelineChart"></canvas>
+      </div>
+    </div>
+    
+    <div class="grid">
+      <div class="panel">
+        <h2>Top Attacked Endpoints</h2>
+        <table>
+          <thead>
+            <tr><th>Endpoint</th><th>Attack Count</th></tr>
+          </thead>
+          <tbody id="history-endpoints-body"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h2>Top Attacking IPs</h2>
+        <table>
+          <thead>
+            <tr><th>IP Address</th><th>Attack Count</th></tr>
+          </thead>
+          <tbody id="history-ips-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- End History View -->
 
   <!-- Phase 3 Modal -->
   <div class="modal-overlay" id="investigate-modal" onclick="if(event.target===this) closeInvestigateModal()">
@@ -269,6 +337,102 @@ function downloadPDF() {
     // Restore original colors
     element.style.color = originalColor;
   });
+}
+
+
+let historyChart;
+
+function getTenant() {
+  return document.getElementById('tenant-select').value;
+}
+
+function changeTenant() {
+  initWebSocket(); // Rebind socket to new namespace
+  if(chart) chart.data.labels = [];
+  if(pieChart) pieChart.data.datasets[0].data = [0,0,0,0];
+  poll();
+  if (document.getElementById('tab-history').classList.contains('active')) {
+    loadHistory().then(() => { if(historyChart) historyChart.resize(); });
+  }
+}
+
+function switchTab(tab) {
+  document.getElementById('tab-live').classList.remove('active');
+  document.getElementById('tab-history').classList.remove('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  
+  if (tab === 'live') {
+    document.getElementById('live-view').style.display = 'block';
+    document.getElementById('history-view').style.display = 'none';
+  } else {
+    document.getElementById('live-view').style.display = 'none';
+    document.getElementById('history-view').style.display = 'block';
+    setTimeout(() => {
+      loadHistory().then(() => { if(historyChart) historyChart.resize(); });
+    }, 50);
+  }
+}
+
+function initHistoryChart() {
+  const ctx = document.getElementById('historyTimelineChart').getContext('2d');
+  historyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'Attacks', data: [], backgroundColor: '#f85149', stack: 'Stack 0' },
+        { label: 'Normal Traffic', data: [], backgroundColor: '#58a6ff', stack: 'Stack 0' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#8b949e' }, grid: { color: '#262c36' } },
+        y: { ticks: { color: '#8b949e' }, grid: { color: '#262c36' }, stacked: true }
+      },
+      plugins: { legend: { labels: { color: '#8b949e' } } }
+    }
+  });
+}
+
+async function loadHistory() {
+  try {
+    const tenant = getTenant();
+    const hist = await fetchJSON(`/history?tenant_id=${tenant}`);
+    
+    if (!hist || !hist.top_endpoints) {
+      console.error("Invalid history data received", hist);
+      return;
+    }
+    
+    const endpointsBody = document.getElementById('history-endpoints-body');
+    if (hist.top_endpoints.length === 0) {
+      endpointsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted); padding:20px;">No attack data for this tenant yet.</td></tr>';
+    } else {
+      endpointsBody.innerHTML = hist.top_endpoints.map(e => 
+        `<tr><td><strong>${e.endpoint}</strong></td><td style="color:var(--high)">${e.count}</td></tr>`
+      ).join('');
+    }
+    
+    const ipsBody = document.getElementById('history-ips-body');
+    if (hist.top_ips.length === 0) {
+      ipsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted); padding:20px;">No attack data for this tenant yet.</td></tr>';
+    } else {
+      ipsBody.innerHTML = hist.top_ips.map(ip => 
+        `<tr><td><strong>${ip.ip}</strong></td><td style="color:var(--high)">${ip.count}</td></tr>`
+      ).join('');
+    }
+    
+    if (historyChart) {
+      historyChart.data.labels = hist.timeline.map(t => t.minute);
+      historyChart.data.datasets[0].data = hist.timeline.map(t => t.attacks);
+      historyChart.data.datasets[1].data = hist.timeline.map(t => t.total - t.attacks);
+      historyChart.update();
+    }
+  } catch (err) {
+    console.error("Failed to load history:", err);
+    document.getElementById('history-endpoints-body').innerHTML = `<tr><td colspan="2" style="color:var(--high);">Error loading data. Did you restart the backend server?</td></tr>`;
+  }
 }
 
 const POLL_MS = 3000;
@@ -422,7 +586,8 @@ function initPieChart() {
   });
 }
 
-function updatePieChart(stats) {
+function updatePieChart(stats, force = false) {
+  if(!force && pieChart && pieChart.data.datasets[0].data.some(d => d > 0)) return; // Let WS handle it
   pieChart.data.datasets[0].data = [
     stats.brute_force, 
     stats.endpoint_scan, 
@@ -472,7 +637,8 @@ async function manualBlockIP() {
   const ip = input.value.trim();
   if (!ip) return;
   
-  await fetch('/block-ip', {
+  const tenant = getTenant();
+  await fetch(`/block-ip?tenant_id=${tenant}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ip: ip, duration: 300, reason: 'Manually blocked from dashboard' })
@@ -534,7 +700,8 @@ function initChart() {
   });
 }
 
-function updateChart(events) {
+function updateChart(events, force = false) {
+  if(!force && chart && chart.data.labels.length > 0) return; // Let WS handle it smoothly
   const ordered = [...events].reverse();
   chart.data.labels = ordered.map(e => fmtTime(e.timestamp));
   chart.data.datasets[0].data = ordered.map(e => e.anomaly_score);
@@ -544,11 +711,12 @@ function updateChart(events) {
 
 async function poll() {
   try {
+    const t = getTenant();
     const [events, alerts, health, stats, blocked] = await Promise.all([
-      fetchJSON('/events/recent?limit=50').catch(() => []),
-      fetchJSON('/alerts/recent?limit=20').catch(() => []),
-      fetchJSON('/health').catch(() => ({ event_count: 0 })),
-      fetchJSON('/alerts/stats').catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
+      fetchJSON(`/events/recent?limit=50&tenant_id=${t}`).catch(() => []),
+      fetchJSON(`/alerts/recent?limit=20&tenant_id=${t}`).catch(() => []),
+      fetchJSON(`/health?tenant_id=${t}`).catch(() => ({ event_count: 0 })),
+      fetchJSON(`/alerts/stats?tenant_id=${t}`).catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
       fetchJSON('/blocked-ips').catch(() => [])
     ]);
     renderFeed(events);
@@ -580,22 +748,57 @@ function showNotification(text) {
   }, 5000);
 }
 
+
+let socket;
+let currentWsTenant = null;
+let wsEventsBatch = [];
+let wsChartTimer = null;
+let maxChartPoints = 30;
+
+function setChartWindow(points, btnId) {
+  maxChartPoints = points;
+  document.getElementById('btn-30s').classList.remove('active');
+  document.getElementById('btn-1m').classList.remove('active');
+  document.getElementById('btn-5m').classList.remove('active');
+  document.getElementById(btnId).classList.add('active');
+  
+  if (chart) {
+    while (chart.data.labels.length > maxChartPoints) {
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+      chart.data.datasets[1].data.shift();
+    }
+    chart.update();
+  }
+}
+
+
 function initWebSocket() {
-  const socket = io();
+  if (!socket) {
+    socket = io();
+    socket.on('connect', () => {
+      document.getElementById('ws-status').textContent = '● WebSocket Connected';
+      document.getElementById('ws-status').style.color = 'var(--low)';
+    });
+    socket.on('disconnect', () => {
+      document.getElementById('ws-status').textContent = '○ Reconnecting...';
+      document.getElementById('ws-status').style.color = 'var(--medium)';
+    });
+  }
+
+  const tenant = getTenant();
+  if (currentWsTenant === tenant) return;
   
-  socket.on('connect', () => {
-    console.log('WebSocket connected');
-    document.getElementById('ws-status').textContent = '● WebSocket Connected';
-    document.getElementById('ws-status').style.color = 'var(--low)';
-  });
+  if (currentWsTenant) {
+    socket.off(`new_event_${currentWsTenant}`);
+    socket.off(`new_alert_${currentWsTenant}`);
+    socket.off(`ip_blocked_${currentWsTenant}`);
+    socket.off(`ip_warning_${currentWsTenant}`);
+  }
   
-  socket.on('disconnect', () => {
-    console.log('WebSocket disconnected');
-    document.getElementById('ws-status').textContent = '○ Reconnecting...';
-    document.getElementById('ws-status').style.color = 'var(--medium)';
-  });
-  
-  socket.on('new_event', (event) => {
+  currentWsTenant = tenant;
+
+  socket.on(`new_event_${tenant}`, (event) => {
     const body = document.getElementById('feed-body');
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -607,40 +810,91 @@ function initWebSocket() {
       <td>${event.latency_ms.toFixed(1)}ms</td>
       <td>${badge(event.severity)}</td>
     `;
-    row.style.animation = 'fadeIn 0.3s';
+    row.style.animation = 'fadeIn 0.5s';
     body.insertBefore(row, body.firstChild);
+    if (body.children.length > 15) body.removeChild(body.lastChild);
     
-    while (body.children.length > 15) {
-      body.removeChild(body.lastChild);
-    }
-    
+    const countEl = document.getElementById('stat-total');
+    countEl.textContent = parseInt(countEl.textContent) + 1;
     document.getElementById('stat-time').textContent = new Date().toLocaleTimeString();
-  });
-  
-  socket.on('new_alert', (alert) => {
-    if (alert.severity === 'high') {
-      showNotification(`High-severity attack from ${alert.ip} on ${alert.endpoint}!`);
-    } else {
-      showNotification(`Medium-severity alert from ${alert.ip} on ${alert.endpoint}`);
+    
+    // Smooth Real-Time Chart Batching (1 FPS)
+    wsEventsBatch.push(event);
+    if (!wsChartTimer) {
+      wsChartTimer = setTimeout(() => {
+        if (chart && wsEventsBatch.length > 0) {
+          // Aggregate all events in this 1s batch into a SINGLE point to prevent jittering
+          const maxScore = Math.max(...wsEventsBatch.map(e => e.anomaly_score));
+          const ts = fmtTime(wsEventsBatch[wsEventsBatch.length - 1].timestamp);
+          
+          chart.data.labels.push(ts);
+          chart.data.datasets[0].data.push(maxScore);
+          chart.data.datasets[1].data.push(5.0); // Threshold line
+          
+          while (chart.data.labels.length > maxChartPoints) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+            chart.data.datasets[1].data.shift();
+          }
+          chart.update(); // Super smooth 1 FPS glide!
+        }
+        if (pieChart) {
+          let updated = false;
+          wsEventsBatch.forEach(e => {
+             if (e.severity !== 'low') {
+               const flags = e.rule_flags || [];
+               if (flags.includes('brute_force')) pieChart.data.datasets[0].data[0]++;
+               else if (flags.includes('endpoint_scan')) pieChart.data.datasets[0].data[1]++;
+               else if (flags.includes('request_burst')) pieChart.data.datasets[0].data[2]++;
+               else pieChart.data.datasets[0].data[3]++;
+               updated = true;
+             }
+          });
+          if(updated) pieChart.update();
+        }
+        wsEventsBatch = [];
+        wsChartTimer = null;
+      }, 1000);
     }
   });
   
-  socket.on('ip_blocked', async (data) => {
+  socket.on(`new_alert_${tenant}`, (alert) => {
+    const body = document.getElementById('alerts-body');
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px;">
+        <div>
+          <div style="font-weight: 600; font-size: 14px;">${alert.endpoint} — <span style="color: ${alert.severity==='high'?'var(--high)':'var(--medium)'}">${alert.severity.toUpperCase()}</span></div>
+          <div style="color: var(--muted); font-size: 12px; margin-top: 4px;">
+            IP ${alert.ip} &middot; ${fmtTime(alert.timestamp)} &middot; score ${alert.anomaly_score.toFixed(2)} &middot; rules: ${(alert.rule_flags || []).join(', ') || 'none'}
+          </div>
+        </div>
+        <button onclick="investigate(${alert.id})" class="btn-investigate">Investigate</button>
+      </div>
+    `;
+    div.style.animation = 'fadeIn 0.5s';
+    body.insertBefore(div, body.firstChild);
+    
+    if (alert.severity === 'high') {
+      showNotification(`🚨 High-severity alert on ${alert.endpoint} from ${alert.ip}!`);
+    }
+  });
+
+  socket.on(`ip_blocked_${tenant}`, async (data) => {
     showNotification(`🛡️ IP ${data.ip} auto-blocked: ${data.reason}`);
-    // Hide suggestion bar if it was for this IP
     document.getElementById('suggestion-bar').style.display = 'none';
     const blocked = await fetchJSON('/blocked-ips').catch(() => []);
     renderBlockedIPs(blocked);
   });
   
-  socket.on('ip_warning', (data) => {
+  socket.on(`ip_warning_${tenant}`, (data) => {
     const bar = document.getElementById('suggestion-bar');
     document.getElementById('suggestion-text').textContent = 
       `IP ${data.ip} has made ${data.count}/${data.limit} requests in the last 60s — likely an attack in progress.`;
     
     const blockBtn = document.getElementById('suggestion-block-btn');
     blockBtn.onclick = async () => {
-      await fetch('/block-ip', {
+      await fetch(`/block-ip?tenant_id=${tenant}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip: data.ip, duration: 300, reason: `Preemptively blocked at ${data.count} req/min` })
@@ -658,9 +912,11 @@ function initWebSocket() {
   });
 }
 
+
 initChart();
 initPieChart();
 initMap();
+initHistoryChart();
 initWebSocket();
 
 // Initial full load

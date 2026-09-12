@@ -92,10 +92,11 @@ def compute_anomaly_score(features: dict, history: list) -> float:
         }])
         
         # score_samples returns a negative score. More negative = more anomalous.
+        # Normal traffic is usually around -0.4. Attacks are usually around -0.7 to -0.8.
         raw_score = ml_model.score_samples(X_live)[0]
         
-        # Invert and scale it into a positive risk score (0 to 10+)
-        risk_score = max(0, -raw_score * 10)
+        # Shift and scale so normal traffic stays near 0-1, and attacks spike > 5
+        risk_score = max(0, (-raw_score - 0.42) * 20)
         return round(risk_score, 3)
 
     # --- Phase 1 Fallback Logic below ---
