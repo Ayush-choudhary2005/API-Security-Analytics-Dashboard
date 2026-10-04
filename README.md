@@ -1,4 +1,4 @@
-# 🛡️ God-Tier API Security Analytics & Active Defense Platform
+# 🛡️ API Security Analytics & Active Defense Platform
 
 An end-to-end, zero-latency API observability and security platform. This project detects zero-day API abuse, behavioral anomalies, and automated attacks using an unsupervised Machine Learning model (**Isolation Forest**). It actively defends servers via auto-blocking and webhooks, and investigates threats autonomously using **Generative AI (Google Gemini)**.
 
