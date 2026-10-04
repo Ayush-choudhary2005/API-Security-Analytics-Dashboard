@@ -28,7 +28,11 @@ ENDPOINTS = [
     ("GET", "/api/users/alice"),
 ]
 
-NORMAL_IPS = [f"10.0.0.{i}" for i in range(1, 6)]
+NORMAL_IPS = [f"10.0.0.{i}" for i in range(1, 50)]  # Expanded normal IP pool
+
+def random_attack_ip():
+    """Generates a random external IP address for attackers."""
+    return f"{random.randint(100, 203)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
 
 
 def normal_traffic(duration_sec: int = 20, rate_per_sec: float = 2.0):
@@ -45,7 +49,8 @@ def normal_traffic(duration_sec: int = 20, rate_per_sec: float = 2.0):
     print("[normal] done")
 
 
-def brute_force(attempts: int = 10, ip: str = "203.0.113.9"):
+def brute_force(attempts: int = 10, ip: str = None):
+    ip = ip or random_attack_ip()
     print(f"[brute_force] sending {attempts} failed logins from {ip}")
     for i in range(attempts):
         try:
@@ -58,15 +63,12 @@ def brute_force(attempts: int = 10, ip: str = "203.0.113.9"):
         except requests.RequestException:
             pass
         time.sleep(0.3)
-    print("[brute_force] done - check dashboard for 'brute_force' alert")
+    print("[brute_force] done")
 
 
-def endpoint_scan(unique_hits: int = 20, ip: str = "203.0.113.44"):
+def endpoint_scan(unique_hits: int = 20, ip: str = None):
+    ip = ip or random_attack_ip()
     print(f"[scan] hitting {unique_hits} distinct endpoints from {ip}")
-    # /api/users/<username> is a dynamic route, so each different username
-    # segment is genuinely a distinct request.path - real path enumeration,
-    # not just query-string noise (query strings aren't part of request.path
-    # in Flask, so they wouldn't count toward the unique-endpoint feature).
     for i in range(unique_hits):
         path = f"/api/users/probe{i}"
         try:
@@ -74,10 +76,11 @@ def endpoint_scan(unique_hits: int = 20, ip: str = "203.0.113.44"):
         except requests.RequestException:
             pass
         time.sleep(0.1)
-    print("[scan] done - check dashboard for 'endpoint_scan' alert")
+    print("[scan] done")
 
 
-def request_burst(requests_count: int = 40, ip: str = "203.0.113.77"):
+def request_burst(requests_count: int = 60, ip: str = None):
+    ip = ip or random_attack_ip()
     print(f"[burst] firing {requests_count} requests in a short window from {ip}")
     for i in range(requests_count):
         try:
@@ -85,27 +88,58 @@ def request_burst(requests_count: int = 40, ip: str = "203.0.113.77"):
         except requests.RequestException:
             pass
         time.sleep(0.05)
-    print("[burst] done - check dashboard for 'request_burst' alert")
+    print("[burst] done")
+
+
+def continuous_traffic():
+    """Runs forever, mixing continuous normal traffic with random attacks."""
+    import threading
+    print("[continuous] Starting infinite traffic generation. Press Ctrl+C to stop.")
+    
+    # Thread to keep normal traffic flowing constantly
+    def background_normal():
+        while True:
+            normal_traffic(duration_sec=10, rate_per_sec=4.0)
+            
+    t = threading.Thread(target=background_normal, daemon=True)
+    t.start()
+    
+    # Main thread randomly injects attacks
+    attack_funcs = [
+        lambda: brute_force(attempts=random.randint(6, 12)),
+        lambda: endpoint_scan(unique_hits=random.randint(16, 25)),
+        lambda: request_burst(requests_count=random.randint(35, 60))
+    ]
+    
+    try:
+        while True:
+            time.sleep(random.uniform(5.0, 15.0)) # Wait 5-15 seconds between attacks
+            attack = random.choice(attack_funcs)
+            attack()
+    except KeyboardInterrupt:
+        print("\n[continuous] Stopped.")
 
 
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
 
     if mode == "normal":
-        normal_traffic()
+        normal_traffic(duration_sec=60) # Increased default for manual runs
     elif mode == "brute_force":
         brute_force()
     elif mode == "scan":
         endpoint_scan()
     elif mode == "burst":
         request_burst()
+    elif mode == "continuous":
+        continuous_traffic()
     elif mode == "all":
-        normal_traffic(duration_sec=8, rate_per_sec=3)
+        normal_traffic(duration_sec=15, rate_per_sec=3)
         time.sleep(1)
         brute_force()
-        time.sleep(1)
+        time.sleep(2)
         endpoint_scan()
-        time.sleep(1)
+        time.sleep(2)
         request_burst()
     else:
         print(f"Unknown mode: {mode}")

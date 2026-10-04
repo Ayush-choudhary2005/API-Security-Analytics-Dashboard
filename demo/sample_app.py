@@ -17,7 +17,8 @@ from flask import Flask, jsonify, request
 # ---- SDK integration: 3 lines ----
 from middleware import observe
 app = Flask(__name__)
-observe(app, collector_url="http://localhost:5001", token="phase1-demo-token")
+token = os.environ.get("TENANT_TOKEN", "phase1-demo-token")
+observe(app, collector_url="http://localhost:5001", token=token)
 # -----------------------------------
 
 USERS = {"alice": "pw123", "bob": "hunter2"}

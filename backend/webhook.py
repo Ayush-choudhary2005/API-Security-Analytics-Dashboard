@@ -2,7 +2,9 @@ import requests
 import threading
 
 # You can set this to a real Slack/Discord webhook URL
-WEBHOOK_URL = "http://localhost:5001/api/webhook_test"
+import os
+WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+
 
 def send_alert(alert_data):
     """Fires a webhook in the background so it doesn't block the ingest pipeline."""
@@ -18,8 +20,10 @@ def send_alert(alert_data):
                     f"*Rules:* {', '.join(alert_data.get('rule_flags', []))}"
         }
         try:
-            requests.post(WEBHOOK_URL, json=payload, timeout=2)
+            print(f"\n[WEBHOOK] Attempting to send to Slack...")
+            res = requests.post(WEBHOOK_URL, json=payload, timeout=5)
+            print(f"[WEBHOOK] Slack responded: {res.status_code} {res.text}\n")
         except Exception as e:
-            pass
+            print(f"\n[WEBHOOK] FAILED TO SEND: {e}\n")
             
     threading.Thread(target=_post, daemon=True).start()

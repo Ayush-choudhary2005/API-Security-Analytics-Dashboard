@@ -10,13 +10,15 @@ import sqlite3
 import json
 import os
 import threading
+import json
+from threading import Lock
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "events.db")
 
 # SQLite + threading: Flask's dev server can handle requests on different
 # threads, so we use a lock around writes to keep things simple and safe
 # for a 24-hour build (no connection pooling needed at this scale).
-_lock = threading.Lock()
+_lock = Lock()
 
 
 def get_conn():
@@ -39,13 +41,17 @@ def init_db():
             latency_ms REAL NOT NULL,
             ip TEXT NOT NULL,
             user_id TEXT,
-            payload_size INTEGER DEFAULT 0,
-            rule_flags TEXT DEFAULT '[]',
-            anomaly_score REAL DEFAULT 0.0,
-            severity TEXT DEFAULT 'low'
+            payload_size INTEGER NOT NULL,
+            rule_flags TEXT,
+            anomaly_score REAL,
+            severity TEXT,
+            tenant_id TEXT DEFAULT 'default'
         )
         """
     )
+    # create index for fast queries
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tenant ON events(tenant_id, timestamp)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ip ON events(ip, timestamp)")
     conn.commit()
     conn.close()
 
@@ -58,8 +64,8 @@ def insert_event(event: dict) -> int:
             """
             INSERT INTO events
                 (timestamp, endpoint, method, status_code, latency_ms,
-                 ip, user_id, payload_size, rule_flags, anomaly_score, severity)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ip, user_id, payload_size, rule_flags, anomaly_score, severity, tenant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 event["timestamp"],
@@ -73,6 +79,7 @@ def insert_event(event: dict) -> int:
                 json.dumps(event.get("rule_flags", [])),
                 event.get("anomaly_score", 0.0),
                 event.get("severity", "low"),
+                event.get("tenant_id", "default"),
             ),
         )
         conn.commit()
@@ -81,29 +88,29 @@ def insert_event(event: dict) -> int:
         return event_id
 
 
-def get_recent_events(limit: int = 50):
+def get_recent_events(limit: int = 50, tenant_id: str = "default"):
     conn = get_conn()
     rows = conn.execute(
-        "SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)
+        "SELECT * FROM events WHERE tenant_id = ? ORDER BY id DESC LIMIT ?", (tenant_id, limit)
     ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
 
 
-def get_recent_alerts(limit: int = 50):
+def get_recent_alerts(limit: int = 50, tenant_id: str = "default"):
     conn = get_conn()
     rows = conn.execute(
-        "SELECT * FROM events WHERE severity != 'low' ORDER BY id DESC LIMIT ?",
-        (limit,),
+        "SELECT * FROM events WHERE tenant_id = ? AND severity != 'low' ORDER BY id DESC LIMIT ?",
+        (tenant_id, limit),
     ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
 
 
-def get_alert_stats():
+def get_alert_stats(tenant_id: str = "default"):
     """Returns the count of each attack type for the most recent 200 alerts to keep the chart dynamic."""
     conn = get_conn()
-    rows = conn.execute("SELECT rule_flags, severity, anomaly_score FROM events WHERE severity != 'low' ORDER BY id DESC LIMIT 200").fetchall()
+    rows = conn.execute("SELECT rule_flags, severity, anomaly_score FROM events WHERE tenant_id = ? AND severity != 'low' ORDER BY id DESC LIMIT 200", (tenant_id,)).fetchall()
     conn.close()
     
     stats = {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "anomaly": 0}
@@ -151,11 +158,36 @@ def get_events_since(ip: str, since_timestamp: float):
     return [_row_to_dict(r) for r in rows]
 
 
-def get_all_events_count():
+def get_all_events_count(tenant_id: str = "default"):
     conn = get_conn()
-    count = conn.execute("SELECT COUNT(*) as c FROM events").fetchone()["c"]
+    count = conn.execute("SELECT COUNT(*) as c FROM events WHERE tenant_id = ?", (tenant_id,)).fetchone()["c"]
     conn.close()
     return count
+
+
+def get_historical_stats(tenant_id: str = "default"):
+    """Fetches aggregated historical data for the analytics dashboard tab."""
+    conn = get_conn()
+    
+    top_endpoints = conn.execute(
+        "SELECT endpoint, count(*) as count FROM events WHERE tenant_id = ? AND severity != 'low' GROUP BY endpoint ORDER BY count DESC LIMIT 5", (tenant_id,)
+    ).fetchall()
+    
+    top_ips = conn.execute(
+        "SELECT ip, count(*) as count FROM events WHERE tenant_id = ? AND severity != 'low' GROUP BY ip ORDER BY count DESC LIMIT 5", (tenant_id,)
+    ).fetchall()
+    
+    timeline = conn.execute(
+        "SELECT strftime('%H:%M', datetime(timestamp, 'unixepoch', 'localtime')) as minute, sum(case when severity != 'low' then 1 else 0 end) as attacks, count(*) as total FROM events WHERE tenant_id = ? GROUP BY minute ORDER BY minute ASC LIMIT 60", (tenant_id,)
+    ).fetchall()
+    
+    conn.close()
+    
+    return {
+        "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
+        "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
+        "timeline": [{"minute": r["minute"], "attacks": r["attacks"], "total": r["total"]} for r in timeline]
+    }
 
 
 def _row_to_dict(row):

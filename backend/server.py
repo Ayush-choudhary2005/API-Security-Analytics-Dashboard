@@ -119,7 +119,7 @@ def ingest():
         socketio.emit(f'new_alert_{tenant_id}', scored_event)
         
         # Fire automated webhook for HIGH severity attacks
-        if scored_event.get("severity") == "high":
+        if scored_event.get("severity") in ("medium", "high"):
             webhook.send_alert(scored_event)
 
     return jsonify(scored_event), 201

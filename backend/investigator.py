@@ -69,12 +69,24 @@ Write a brief, professional threat intelligence report in Markdown format contai
 Keep it concise and punchy. Use markdown formatting.
 """
 
+    # Fallback models in case of 503 High Demand errors
+    models_to_try = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash']
+    last_error = ""
+    
     try:
         client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model='gemini-3.6-flash',
-            contents=prompt,
-        )
-        return response.text
+        for model_name in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                return response.text
+            except Exception as e:
+                print(f"Model {model_name} failed: {e}")
+                last_error = str(e)
+                continue
+                
+        return f"Error: All fallback models failed. Last error: {last_error}"
     except Exception as e:
         return f"Error connecting to Gemini API: {str(e)}"
