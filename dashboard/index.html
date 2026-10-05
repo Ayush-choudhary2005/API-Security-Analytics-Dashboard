@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 <style>
   /* Dark theme for Leaflet to match the dashboard */
   .leaflet-container { background: #0e1117; }
@@ -98,15 +99,15 @@
   }
   .btn-investigate:hover { background: rgba(88,166,255,0.2); }
   
-  /* Phase 3 Modal UI */
+  /* Modals */
   .modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7); display: none;
+    background: rgba(0,0,0,0.75); display: none;
     justify-content: center; align-items: center; z-index: 1000;
   }
   .modal {
     background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-    width: 700px; max-width: 90%; max-height: 80vh; display: flex; flex-direction: column;
+    width: 700px; max-width: 90%; max-height: 85vh; display: flex; flex-direction: column;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
   }
   .modal-header {
@@ -134,195 +135,310 @@
   .tab { padding: 8px 16px; color: var(--muted); cursor: pointer; border-radius: 4px; font-weight: 500; font-size: 14px; transition: all 0.2s; }
   .tab:hover { color: var(--text); background: rgba(255,255,255,0.05); }
   .tab.active { color: #58a6ff; background: rgba(88,166,255,0.1); }
+
+  /* Auth UI Styles */
+  .auth-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 80vh;
+  }
+  .auth-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    width: 440px;
+    max-width: 95%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .auth-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-top: 6px;
+    margin-bottom: 16px;
+    outline: none;
+  }
+  .auth-input:focus { border-color: #58a6ff; }
+  .auth-btn {
+    width: 100%;
+    background: #238636;
+    color: #fff;
+    border: 1px solid rgba(240,246,252,0.1);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .auth-btn:hover { background: #2ea043; }
+  .auth-error {
+    background: rgba(248,81,73,0.15);
+    border: 1px solid var(--high);
+    color: var(--high);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .auth-tabs {
+    display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 8px;
+  }
 </style>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
-  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-    <div>
-      <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
-      <div class="subtitle">
-        <span id="ws-status" style="color: var(--low);">● WebSocket Connected</span> &middot; 
-        Machine Learning anomaly scoring &middot; GenAI Threat Reports
+
+  <!-- ================= AUTH VIEW ================= -->
+  <div id="auth-app" class="auth-wrapper" style="display: none;">
+    <div class="auth-card">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="font-size: 22px; margin-bottom: 8px;">🛡️ API Security Analytics</h1>
+        <p style="color: var(--muted); font-size: 13px; margin: 0;">Active Defense & Real-Time Observability Platform</p>
       </div>
-    </div>
-    <div>
-      <select id="tenant-select" onchange="changeTenant()" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; font-size: 13px;">
-        <option value="phase1-demo-token">Tenant A (Demo)</option>
-        <option value="tenant-b">Tenant B (Acme Corp)</option>
-        <option value="tenant-c">Tenant C (Stark Ind)</option>
-      </select>
-    </div>
-  </div>
-  
-  <div class="tabs">
-    <div class="tab active" id="tab-live" onclick="switchTab('live')">🔴 Live Telemetry</div>
-    <div class="tab" id="tab-history" onclick="switchTab('history')">📊 Historical Analytics</div>
-    <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">📖 Architecture & Flow</div>
-  </div>
 
-  <div id="notification-bar" style="display:none; background: rgba(248,81,73,0.15); border: 1px solid var(--high); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--high); animation: fadeIn 0.3s;">
-    🚨 <strong id="notification-text">New high-severity alert detected!</strong>
-  </div>
-
-  <div id="suggestion-bar" style="display:none; background: rgba(210,153,34,0.15); border: 1px solid var(--medium); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--medium); animation: fadeIn 0.3s;">
-    ⚠️ <strong>Suspicious Activity Detected:</strong> 
-    <span id="suggestion-text"></span>
-    <button id="suggestion-block-btn" class="btn-investigate" style="margin-left: 12px; padding: 4px 12px; color: var(--high); border-color: rgba(248,81,73,0.3); background: rgba(248,81,73,0.1);" onclick="">
-      🚫 Block Now
-    </button>
-    <button class="btn-investigate" style="margin-left: 6px; padding: 4px 12px;" onclick="document.getElementById('suggestion-bar').style.display='none';">
-      Dismiss
-    </button>
-  </div>
-
-  <div id="live-view">
-  <div class="status-row">
-    <div class="stat-card"><div class="label">Total Events</div><div class="value" id="stat-total">0</div></div>
-    <div class="stat-card"><div class="label">Active Alerts</div><div class="value" id="stat-alerts">0</div></div>
-    <div class="stat-card"><div class="label">High Severity</div><div class="value" id="stat-high">0</div></div>
-    <div class="stat-card"><div class="label">Last Update</div><div class="value" id="stat-time" style="font-size:14px;">—</div></div>
-  </div>
-
-  <div class="grid" style="margin-bottom: 16px; grid-template-columns: 2fr 1fr;">
-    <div class="panel">
-      <h2>Live Threat Map</h2>
-      <div id="map" style="height: 250px; border-radius: 4px; z-index: 1;"></div>
-    </div>
-    <div class="panel">
-      <h2>Attack Distribution</h2>
-      <div style="position: relative; height: 250px;">
-        <canvas id="attackPieChart"></canvas>
+      <div class="auth-tabs">
+        <div class="tab active" id="auth-tab-login" onclick="switchAuthTab('login')" style="flex:1; text-align:center;">Sign In</div>
+        <div class="tab" id="auth-tab-register" onclick="switchAuthTab('register')" style="flex:1; text-align:center;">Create Account</div>
       </div>
+
+      <div id="auth-error-box" class="auth-error"></div>
+
+      <!-- Login Form -->
+      <form id="form-login" onsubmit="handleLogin(event)">
+        <label style="font-size: 12px; color: var(--muted);">Email Address</label>
+        <input type="email" id="login-email" class="auth-input" placeholder="user@example.com" required>
+
+        <label style="font-size: 12px; color: var(--muted);">Password</label>
+        <input type="password" id="login-password" class="auth-input" placeholder="••••••••" required>
+
+        <button type="submit" class="auth-btn" style="margin-top: 8px;">Sign In</button>
+
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--muted);">
+          <span>Demo Account:</span>
+          <button type="button" onclick="fillDemoCredentials()" class="btn-investigate" style="margin-left: 6px;">Fill Demo Login</button>
+        </div>
+      </form>
+
+      <!-- Registration Form -->
+      <form id="form-register" style="display: none;" onsubmit="handleRegister(event)">
+        <label style="font-size: 12px; color: var(--muted);">Email Address</label>
+        <input type="email" id="reg-email" class="auth-input" placeholder="user@example.com" required>
+
+        <label style="font-size: 12px; color: var(--muted);">Password (min 8 chars)</label>
+        <input type="password" id="reg-password" class="auth-input" placeholder="••••••••" required minlength="8">
+
+        <label style="font-size: 12px; color: var(--muted);">Confirm Password</label>
+        <input type="password" id="reg-confirm" class="auth-input" placeholder="••••••••" required minlength="8">
+
+        <button type="submit" class="auth-btn" style="margin-top: 8px; background: #1f6feb;">Create Account</button>
+      </form>
     </div>
   </div>
 
-  <div class="grid">
-    <div class="panel">
-      <h2 style="margin-top:24px;">Live Request Feed</h2>
-      <div style="height: 400px; overflow-y: auto;">
-      <table>
-        <thead>
-          <tr><th>Time</th><th>Endpoint</th><th>Method</th><th>Status</th><th>IP</th><th>Latency</th><th>Severity</th></tr>
-        </thead>
-        <tbody id="feed-body"></tbody>
-      </table>
+  <!-- ================= DASHBOARD APP VIEW ================= -->
+  <div id="dashboard-app" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+      <div>
+        <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
+        <div class="subtitle">
+          <span id="ws-status" style="color: var(--low);">● WebSocket Connected</span> &middot; 
+          Machine Learning anomaly scoring &middot; GenAI Threat Reports
+        </div>
       </div>
-    </div>
-
-    <div class="panel">
-      <h2 style="margin-top:24px;">Alerts</h2>
-      <div id="alerts-body" class="scrollable-alerts" style="height: 400px; overflow-y: auto;"><div class="empty">No alerts yet.</div></div>
-    </div>
-  </div>
-  
-    <div class="panel" style="margin-top: 16px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <h2 style="margin: 0;">Attack Distribution (Time)</h2>
-      <div class="tabs" style="margin-bottom: 0; padding-bottom: 0; border: none;">
-        <div class="tab active" id="btn-30s" onclick="setChartWindow(30, 'btn-30s')" style="padding: 4px 10px; font-size: 12px;">30s</div>
-        <div class="tab" id="btn-1m" onclick="setChartWindow(60, 'btn-1m')" style="padding: 4px 10px; font-size: 12px;">1m</div>
-        <div class="tab" id="btn-5m" onclick="setChartWindow(300, 'btn-5m')" style="padding: 4px 10px; font-size: 12px;">5m</div>
-      </div>
-    </div>
-    <div class="chart-wrap" style="height: 200px;"><canvas id="scoreChart"></canvas></div>
-  </div>
-  <!-- Blocked IPs Panel -->
-  <div class="panel" style="margin-top: 16px;">
-    <h2>🛡️ Blocked IPs <span id="blocked-count" style="color: var(--high);">(0)</span></h2>
-    <div id="blocked-ips-body" style="font-size: 13px;">
-      <div class="empty">No IPs currently blocked.</div>
-    </div>
-    <div style="margin-top: 12px; display: flex; gap: 8px;">
-      <input type="text" id="manual-block-ip" placeholder="Enter IP to block" 
-        style="background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 12px; flex: 1;">
-      <button onclick="manualBlockIP()" class="btn-investigate" style="padding: 6px 14px;">🚫 Block IP</button>
-    </div>
-  </div>
-  </div>
-  <!-- End Live View -->
-
-  <!-- History View -->
-  <div id="history-view" style="display:none;">
-    <div class="panel" style="margin-bottom: 16px;">
-      <h2>Attacks Timeline (Last 60 Minutes)</h2>
-      <div style="height: 250px;">
-        <canvas id="historyTimelineChart"></canvas>
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <label style="font-size: 12px; color: var(--muted);">Project:</label>
+          <select id="project-select" onchange="changeProject()" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; font-size: 13px;">
+          </select>
+        </div>
+        <button onclick="openNewProjectModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px;">+ New Project</button>
+        <button onclick="openSdkModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(88,166,255,0.4);">⚡ SDK Keys</button>
+        <span style="color: var(--muted); font-size: 13px; padding-left: 6px;">👤 <strong id="current-user-email" style="color: var(--text);"></strong></span>
+        <button onclick="handleLogout()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; color: var(--high); border-color: rgba(248,81,73,0.3);">Sign Out</button>
       </div>
     </div>
     
+    <div class="tabs">
+      <div class="tab active" id="tab-live" onclick="switchTab('live')">🔴 Live Telemetry</div>
+      <div class="tab" id="tab-history" onclick="switchTab('history')">📊 Historical Analytics</div>
+      <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">📖 Architecture & Flow</div>
+    </div>
+
+    <div id="notification-bar" style="display:none; background: rgba(248,81,73,0.15); border: 1px solid var(--high); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--high); animation: fadeIn 0.3s;">
+      🚨 <strong id="notification-text">New high-severity alert detected!</strong>
+    </div>
+
+    <div id="suggestion-bar" style="display:none; background: rgba(210,153,34,0.15); border: 1px solid var(--medium); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--medium); animation: fadeIn 0.3s;">
+      ⚠️ <strong>Suspicious Activity Detected:</strong> 
+      <span id="suggestion-text"></span>
+      <button id="suggestion-block-btn" class="btn-investigate" style="margin-left: 12px; padding: 4px 12px; color: var(--high); border-color: rgba(248,81,73,0.3); background: rgba(248,81,73,0.1);" onclick="">
+        🚫 Block Now
+      </button>
+      <button class="btn-investigate" style="margin-left: 6px; padding: 4px 12px;" onclick="document.getElementById('suggestion-bar').style.display='none';">
+        Dismiss
+      </button>
+    </div>
+
+    <div id="live-view">
+    <div class="status-row">
+      <div class="stat-card"><div class="label">Total Events</div><div class="value" id="stat-total">0</div></div>
+      <div class="stat-card"><div class="label">Active Alerts</div><div class="value" id="stat-alerts">0</div></div>
+      <div class="stat-card"><div class="label">High Severity</div><div class="value" id="stat-high">0</div></div>
+      <div class="stat-card"><div class="label">Last Update</div><div class="value" id="stat-time" style="font-size:14px;">—</div></div>
+    </div>
+
+    <div class="grid" style="margin-bottom: 16px; grid-template-columns: 2fr 1fr;">
+      <div class="panel">
+        <h2>Live Threat Map</h2>
+        <div id="map" style="height: 250px; border-radius: 4px; z-index: 1;"></div>
+      </div>
+      <div class="panel">
+        <h2>Attack Distribution</h2>
+        <div style="position: relative; height: 250px;">
+          <canvas id="attackPieChart"></canvas>
+        </div>
+      </div>
+    </div>
+
     <div class="grid">
       <div class="panel">
-        <h2>Top Attacked Endpoints</h2>
+        <h2 style="margin-top:24px;">Live Request Feed</h2>
+        <div style="height: 400px; overflow-y: auto;">
         <table>
           <thead>
-            <tr><th>Endpoint</th><th>Attack Count</th></tr>
+            <tr><th>Time</th><th>Endpoint</th><th>Method</th><th>Status</th><th>IP</th><th>Latency</th><th>Severity</th></tr>
           </thead>
-          <tbody id="history-endpoints-body"></tbody>
+          <tbody id="feed-body"></tbody>
         </table>
+        </div>
       </div>
+
       <div class="panel">
-        <h2>Top Attacking IPs</h2>
-        <table>
-          <thead>
-            <tr><th>IP Address</th><th>Attack Count</th></tr>
-          </thead>
-          <tbody id="history-ips-body"></tbody>
-        </table>
+        <h2 style="margin-top:24px;">Alerts</h2>
+        <div id="alerts-body" class="scrollable-alerts" style="height: 400px; overflow-y: auto;"><div class="empty">No alerts yet.</div></div>
       </div>
     </div>
-  </div>
-  <!-- End History View -->
-  <!-- Architecture View -->
-  <div id="architecture-view" style="display:none;">
-    <div class="panel" style="margin-bottom: 16px;">
-      <h2>System Architecture & Traffic Flow</h2>
-      <p style="color: var(--muted); margin-bottom: 24px; font-size: 14px; line-height: 1.6;">
-        This diagram illustrates how the <b>ML-O11Y SDK</b> captures traffic inline without adding latency, forwards it to the Python collector, and routes it through the <b>Isolation Forest Machine Learning Model</b> for real-time threat detection and dashboard rendering.
-      </p>
-      
-      <div style="background: rgba(13,17,23,0.8); border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
-        <div class="mermaid">
-        sequenceDiagram
-            autonumber
-            participant Attacker as 🕵️ Attacker
-            participant API as 💻 Host API (SDK)
-            participant Ingest as 🛡️ Ingest Server
-            participant ML as 🧠 ML Scorer
-            participant DB as 💾 SQLite DB
-            participant Dash as 📊 Dashboard
-            participant Hook as 🔔 Webhook/Slack
+    
+    <div class="panel" style="margin-top: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="margin: 0;">Attack Distribution (Time)</h2>
+        <div class="tabs" style="margin-bottom: 0; padding-bottom: 0; border: none;">
+          <div class="tab active" id="btn-30s" onclick="setChartWindow(30, 'btn-30s')" style="padding: 4px 10px; font-size: 12px;">30s</div>
+          <div class="tab" id="btn-1m" onclick="setChartWindow(60, 'btn-1m')" style="padding: 4px 10px; font-size: 12px;">1m</div>
+          <div class="tab" id="btn-5m" onclick="setChartWindow(300, 'btn-5m')" style="padding: 4px 10px; font-size: 12px;">5m</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height: 200px;"><canvas id="scoreChart"></canvas></div>
+    </div>
 
-            Attacker->>API: Malicious Request (Burst/Scan)
-            API-->>Ingest: Async Telemetry (Fire & Forget)
-            Ingest->>Ingest: IP Rate Limiter (Auto-Block?)
-            Ingest->>ML: Extract Features (Latency, Rate)
-            ML-->>Ingest: Risk Score (0-10) & Severity
-            Ingest->>DB: Persist Event & Alert
-            Ingest--)Dash: WebSocket Push (new_event)
-            Ingest--)Hook: High Severity Alert!
+    <!-- Blocked IPs Panel -->
+    <div class="panel" style="margin-top: 16px;">
+      <h2>🛡️ Blocked IPs <span id="blocked-count" style="color: var(--high);">(0)</span></h2>
+      <div id="blocked-ips-body" style="font-size: 13px;">
+        <div class="empty">No IPs currently blocked. Auto-block triggers at 50 requests/minute.</div>
+      </div>
+      <div style="margin-top: 12px; display: flex; gap: 8px;">
+        <input type="text" id="manual-block-ip" placeholder="Enter IP to block" 
+          style="background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 12px; flex: 1;">
+        <button onclick="manualBlockIP()" class="btn-investigate" style="padding: 6px 14px;">🚫 Block IP</button>
+      </div>
+    </div>
+    </div>
+    <!-- End Live View -->
+
+    <!-- History View -->
+    <div id="history-view" style="display:none;">
+      <div class="panel" style="margin-bottom: 16px;">
+        <h2>Attacks Timeline (Last 60 Minutes)</h2>
+        <div style="height: 250px;">
+          <canvas id="historyTimelineChart"></canvas>
         </div>
       </div>
       
-      <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 16px;">
-        <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
-          <h3 style="margin-top:0; color: #58a6ff;">1. Zero-Latency SDK</h3>
-          <p style="font-size: 13px; color: var(--muted);">The Python SDK hooks into Flask's `after_request` to capture metrics. It uses background threading to forward data so the host API is never slowed down.</p>
+      <div class="grid">
+        <div class="panel">
+          <h2>Top Attacked Endpoints</h2>
+          <table>
+            <thead>
+              <tr><th>Endpoint</th><th>Attack Count</th></tr>
+            </thead>
+            <tbody id="history-endpoints-body"></tbody>
+          </table>
         </div>
-        <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
-          <h3 style="margin-top:0; color: #d29922;">2. Machine Learning</h3>
-          <p style="font-size: 13px; color: var(--muted);">Traffic is scored by a trained Isolation Forest model which scales the output. Normal traffic scores ~0.0, while anomalies spike to 6.0+.</p>
-        </div>
-        <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
-          <h3 style="margin-top:0; color: #f85149;">3. Active Defense</h3>
-          <p style="font-size: 13px; color: var(--muted);">When threats are detected, the system auto-blocks abusive IPs at the load balancer level and fires webhooks to alerting systems like Slack.</p>
+        <div class="panel">
+          <h2>Top Attacking IPs</h2>
+          <table>
+            <thead>
+              <tr><th>IP Address</th><th>Attack Count</th></tr>
+            </thead>
+            <tbody id="history-ips-body"></tbody>
+          </table>
         </div>
       </div>
     </div>
-  </div>
-  <!-- End Architecture View -->
+    <!-- End History View -->
 
-  <!-- Phase 3 Modal -->
+    <!-- Architecture View -->
+    <div id="architecture-view" style="display:none;">
+      <div class="panel" style="margin-bottom: 16px;">
+        <h2>System Architecture & Traffic Flow</h2>
+        <p style="color: var(--muted); margin-bottom: 24px; font-size: 14px; line-height: 1.6;">
+          This diagram illustrates how the <b>ML-O11Y SDK</b> captures traffic inline without adding latency, forwards it to the Python collector, and routes it through the <b>Isolation Forest Machine Learning Model</b> for real-time threat detection and dashboard rendering.
+        </p>
+        
+        <div style="background: rgba(13,17,23,0.8); border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
+          <div class="mermaid">
+          sequenceDiagram
+              autonumber
+              participant Attacker as 🕵️ Attacker
+              participant API as 💻 Host API (SDK)
+              participant Ingest as 🛡️ Ingest Server
+              participant ML as 🧠 ML Scorer
+              participant DB as 💾 SQLite DB
+              participant Dash as 📊 Dashboard
+              participant Hook as 🔔 Webhook/Slack
+
+              Attacker->>API: Malicious Request (Burst/Scan)
+              API-->>Ingest: Async Telemetry (Fire & Forget)
+              Ingest->>Ingest: IP Rate Limiter (Auto-Block?)
+              Ingest->>ML: Extract Features (Latency, Rate)
+              ML-->>Ingest: Risk Score (0-10) & Severity
+              Ingest->>DB: Persist Event & Alert
+              Ingest--)Dash: WebSocket Push (new_event)
+              Ingest--)Hook: High Severity Alert!
+          </div>
+        </div>
+        
+        <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 16px;">
+          <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
+            <h3 style="margin-top:0; color: #58a6ff;">1. Zero-Latency SDK</h3>
+            <p style="font-size: 13px; color: var(--muted);">The Python SDK hooks into Flask's `after_request` to capture metrics. It uses background threading to forward data so the host API is never slowed down.</p>
+          </div>
+          <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
+            <h3 style="margin-top:0; color: #d29922;">2. Machine Learning</h3>
+            <p style="font-size: 13px; color: var(--muted);">Traffic is scored by a trained Isolation Forest model which scales the output. Normal traffic scores ~0.0, while anomalies spike to 6.0+.</p>
+          </div>
+          <div class="panel" style="background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.05);">
+            <h3 style="margin-top:0; color: #f85149;">3. Active Defense</h3>
+            <p style="font-size: 13px; color: var(--muted);">When threats are detected, the system auto-blocks abusive IPs at the load balancer level and fires webhooks to alerting systems like Slack.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- End Architecture View -->
+  </div>
+  <!-- End Dashboard App -->
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- GenAI Threat Investigation Modal -->
   <div class="modal-overlay" id="investigate-modal" onclick="if(event.target===this) closeInvestigateModal()">
     <div class="modal">
       <div class="modal-header">
@@ -339,7 +455,347 @@
     </div>
   </div>
 
+  <!-- New Project Modal -->
+  <div class="modal-overlay" id="new-project-modal" onclick="if(event.target===this) closeNewProjectModal()">
+    <div class="modal" style="width: 480px;">
+      <div class="modal-header">
+        <h2>📁 Create New Project</h2>
+        <button class="modal-close" onclick="closeNewProjectModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="new-project-error" class="auth-error"></div>
+        <label style="font-size: 13px; color: var(--muted);">Project Name</label>
+        <input type="text" id="new-project-name" class="auth-input" placeholder="e.g. Payment Gateway API" required>
+        <label style="font-size: 13px; color: var(--muted);">Description (Optional)</label>
+        <input type="text" id="new-project-desc" class="auth-input" placeholder="e.g. Production microservice">
+        <button onclick="submitNewProject()" class="auth-btn" style="margin-top: 8px;">Create Project</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SDK Keys & Setup Modal -->
+  <div class="modal-overlay" id="sdk-modal" onclick="if(event.target===this) closeSdkModal()">
+    <div class="modal" style="width: 620px;">
+      <div class="modal-header">
+        <h2>⚡ SDK Integration & API Keys</h2>
+        <button class="modal-close" onclick="closeSdkModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px;">
+          <span style="font-size: 13px; color: var(--muted);">Active Project:</span>
+          <strong id="sdk-project-name" style="color: #58a6ff;"></strong>
+        </div>
+        <div style="background: var(--bg); border: 1px solid var(--border); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Project ID:</div>
+          <code id="sdk-project-id" style="font-size: 13px; color: #e6edf3;"></code>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 10px; margin-bottom: 4px;">Primary API Key / Token:</div>
+          <code id="sdk-active-key" style="font-size: 13px; color: var(--low); word-break: break-all;"></code>
+        </div>
+        <div style="font-size: 13px; color: var(--muted); margin-bottom: 6px;">3-Line Integration Snippet:</div>
+        <pre style="background: var(--bg); padding: 12px; border-radius: 6px; font-size: 13px; border: 1px solid var(--border); overflow-x: auto;"><code id="sdk-code-snippet"></code></pre>
+        <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px;">
+          <button onclick="generateNewKeyForProject()" class="btn-investigate">+ Generate New Key</button>
+          <button onclick="closeSdkModal()" class="btn-investigate">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
+// Global App State
+let currentUser = null;
+let currentProject = null;
+let userProjects = [];
+let pollInterval = null;
+let chartsInitialized = false;
+
+// ---------------------------------------------------------
+// Authentication Logic
+// ---------------------------------------------------------
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (res.ok) {
+      const data = await res.json();
+      currentUser = data.user;
+      showDashboardView();
+    } else {
+      showAuthView();
+    }
+  } catch (err) {
+    showAuthView();
+  }
+}
+
+function showAuthView() {
+  document.getElementById('auth-app').style.display = 'flex';
+  document.getElementById('dashboard-app').style.display = 'none';
+  if (pollInterval) clearInterval(pollInterval);
+}
+
+function showDashboardView() {
+  document.getElementById('auth-app').style.display = 'none';
+  document.getElementById('dashboard-app').style.display = 'block';
+  document.getElementById('current-user-email').textContent = currentUser.email;
+
+  loadProjects();
+}
+
+function switchAuthTab(tab) {
+  document.getElementById('auth-tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('auth-tab-register').classList.toggle('active', tab === 'register');
+  document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('auth-error-box').style.display = 'none';
+}
+
+function showAuthError(msg) {
+  const box = document.getElementById('auth-error-box');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+function fillDemoCredentials() {
+  document.getElementById('login-email').value = 'demo@mlo11y.local';
+  document.getElementById('login-password').value = 'demopassword123';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showAuthError(data.error || 'Login failed');
+      return;
+    }
+    currentUser = data.user;
+    showDashboardView();
+  } catch (err) {
+    showAuthError('Connection error during login');
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const confirm = document.getElementById('reg-confirm').value;
+
+  if (password !== confirm) {
+    showAuthError('Passwords do not match');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, confirm_password: confirm })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showAuthError(data.error || 'Registration failed');
+      return;
+    }
+    currentUser = data.user;
+    showDashboardView();
+  } catch (err) {
+    showAuthError('Connection error during registration');
+  }
+}
+
+async function handleLogout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch (e) {}
+  currentUser = null;
+  currentProject = null;
+  userProjects = [];
+  if (socket && currentWsTenant) {
+    socket.off(`new_event_${currentWsTenant}`);
+    socket.off(`new_alert_${currentWsTenant}`);
+    socket.off(`ip_blocked_${currentWsTenant}`);
+    socket.off(`ip_warning_${currentWsTenant}`);
+  }
+  showAuthView();
+}
+
+// ---------------------------------------------------------
+// Project Management Logic
+// ---------------------------------------------------------
+async function loadProjects() {
+  try {
+    const res = await fetch('/api/projects');
+    if (!res.ok) return;
+    const data = await res.json();
+    userProjects = data.projects || [];
+
+    const select = document.getElementById('project-select');
+    select.innerHTML = '';
+
+    if (userProjects.length === 0) {
+      select.innerHTML = '<option value="">No projects</option>';
+      return;
+    }
+
+    userProjects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      select.appendChild(opt);
+    });
+
+    // Select the first project or keep existing
+    if (!currentProject || !userProjects.some(p => p.id === currentProject.id)) {
+      currentProject = userProjects[0];
+    }
+    select.value = currentProject.id;
+
+    setupDashboard();
+  } catch (err) {
+    console.error('Failed to load projects', err);
+  }
+}
+
+function getTenant() {
+  return currentProject ? currentProject.id : 'proj_demo_default';
+}
+
+function changeProject() {
+  const select = document.getElementById('project-select');
+  const selectedId = select.value;
+  currentProject = userProjects.find(p => p.id === selectedId) || null;
+
+  initWebSocket();
+  if (chart) chart.data.labels = [];
+  if (pieChart) pieChart.data.datasets[0].data = [0, 0, 0, 0];
+  poll();
+  if (document.getElementById('tab-history').classList.contains('active')) {
+    loadHistory().then(() => { if (historyChart) historyChart.resize(); });
+  }
+}
+
+function openNewProjectModal() {
+  document.getElementById('new-project-modal').style.display = 'flex';
+  document.getElementById('new-project-error').style.display = 'none';
+  document.getElementById('new-project-name').value = '';
+  document.getElementById('new-project-desc').value = '';
+}
+
+function closeNewProjectModal() {
+  document.getElementById('new-project-modal').style.display = 'none';
+}
+
+async function submitNewProject() {
+  const name = document.getElementById('new-project-name').value.trim();
+  const desc = document.getElementById('new-project-desc').value.trim();
+  const errBox = document.getElementById('new-project-error');
+
+  if (!name) {
+    errBox.textContent = 'Project name is required';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description: desc })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errBox.textContent = data.error || 'Failed to create project';
+      errBox.style.display = 'block';
+      return;
+    }
+    closeNewProjectModal();
+    await loadProjects();
+    // Select newly created project
+    const select = document.getElementById('project-select');
+    select.value = data.project.id;
+    changeProject();
+  } catch (err) {
+    errBox.textContent = 'Failed to create project';
+    errBox.style.display = 'block';
+  }
+}
+
+async function openSdkModal() {
+  if (!currentProject) return;
+  document.getElementById('sdk-modal').style.display = 'flex';
+  document.getElementById('sdk-project-name').textContent = currentProject.name;
+  document.getElementById('sdk-project-id').textContent = currentProject.id;
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/keys`);
+    const data = await res.json();
+    const keys = data.keys || [];
+    const activeKey = keys.find(k => !k.revoked_at) || { key_prefix: 'mlo_live_...' };
+    
+    const keyVal = activeKey.key_prefix + '****************';
+    document.getElementById('sdk-active-key').textContent = keyVal;
+    document.getElementById('sdk-code-snippet').textContent = 
+`from middleware import observe
+from flask import Flask
+
+app = Flask(__name__)
+# Add telemetry observability:
+observe(app, collector_url="http://localhost:5001", token="${activeKey.key_prefix || 'YOUR_API_KEY'}")`;
+  } catch (e) {}
+}
+
+function closeSdkModal() {
+  document.getElementById('sdk-modal').style.display = 'none';
+}
+
+async function generateNewKeyForProject() {
+  if (!currentProject) return;
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Secondary SDK Key' })
+    });
+    const data = await res.json();
+    if (data.key && data.key.raw_key) {
+      document.getElementById('sdk-active-key').textContent = data.key.raw_key;
+      document.getElementById('sdk-code-snippet').textContent = 
+`from middleware import observe
+from flask import Flask
+
+app = Flask(__name__)
+observe(app, collector_url="http://localhost:5001", token="${data.key.raw_key}")`;
+    }
+  } catch (e) {}
+}
+
+// ---------------------------------------------------------
+// Dashboard Charts & Views
+// ---------------------------------------------------------
+function setupDashboard() {
+  if (!chartsInitialized) {
+    initChart();
+    initPieChart();
+    initMap();
+    initHistoryChart();
+    mermaid.initialize({ startOnLoad: true, theme: "dark" });
+    chartsInitialized = true;
+  }
+  initWebSocket();
+  poll();
+
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(poll, 10000);
+}
+
 // Phase 3 Investigate Logic
 function openInvestigateModal(id) {
   document.getElementById('investigate-modal').style.display = 'flex';
@@ -352,11 +808,10 @@ function openInvestigateModal(id) {
     .then(data => {
       document.getElementById('modal-loader').style.display = 'none';
       if (data.report) {
-        // Render markdown with marked.js
         document.getElementById('modal-content').innerHTML = marked.parse(data.report);
         document.getElementById('export-pdf-btn').style.display = 'inline-block';
       } else {
-        document.getElementById('modal-content').innerText = 'Error loading report.';
+        document.getElementById('modal-content').innerText = data.error || 'Error loading report.';
       }
     })
     .catch(err => {
@@ -378,34 +833,14 @@ function downloadPDF() {
     html2canvas:  { scale: 2 },
     jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
   };
-  
-  // Temporarily change colors for PDF export (dark text on white background)
   const originalColor = element.style.color;
   element.style.color = '#000';
-  
   html2pdf().set(opt).from(element).save().then(() => {
-    // Restore original colors
     element.style.color = originalColor;
   });
 }
 
-
 let historyChart;
-
-function getTenant() {
-  return document.getElementById('tenant-select').value;
-}
-
-function changeTenant() {
-  initWebSocket();
-mermaid.initialize({ startOnLoad: true, theme: "dark" }); // Rebind socket to new namespace
-  if(chart) chart.data.labels = [];
-  if(pieChart) pieChart.data.datasets[0].data = [0,0,0,0];
-  poll();
-  if (document.getElementById('tab-history').classList.contains('active')) {
-    loadHistory().then(() => { if(historyChart) historyChart.resize(); });
-  }
-}
 
 function switchTab(tab) {
   document.getElementById('tab-live').classList.remove('active');
@@ -472,16 +907,13 @@ function initHistoryChart() {
 async function loadHistory() {
   try {
     const tenant = getTenant();
-    const hist = await fetchJSON(`/history?tenant_id=${tenant}`);
+    const hist = await fetchJSON(`/history?project_id=${tenant}`);
     
-    if (!hist || !hist.top_endpoints) {
-      console.error("Invalid history data received", hist);
-      return;
-    }
+    if (!hist || !hist.top_endpoints) return;
     
     const endpointsBody = document.getElementById('history-endpoints-body');
     if (hist.top_endpoints.length === 0) {
-      endpointsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted); padding:20px;">No attack data for this tenant yet.</td></tr>';
+      endpointsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted); padding:20px;">No attack data for this project yet.</td></tr>';
     } else {
       endpointsBody.innerHTML = hist.top_endpoints.map(e => 
         `<tr><td><strong>${e.endpoint}</strong></td><td style="color:var(--high)">${e.count}</td></tr>`
@@ -490,7 +922,7 @@ async function loadHistory() {
     
     const ipsBody = document.getElementById('history-ips-body');
     if (hist.top_ips.length === 0) {
-      ipsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted); padding:20px;">No attack data for this tenant yet.</td></tr>';
+      ipsBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:var(--muted); padding:20px;">No attack data for this project yet.</td></tr>';
     } else {
       ipsBody.innerHTML = hist.top_ips.map(ip => 
         `<tr><td><strong>${ip.ip}</strong></td><td style="color:var(--high)">${ip.count}</td></tr>`
@@ -505,16 +937,13 @@ async function loadHistory() {
     }
   } catch (err) {
     console.error("Failed to load history:", err);
-    document.getElementById('history-endpoints-body').innerHTML = `<tr><td colspan="2" style="color:var(--high);">Error loading data. Did you restart the backend server?</td></tr>`;
   }
 }
 
-const POLL_MS = 3000;
 let chart;
 let map;
 let markers = {};
 
-// Hardcoded demo locations for the private/reserved IPs used in generators.py
 const DEMO_LOCATIONS = {
   "203.0.113.9": [55.7558, 37.6173], // Moscow (Brute Force)
   "203.0.113.44": [39.9042, 116.4074], // Beijing (Scan)
@@ -538,11 +967,9 @@ async function updateMap(alerts) {
       if (DEMO_LOCATIONS[ip]) {
         [lat, lon] = DEMO_LOCATIONS[ip];
       } else if (ip.startsWith("10.0.0.")) {
-        // Normal traffic in London area
         lat = 51.5074 + (Math.random() - 0.5) * 5;
         lon = -0.1278 + (Math.random() - 0.5) * 5;
       } else {
-        // Real IP fallback
         try {
           const res = await fetch(`http://ip-api.com/json/${ip}`);
           const data = await res.json();
@@ -560,7 +987,7 @@ async function updateMap(alerts) {
         }).addTo(map);
         markers[ip].bindPopup(`<b>Threat Source</b><br>IP: ${ip}`);
       } else {
-        markers[ip] = true; // Mark processed
+        markers[ip] = true;
       }
     }
   }
@@ -576,6 +1003,10 @@ function badge(sev) {
 
 async function fetchJSON(url) {
   const res = await fetch(url);
+  if (res.status === 401) {
+    showAuthView();
+    throw new Error('Unauthenticated');
+  }
   return res.json();
 }
 
@@ -647,8 +1078,8 @@ function initPieChart() {
         data: [0, 0, 0, 0],
         backgroundColor: ['#d29922', '#58a6ff', '#f85149', '#8b949e'],
         borderWidth: 2,
-        borderColor: '#0d1117',  // Matches background for sleek gaps
-        hoverOffset: 8           // Pop out effect on hover
+        borderColor: '#0d1117',
+        hoverOffset: 8
       }]
     },
     options: {
@@ -671,7 +1102,7 @@ function initPieChart() {
 }
 
 function updatePieChart(stats, force = false) {
-  if(!force && pieChart && pieChart.data.datasets[0].data.some(d => d > 0)) return; // Let WS handle it
+  if (!force && pieChart && pieChart.data.datasets[0].data.some(d => d > 0)) return;
   pieChart.data.datasets[0].data = [
     stats.brute_force, 
     stats.endpoint_scan, 
@@ -681,7 +1112,6 @@ function updatePieChart(stats, force = false) {
   pieChart.update('none');
 }
 
-// ---- Blocked IPs ----
 function renderBlockedIPs(blocked) {
   const body = document.getElementById('blocked-ips-body');
   document.getElementById('blocked-count').textContent = `(${blocked.length})`;
@@ -722,14 +1152,13 @@ async function manualBlockIP() {
   if (!ip) return;
   
   const tenant = getTenant();
-  await fetch(`/block-ip?tenant_id=${tenant}`, {
+  await fetch(`/block-ip?project_id=${tenant}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ip: ip, duration: 300, reason: 'Manually blocked from dashboard' })
   });
   
   input.value = '';
-  // Refresh blocked list
   const blocked = await fetchJSON('/blocked-ips').catch(() => []);
   renderBlockedIPs(blocked);
 }
@@ -741,7 +1170,6 @@ async function unblockIP(ip) {
     body: JSON.stringify({ ip: ip })
   });
   
-  // Refresh blocked list
   const blocked = await fetchJSON('/blocked-ips').catch(() => []);
   renderBlockedIPs(blocked);
 }
@@ -785,22 +1213,23 @@ function initChart() {
 }
 
 function updateChart(events, force = false) {
-  if(!force && chart && chart.data.labels.length > 0) return; // Let WS handle it smoothly
+  if (!force && chart && chart.data.labels.length > 0) return;
   const ordered = [...events].reverse();
   chart.data.labels = ordered.map(e => fmtTime(e.timestamp));
   chart.data.datasets[0].data = ordered.map(e => e.anomaly_score);
-  chart.data.datasets[1].data = ordered.map(() => 5.0); // Constant line for the threshold
+  chart.data.datasets[1].data = ordered.map(() => 5.0);
   chart.update('none');
 }
 
 async function poll() {
+  if (!currentUser || !currentProject) return;
   try {
     const t = getTenant();
     const [events, alerts, health, stats, blocked] = await Promise.all([
-      fetchJSON(`/events/recent?limit=50&tenant_id=${t}`).catch(() => []),
-      fetchJSON(`/alerts/recent?limit=20&tenant_id=${t}`).catch(() => []),
-      fetchJSON(`/health?tenant_id=${t}`).catch(() => ({ event_count: 0 })),
-      fetchJSON(`/alerts/stats?tenant_id=${t}`).catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
+      fetchJSON(`/events/recent?limit=50&project_id=${t}`).catch(() => []),
+      fetchJSON(`/alerts/recent?limit=20&project_id=${t}`).catch(() => []),
+      fetchJSON(`/health?project_id=${t}`).catch(() => ({ event_count: 0 })),
+      fetchJSON(`/alerts/stats?project_id=${t}`).catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
       fetchJSON('/blocked-ips').catch(() => [])
     ]);
     renderFeed(events);
@@ -815,7 +1244,9 @@ async function poll() {
   }
 }
 
-// ---- WebSocket Real-Time Connection ----
+// ---------------------------------------------------------
+// WebSocket Real-Time Connection
+// ---------------------------------------------------------
 let notificationTimeout;
 
 function showNotification(text) {
@@ -823,7 +1254,7 @@ function showNotification(text) {
   document.getElementById('notification-text').textContent = text;
   bar.style.display = 'block';
   bar.style.animation = 'none';
-  bar.offsetHeight; // trigger reflow
+  bar.offsetHeight;
   bar.style.animation = 'fadeIn 0.3s';
   
   clearTimeout(notificationTimeout);
@@ -831,7 +1262,6 @@ function showNotification(text) {
     bar.style.display = 'none';
   }, 5000);
 }
-
 
 let socket;
 let currentWsTenant = null;
@@ -856,17 +1286,16 @@ function setChartWindow(points, btnId) {
   }
 }
 
-
 function initWebSocket() {
   if (!socket) {
     socket = io();
     socket.on('connect', () => {
-      document.getElementById('ws-status').textContent = '● WebSocket Connected';
-      document.getElementById('ws-status').style.color = 'var(--low)';
+      const el = document.getElementById('ws-status');
+      if (el) { el.textContent = '● WebSocket Connected'; el.style.color = 'var(--low)'; }
     });
     socket.on('disconnect', () => {
-      document.getElementById('ws-status').textContent = '○ Reconnecting...';
-      document.getElementById('ws-status').style.color = 'var(--medium)';
+      const el = document.getElementById('ws-status');
+      if (el) { el.textContent = '○ Reconnecting...'; el.style.color = 'var(--medium)'; }
     });
   }
 
@@ -902,25 +1331,23 @@ function initWebSocket() {
     countEl.textContent = parseInt(countEl.textContent) + 1;
     document.getElementById('stat-time').textContent = new Date().toLocaleTimeString();
     
-    // Smooth Real-Time Chart Batching (1 FPS)
     wsEventsBatch.push(event);
     if (!wsChartTimer) {
       wsChartTimer = setTimeout(() => {
         if (chart && wsEventsBatch.length > 0) {
-          // Aggregate all events in this 1s batch into a SINGLE point to prevent jittering
           const maxScore = Math.max(...wsEventsBatch.map(e => e.anomaly_score));
           const ts = fmtTime(wsEventsBatch[wsEventsBatch.length - 1].timestamp);
           
           chart.data.labels.push(ts);
           chart.data.datasets[0].data.push(maxScore);
-          chart.data.datasets[1].data.push(5.0); // Threshold line
+          chart.data.datasets[1].data.push(5.0);
           
           while (chart.data.labels.length > maxChartPoints) {
             chart.data.labels.shift();
             chart.data.datasets[0].data.shift();
             chart.data.datasets[1].data.shift();
           }
-          chart.update(); // Super smooth 1 FPS glide!
+          chart.update();
         }
         if (pieChart) {
           let updated = false;
@@ -934,7 +1361,7 @@ function initWebSocket() {
                updated = true;
              }
           });
-          if(updated) pieChart.update();
+          if (updated) pieChart.update();
         }
         wsEventsBatch = [];
         wsChartTimer = null;
@@ -953,7 +1380,7 @@ function initWebSocket() {
             IP ${alert.ip} &middot; ${fmtTime(alert.timestamp)} &middot; score ${alert.anomaly_score.toFixed(2)} &middot; rules: ${(alert.rule_flags || []).join(', ') || 'none'}
           </div>
         </div>
-        <button onclick="investigate(${alert.id})" class="btn-investigate">Investigate</button>
+        <button onclick="openInvestigateModal(${alert.id})" class="btn-investigate">Investigate</button>
       </div>
     `;
     div.style.animation = 'fadeIn 0.5s';
@@ -978,7 +1405,7 @@ function initWebSocket() {
     
     const blockBtn = document.getElementById('suggestion-block-btn');
     blockBtn.onclick = async () => {
-      await fetch(`/block-ip?tenant_id=${tenant}`, {
+      await fetch(`/block-ip?project_id=${tenant}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip: data.ip, duration: 300, reason: `Preemptively blocked at ${data.count} req/min` })
@@ -996,20 +1423,8 @@ function initWebSocket() {
   });
 }
 
-
-initChart();
-initPieChart();
-initMap();
-initHistoryChart();
-initWebSocket();
-mermaid.initialize({ startOnLoad: true, theme: "dark" });
-
-// Initial full load
-poll();
-
-// Slow polling fallback for stats, charts, and counters (every 10s instead of 3s)
-setInterval(poll, 10000);
+// Initial authentication check on page load
+document.addEventListener('DOMContentLoaded', checkAuth);
 </script>
 </body>
 </html>
-

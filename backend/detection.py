@@ -149,7 +149,8 @@ def score_event(event: dict) -> dict:
     ip = event["ip"]
 
     # Pull prior history for this IP within the largest window we need (60s)
-    history = get_events_since(ip, now_ts - 60)
+    tenant_id = event.get("project_id") or event.get("tenant_id")
+    history = get_events_since(ip, now_ts - 60, tenant_id=tenant_id)
 
     features = compute_features(ip, now_ts, history)
     features["latency_ms"] = event["latency_ms"]
