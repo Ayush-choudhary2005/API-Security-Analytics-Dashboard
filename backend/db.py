@@ -1,71 +1,94 @@
-"""
-db.py — SQLite storage layer for ML-O11Y Phase 1.
-
-Single 'events' table holds raw telemetry AND detection output.
-No separate Hot/Metadata/Historical stores in Phase 1 (see architectures.md
-Phase 2 notes for the full multi-store design).
-"""
-
-import sqlite3
+import psycopg2
+import psycopg2.extras
+from psycopg2 import pool
 import json
 import os
-import threading
-import json
 from threading import Lock
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "events.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres.tiqzlhargxftqzrrzvvf:capstone%40ojas%23123@aws-0-ap-south-1.pooler.supabase.com:5432/postgres")
 
-# SQLite + threading: Flask's dev server can handle requests on different
-# threads, so we use a lock around writes to keep things simple and safe
-# for a 24-hour build (no connection pooling needed at this scale).
+_pool = None
+def get_pool():
+    global _pool
+    if _pool is None:
+        _pool = psycopg2.pool.ThreadedConnectionPool(1, 14, DATABASE_URL)
+    return _pool
+
 _lock = Lock()
 
-
-def get_conn():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
-
+def get_cursor(conn):
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
 def init_db():
-    """Create the events table if it doesn't exist. Safe to call every startup."""
-    conn = get_conn()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp REAL NOT NULL,
-            endpoint TEXT NOT NULL,
-            method TEXT NOT NULL,
-            status_code INTEGER NOT NULL,
-            latency_ms REAL NOT NULL,
-            ip TEXT NOT NULL,
-            user_id TEXT,
-            payload_size INTEGER NOT NULL,
-            rule_flags TEXT,
-            anomaly_score REAL,
-            severity TEXT,
-            tenant_id TEXT DEFAULT 'default'
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS events (
+                id SERIAL PRIMARY KEY,
+                timestamp DOUBLE PRECISION NOT NULL,
+                endpoint TEXT NOT NULL,
+                method TEXT NOT NULL,
+                status_code INTEGER NOT NULL,
+                latency_ms DOUBLE PRECISION NOT NULL,
+                ip TEXT NOT NULL,
+                user_id TEXT,
+                payload_size INTEGER NOT NULL,
+                rule_flags TEXT,
+                anomaly_score DOUBLE PRECISION,
+                severity TEXT,
+                tenant_id TEXT DEFAULT 'default'
+            )
+            """
         )
-        """
-    )
-    # create index for fast queries
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tenant ON events(tenant_id, timestamp)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ip ON events(ip, timestamp)")
-    conn.commit()
-    conn.close()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tenants (
+                tenant_id TEXT PRIMARY KEY,
+                webhook_url TEXT
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_events_tenant ON events(tenant_id, timestamp)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_events_ip ON events(ip, timestamp)")
+        conn.commit()
+    finally:
+        get_pool().putconn(conn)
 
+def set_tenant_webhook(tenant_id: str, webhook_url: str):
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
+            "INSERT INTO tenants (tenant_id, webhook_url) VALUES (%s, %s) ON CONFLICT(tenant_id) DO UPDATE SET webhook_url=EXCLUDED.webhook_url",
+            (tenant_id, webhook_url)
+        )
+        conn.commit()
+    finally:
+        get_pool().putconn(conn)
+
+def get_tenant_webhook(tenant_id: str) -> str:
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute("SELECT webhook_url FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        row = cur.fetchone()
+        return row["webhook_url"] if row else ""
+    finally:
+        get_pool().putconn(conn)
 
 def insert_event(event: dict) -> int:
-    """Insert a fully-scored event (after detection.py has run on it)."""
-    with _lock:
-        conn = get_conn()
-        cur = conn.execute(
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
             """
             INSERT INTO events
                 (timestamp, endpoint, method, status_code, latency_ms,
                  ip, user_id, payload_size, rule_flags, anomaly_score, severity, tenant_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
             """,
             (
                 event["timestamp"],
@@ -77,125 +100,127 @@ def insert_event(event: dict) -> int:
                 event.get("user_id"),
                 event.get("payload_size", 0),
                 json.dumps(event.get("rule_flags", [])),
-                event.get("anomaly_score", 0.0),
+                float(event.get("anomaly_score", 0.0)),
                 event.get("severity", "low"),
                 event.get("tenant_id", "default"),
             ),
         )
+        event_id = cur.fetchone()["id"]
         conn.commit()
-        event_id = cur.lastrowid
-        conn.close()
         return event_id
-
+    finally:
+        get_pool().putconn(conn)
 
 def get_recent_events(limit: int = 50, tenant_id: str = "default"):
-    conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM events WHERE tenant_id = ? ORDER BY id DESC LIMIT ?", (tenant_id, limit)
-    ).fetchall()
-    conn.close()
-    return [_row_to_dict(r) for r in rows]
-
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
+            "SELECT * FROM events WHERE tenant_id = %s ORDER BY id DESC LIMIT %s", (tenant_id, limit)
+        )
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows]
+    finally:
+        get_pool().putconn(conn)
 
 def get_recent_alerts(limit: int = 50, tenant_id: str = "default"):
-    conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM events WHERE tenant_id = ? AND severity != 'low' ORDER BY id DESC LIMIT ?",
-        (tenant_id, limit),
-    ).fetchall()
-    conn.close()
-    return [_row_to_dict(r) for r in rows]
-
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
+            "SELECT * FROM events WHERE tenant_id = %s AND severity != 'low' ORDER BY id DESC LIMIT %s",
+            (tenant_id, limit),
+        )
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows]
+    finally:
+        get_pool().putconn(conn)
 
 def get_alert_stats(tenant_id: str = "default"):
-    """Returns the count of each attack type for the most recent 200 alerts to keep the chart dynamic."""
-    conn = get_conn()
-    rows = conn.execute("SELECT rule_flags, severity, anomaly_score FROM events WHERE tenant_id = ? AND severity != 'low' ORDER BY id DESC LIMIT 200", (tenant_id,)).fetchall()
-    conn.close()
-    
-    stats = {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "anomaly": 0}
-    for r in rows:
-        flags_json = r["rule_flags"]
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute("SELECT rule_flags, severity, anomaly_score FROM events WHERE tenant_id = %s AND severity != 'low' ORDER BY id DESC LIMIT 200", (tenant_id,))
+        rows = cur.fetchall()
         
-        if not flags_json:
-            flags = []
-        elif isinstance(flags_json, str):
-            try:
-                flags = json.loads(flags_json)
-            except Exception:
+        stats = {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "anomaly": 0}
+        for r in rows:
+            flags_json = r["rule_flags"]
+            if not flags_json:
                 flags = []
-        else:
-            flags = flags_json
-            
-        if not isinstance(flags, list):
-            flags = []
-            
-        has_rule = False
-        if "brute_force" in flags:
-            stats["brute_force"] += 1
-            has_rule = True
-        if "endpoint_scan" in flags:
-            stats["endpoint_scan"] += 1
-            has_rule = True
-        if "request_burst" in flags:
-            stats["request_burst"] += 1
-            has_rule = True
-            
-        if not has_rule and r["anomaly_score"] > 2.5:
-            stats["anomaly"] += 1
-            
-    return stats
-
+            elif isinstance(flags_json, str):
+                try:
+                    flags = json.loads(flags_json)
+                except Exception:
+                    flags = []
+            else:
+                flags = flags_json
+            if not isinstance(flags, list):
+                flags = []
+            has_rule = False
+            if "brute_force" in flags:
+                stats["brute_force"] += 1
+                has_rule = True
+            if "endpoint_scan" in flags:
+                stats["endpoint_scan"] += 1
+                has_rule = True
+            if "request_burst" in flags:
+                stats["request_burst"] += 1
+                has_rule = True
+            if not has_rule and r["anomaly_score"] > 2.5:
+                stats["anomaly"] += 1
+        return stats
+    finally:
+        get_pool().putconn(conn)
 
 def get_events_since(ip: str, since_timestamp: float):
-    """Used by detection.py to compute rolling-window features for one IP."""
-    conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM events WHERE ip = ? AND timestamp >= ? ORDER BY timestamp ASC",
-        (ip, since_timestamp),
-    ).fetchall()
-    conn.close()
-    return [_row_to_dict(r) for r in rows]
-
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
+            "SELECT * FROM events WHERE ip = %s AND timestamp >= %s ORDER BY timestamp ASC",
+            (ip, since_timestamp),
+        )
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows]
+    finally:
+        get_pool().putconn(conn)
 
 def get_all_events_count(tenant_id: str = "default"):
-    conn = get_conn()
-    count = conn.execute("SELECT COUNT(*) as c FROM events WHERE tenant_id = ?", (tenant_id,)).fetchone()["c"]
-    conn.close()
-    return count
-
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute("SELECT COUNT(*) as c FROM events WHERE tenant_id = %s", (tenant_id,))
+        return cur.fetchone()["c"]
+    finally:
+        get_pool().putconn(conn)
 
 def get_historical_stats(tenant_id: str = "default"):
-    """Fetches aggregated historical data for the analytics dashboard tab."""
-    conn = get_conn()
-    
-    top_endpoints = conn.execute(
-        "SELECT endpoint, count(*) as count FROM events WHERE tenant_id = ? AND severity != 'low' GROUP BY endpoint ORDER BY count DESC LIMIT 5", (tenant_id,)
-    ).fetchall()
-    
-    top_ips = conn.execute(
-        "SELECT ip, count(*) as count FROM events WHERE tenant_id = ? AND severity != 'low' GROUP BY ip ORDER BY count DESC LIMIT 5", (tenant_id,)
-    ).fetchall()
-    
-    timeline = conn.execute(
-        "SELECT strftime('%H:%M', datetime(timestamp, 'unixepoch', 'localtime')) as minute, sum(case when severity != 'low' then 1 else 0 end) as attacks, count(*) as total FROM events WHERE tenant_id = ? GROUP BY minute ORDER BY minute ASC LIMIT 60", (tenant_id,)
-    ).fetchall()
-    
-    conn.close()
-    
-    return {
-        "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
-        "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
-        "timeline": [{"minute": r["minute"], "attacks": r["attacks"], "total": r["total"]} for r in timeline]
-    }
-
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
+            "SELECT endpoint, count(*) as count FROM events WHERE tenant_id = %s AND severity != 'low' GROUP BY endpoint ORDER BY count DESC LIMIT 5", (tenant_id,)
+        )
+        top_endpoints = cur.fetchall()
+        cur.execute(
+            "SELECT ip, count(*) as count FROM events WHERE tenant_id = %s AND severity != 'low' GROUP BY ip ORDER BY count DESC LIMIT 5", (tenant_id,)
+        )
+        top_ips = cur.fetchall()
+        cur.execute(
+            "SELECT to_char(to_timestamp(timestamp), 'HH24:MI') as minute, sum(case when severity != 'low' then 1 else 0 end) as attacks, count(*) as total FROM events WHERE tenant_id = %s GROUP BY minute ORDER BY minute ASC LIMIT 60", (tenant_id,)
+        )
+        timeline = cur.fetchall()
+        return {
+            "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
+            "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
+            "timeline": [{"minute": r["minute"], "attacks": r["attacks"], "total": r["total"]} for r in timeline]
+        }
+    finally:
+        get_pool().putconn(conn)
 
 def _row_to_dict(row):
     d = dict(row)
-    d["rule_flags"] = json.loads(d["rule_flags"])
+    d["rule_flags"] = json.loads(d["rule_flags"]) if d.get("rule_flags") else []
     return d
 
-
-if __name__ == "__main__":
-    init_db()
-    print(f"Initialized DB at {DB_PATH}")

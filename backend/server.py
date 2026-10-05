@@ -60,7 +60,7 @@ def health():
 
 @app.route("/ingest", methods=["POST"])
 def ingest():
-    tenant_id = _get_tenant_from_auth()
+    tenant_id = _get_tenant_from_auth() or request.args.get("tenant_id")
     if not tenant_id:
         return jsonify({"error": "unauthorized, missing Bearer token"}), 401
 
@@ -120,9 +120,49 @@ def ingest():
         
         # Fire automated webhook for HIGH severity attacks
         if scored_event.get("severity") in ("medium", "high"):
-            webhook.send_alert(scored_event)
+            webhook.send_alert(scored_event, db.get_tenant_webhook(tenant_id))
 
     return jsonify(scored_event), 201
+
+
+
+
+@app.route("/api/retrain", methods=["POST"])
+def api_retrain():
+    # In a real SaaS, this would only grab data for the specific tenant
+    # and train a custom tenant-specific model.
+    try:
+        from train_model import train_model
+        # We can dynamically pass the DB connection to pull the latest events
+        # For now, if we have enough events, we trigger the script
+        import subprocess
+        subprocess.Popen(["python", "backend/train_model.py"])
+        
+        # Reload the ML model into memory
+        global anomaly_detector
+        from ml_scorer import AnomalyDetector
+        anomaly_detector = AnomalyDetector()
+        return jsonify({"status": "success", "message": "ML Model is re-training on new data in the background!"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/webhook_test", methods=["POST"])
+
+@app.route("/settings/webhook", methods=["GET", "POST"])
+def settings_webhook():
+    tenant_id = _get_tenant_from_auth() or request.args.get("tenant_id")
+    if not tenant_id:
+        return jsonify({"error": "unauthorized"}), 401
+        
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        url = data.get("webhook_url", "")
+        db.set_tenant_webhook(tenant_id, url)
+        return jsonify({"success": True})
+        
+    url = db.get_tenant_webhook(tenant_id)
+    return jsonify({"webhook_url": url})
+
 
 
 

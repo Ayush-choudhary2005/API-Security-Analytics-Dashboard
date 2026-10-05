@@ -5,3 +5,6 @@ pandas
 joblib
 flask-socketio
 google-genai
+psycopg2-binary==2.9.9
+gunicorn
+eventlet

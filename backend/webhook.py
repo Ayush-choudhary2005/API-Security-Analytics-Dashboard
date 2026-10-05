@@ -3,12 +3,12 @@ import threading
 
 # You can set this to a real Slack/Discord webhook URL
 import os
-WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
 
-def send_alert(alert_data):
+
+def send_alert(alert_data, webhook_url=None):
     """Fires a webhook in the background so it doesn't block the ingest pipeline."""
-    if not WEBHOOK_URL:
+    if not webhook_url:
         return
         
     def _post():
@@ -21,7 +21,7 @@ def send_alert(alert_data):
         }
         try:
             print(f"\n[WEBHOOK] Attempting to send to Slack...")
-            res = requests.post(WEBHOOK_URL, json=payload, timeout=5)
+            res = requests.post(webhook_url, json=payload, timeout=5)
             print(f"[WEBHOOK] Slack responded: {res.status_code} {res.text}\n")
         except Exception as e:
             print(f"\n[WEBHOOK] FAILED TO SEND: {e}\n")

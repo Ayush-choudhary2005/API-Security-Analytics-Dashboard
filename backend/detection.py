@@ -97,7 +97,7 @@ def compute_anomaly_score(features: dict, history: list) -> float:
         
         # Shift and scale so normal traffic stays near 0-1, and attacks spike > 5
         risk_score = max(0, (-raw_score - 0.42) * 20)
-        return round(risk_score, 3)
+        return float(round(risk_score, 3))
 
     # --- Phase 1 Fallback Logic below ---
     MIN_HISTORY_FOR_SCORING = 5

@@ -136,8 +136,22 @@
   .tab.active { color: #58a6ff; background: rgba(88,166,255,0.1); }
 </style>
   <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+
+  <!-- Auth Overlay -->
+  <div id="auth-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background: #0d1117; z-index: 10000; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+    <div style="background: var(--panel); padding: 40px; border-radius: 12px; border: 1px solid var(--border); text-align: center; max-width: 400px; width: 100%;">
+      <h1 style="color: #c9d1d9; margin-top: 0;">🛡️ ML-O11Y Security</h1>
+      <p style="color: var(--muted); margin-bottom: 30px;">Sign in to view your real-time API threat analytics dashboard.</p>
+      <button onclick="signInWithGoogle()" style="width: 100%; padding: 12px; border-radius: 6px; background: #fff; color: #000; font-weight: bold; font-size: 16px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="20" height="20">
+        Sign in with Google
+      </button>
+    </div>
+  </div>
+  
+  <div id="app-container" style="display: none; padding: 20px;">
   <div style="display: flex; justify-content: space-between; align-items: flex-start;">
     <div>
       <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
@@ -147,11 +161,19 @@
       </div>
     </div>
     <div>
-      <select id="tenant-select" onchange="changeTenant()" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; font-size: 13px;">
-        <option value="phase1-demo-token">Tenant A (Demo)</option>
-        <option value="tenant-b">Tenant B (Acme Corp)</option>
-        <option value="tenant-c">Tenant C (Stark Ind)</option>
-      </select>
+      <div style="display:flex; align-items:center; margin-left:20px; gap:12px;">
+        <div style="background: rgba(255,255,255,0.05); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; color: var(--muted);">SDK Token:</span>
+            <code id="api-key-display" style="font-size: 11px; color: #58a6ff;">********</code>
+            <button onclick="copyApiKey()" style="background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0;" title="Copy to clipboard">📋</button>
+        </div>
+        <img id="user-avatar" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);">
+        <div style="display: flex; flex-direction: column;">
+            <span id="user-name" style="font-size:13px; font-weight:bold;">User</span>
+            <span id="user-email" style="font-size:11px; color:var(--muted);">email@example.com</span>
+        </div>
+        <button onclick="signOut()" class="btn" style="margin-left: 10px;">Logout</button>
+      </div>
     </div>
   </div>
   
@@ -159,6 +181,7 @@
     <div class="tab active" id="tab-live" onclick="switchTab('live')">🔴 Live Telemetry</div>
     <div class="tab" id="tab-history" onclick="switchTab('history')">📊 Historical Analytics</div>
     <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">📖 Architecture & Flow</div>
+    <div class="tab" id="tab-settings" onclick="switchTab('settings')">⚙️ Client Settings</div>
   </div>
 
   <div id="notification-bar" style="display:none; background: rgba(248,81,73,0.15); border: 1px solid var(--high); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--high); animation: fadeIn 0.3s;">
@@ -321,8 +344,26 @@
     </div>
   </div>
   <!-- End Architecture View -->
+  <!-- Settings View -->
+  <div id="settings-view" style="display:none;">
+    <div class="panel" style="margin-bottom: 16px;">
+      <h2>Client Settings</h2>
+      <p style="color: var(--muted); margin-bottom: 24px; font-size: 14px; line-height: 1.6;">
+        Configure your personalized security alerting. When the ML model detects an anomaly on your APIs, it will automatically fire alerts to the webhook configured below.
+      </p>
+      
+      <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 20px;">
+        <label style="display:block; margin-bottom:8px; font-weight:600;">Slack/Discord Webhook URL</label>
+        <input type="text" id="settings-webhook-url" placeholder="https://hooks.slack.com/services/..." style="width:100%; background: rgba(13,17,23,0.8); color: var(--text); border: 1px solid var(--border); padding: 10px; border-radius: 4px; outline: none; margin-bottom: 16px;">
+        <button onclick="saveSettings()" class="btn" style="padding: 10px 20px;">Save Configuration</button>
+        <span id="settings-status" style="margin-left: 12px; color: #3fb950; display:none;">Saved successfully!</span>
+      </div>
+    </div>
+  </div>
+  <!-- End Settings View -->
 
   <!-- Phase 3 Modal -->
+  </div>
   <div class="modal-overlay" id="investigate-modal" onclick="if(event.target===this) closeInvestigateModal()">
     <div class="modal">
       <div class="modal-header">
@@ -340,6 +381,101 @@
   </div>
 
 <script>
+
+    const SUPABASE_URL = 'https://tiqzlhargxftqzrrzvvf.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpcXpsaGFyZ3hmdHF6cnJ6dnZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMDg0OTQsImV4cCI6MjEwNjY4NDQ5NH0.nQTx9WPuJwWcqZdGKXbxbWC-5lEyKWluMGIPO1jhzPQ';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    let currentSession = null;
+    let TENANT_ID = 'default';
+
+
+    
+    function logToScreen(msg) {
+        const d = document.createElement('div');
+        d.style.color = 'yellow';
+        d.style.fontSize = '12px';
+        d.style.textAlign = 'left';
+        d.style.marginTop = '10px';
+        d.innerText = typeof msg === 'object' ? JSON.stringify(msg) : msg;
+        document.getElementById('auth-screen').appendChild(d);
+    }
+
+    async function checkAuth() {
+      logToScreen("Checking auth...");
+      const { data: { session }, error } = await supabaseClient.auth.getSession();
+      
+      logToScreen("Session from storage: " + (session ? session.user.id : "null"));
+      if (error) logToScreen("Auth Error: " + error.message);
+      
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      logToScreen("URL Hash: " + (window.location.hash || "none"));
+      if (hashParams.has('error_description')) {
+        logToScreen("OAuth Error: " + hashParams.get('error_description'));
+      }
+      
+      if (session) {
+        logToScreen("Unlocking via storage");
+        unlockDashboard(session);
+      } else {
+        document.getElementById('auth-screen').style.display = 'flex';
+        document.getElementById('app-container').style.display = 'none';
+      }
+      
+      supabaseClient.auth.onAuthStateChange((_event, newSession) => {
+        logToScreen("Auth event: " + _event);
+        if (newSession && !currentSession) {
+          logToScreen("Unlocking via auth event");
+          unlockDashboard(newSession);
+        }
+      });
+    }
+
+
+    function unlockDashboard(session) {
+        currentSession = session;
+        TENANT_ID = session.user.id;
+        
+        // Clear the URL hash if it exists so it's clean
+        if (window.location.hash) {
+            window.history.replaceState(null, null, window.location.pathname);
+        }
+        
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('app-container').style.display = 'block';
+        
+        document.getElementById('user-email').innerText = session.user.email;
+        document.getElementById('user-name').innerText = session.user.user_metadata.full_name || 'Admin';
+        if (session.user.user_metadata.avatar_url) {
+            document.getElementById('user-avatar').src = session.user.user_metadata.avatar_url;
+        }
+        
+        // Start the dashboard components
+        initApp();
+    }
+
+    async function signInWithGoogle() {
+      await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin
+        }
+      });
+    }
+
+    
+    function copyApiKey() {
+        navigator.clipboard.writeText(TENANT_ID);
+        const btn = document.querySelector('button[title="Copy to clipboard"]');
+        btn.innerText = '✅';
+        setTimeout(() => btn.innerText = '📋', 2000);
+    }
+
+    async function signOut() {
+      await supabaseClient.auth.signOut();
+      window.location.reload();
+    }
+
 // Phase 3 Investigate Logic
 function openInvestigateModal(id) {
   document.getElementById('investigate-modal').style.display = 'flex';
@@ -393,10 +529,11 @@ function downloadPDF() {
 let historyChart;
 
 function getTenant() {
-  return document.getElementById('tenant-select').value;
+  return TENANT_ID;
 }
 
 function changeTenant() {
+return;
   initWebSocket();
 mermaid.initialize({ startOnLoad: true, theme: "dark" }); // Rebind socket to new namespace
   if(chart) chart.data.labels = [];
@@ -407,15 +544,71 @@ mermaid.initialize({ startOnLoad: true, theme: "dark" }); // Rebind socket to ne
   }
 }
 
+
+async function loadSettings() {
+  
+  try {
+    const res = await fetch(`/settings/webhook?tenant_id=${TENANT_ID}`);
+    const data = await res.json();
+    document.getElementById('settings-webhook-url').value = data.webhook_url || '';
+  } catch(e) {}
+}
+
+async function saveSettings() {
+  
+  const url = document.getElementById('settings-webhook-url').value;
+  try {
+    const res = await fetch(`/settings/webhook`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${TENANT_ID}`
+      },
+      body: JSON.stringify({webhook_url: url})
+    });
+    if(res.ok) {
+      const status = document.getElementById('settings-status');
+      status.style.display = 'inline';
+      setTimeout(() => status.style.display = 'none', 3000);
+    }
+  } catch(e) {}
+}
+
+
+async function triggerSelfLearn() {
+    const btn = document.querySelector('button[onclick="triggerSelfLearn()"]');
+    const status = document.getElementById('learn-status');
+    btn.innerText = "Training Model...";
+    btn.disabled = true;
+    
+    try {
+        const res = await fetch('/api/retrain', { method: 'POST', headers: { 'Authorization': 'Bearer ' + TENANT_ID } });
+        const data = await res.json();
+        status.innerText = "✅ " + data.message;
+        status.style.display = 'block';
+    } catch(e) {
+        status.innerText = "❌ Failed to train model.";
+        status.style.display = 'block';
+    }
+    
+    setTimeout(() => {
+        btn.innerText = "Initiate Self-Learning 🤖";
+        btn.disabled = false;
+        setTimeout(() => status.style.display = 'none', 3000);
+    }, 2000);
+}
+
 function switchTab(tab) {
   document.getElementById('tab-live').classList.remove('active');
   document.getElementById('tab-history').classList.remove('active');
   document.getElementById('tab-architecture').classList.remove('active');
+  document.getElementById('tab-settings').classList.remove('active');
   document.getElementById('tab-' + tab).classList.add('active');
   
   document.getElementById('live-view').style.display = 'none';
   document.getElementById('history-view').style.display = 'none';
   document.getElementById('architecture-view').style.display = 'none';
+  document.getElementById('settings-view').style.display = 'none';
   
   if (tab === 'live') {
     document.getElementById('live-view').style.display = 'block';
@@ -426,6 +619,9 @@ function switchTab(tab) {
     }, 50);
   } else if (tab === 'architecture') {
     document.getElementById('architecture-view').style.display = 'block';
+  } else if (tab === 'settings') {
+    document.getElementById('settings-view').style.display = 'block';
+    loadSettings();
   }
 }
 
@@ -799,8 +995,8 @@ async function poll() {
     const [events, alerts, health, stats, blocked] = await Promise.all([
       fetchJSON(`/events/recent?limit=50&tenant_id=${t}`).catch(() => []),
       fetchJSON(`/alerts/recent?limit=20&tenant_id=${t}`).catch(() => []),
-      fetchJSON(`/health?tenant_id=${t}`).catch(() => ({ event_count: 0 })),
-      fetchJSON(`/alerts/stats?tenant_id=${t}`).catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
+      fetchJSON(`/health?tenant_id=${TENANT_ID}`).catch(() => ({ event_count: 0 })),
+      fetchJSON(`/alerts/stats?tenant_id=${TENANT_ID}`).catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
       fetchJSON('/blocked-ips').catch(() => [])
     ]);
     renderFeed(events);
@@ -997,18 +1193,20 @@ function initWebSocket() {
 }
 
 
-initChart();
-initPieChart();
-initMap();
-initHistoryChart();
-initWebSocket();
-mermaid.initialize({ startOnLoad: true, theme: "dark" });
 
-// Initial full load
-poll();
+function initApp() {
+    initChart();
+    initPieChart();
+    initMap();
+    initHistoryChart();
+    initWebSocket();
+    mermaid.initialize({ startOnLoad: true, theme: "dark" });
+    poll();
+    setInterval(poll, 10000);
+}
 
-// Slow polling fallback for stats, charts, and counters (every 10s instead of 3s)
-setInterval(poll, 10000);
+checkAuth();
+
 </script>
 </body>
 </html>
