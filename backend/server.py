@@ -22,8 +22,10 @@ Run with:  python3 server.py
 
 import time
 import os
-from flask import Flask, request, jsonify, send_from_directory, session, g
-from flask_socketio import SocketIO
+import io
+import zipfile
+from flask import Flask, request, jsonify, send_from_directory, send_file, session, g
+from flask_socketio import SocketIO, join_room, leave_room, emit
 
 import db
 import webhook
@@ -47,10 +49,15 @@ REQUIRED_FIELDS = ["endpoint", "method", "status_code", "latency_ms", "ip"]
 
 
 def _get_project_from_auth():
-    """Resolve incoming Bearer API token to an active project in the database."""
+    """Resolve incoming Bearer or X-API-Key SDK token to an active project in the database."""
+    token = None
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()
+    elif "X-API-Key" in request.headers:
+        token = request.headers.get("X-API-Key", "").strip()
+
+    if token:
         project = db.get_project_by_api_key(token)
         if project:
             return project
@@ -76,6 +83,59 @@ def _resolve_and_verify_project(user_id):
         return None, (jsonify({"error": "Forbidden: access denied to this project"}), 403)
 
     return project_id, None
+
+
+# ---------------------------------------------------------
+# WebSocket Room Authorization & Management
+# ---------------------------------------------------------
+
+@socketio.on('join_project')
+def handle_join_project(data):
+    """
+    Authorize and join the client to a project-specific WebSocket room.
+    Ensures User A NEVER receives User B's live telemetry or alerts.
+    """
+    data = data or {}
+    project_id = data.get('project_id')
+    user_id = session.get('user_id')
+
+    if not project_id:
+        emit('error', {'message': 'project_id required'})
+        return {'status': 'error', 'message': 'project_id required'}
+
+    # Demo project fallback for unauthenticated demo scripts
+    if not user_id:
+        if project_id in ('proj_demo_default', 'phase1-demo-token', 'default'):
+            room_name = f"project_{project_id}"
+            join_room(room_name)
+            emit('project_joined', {'project_id': project_id, 'room': room_name})
+            return {'status': 'joined', 'room': room_name}
+        emit('error', {'message': 'Unauthenticated WebSocket connection'})
+        return {'status': 'error', 'message': 'Unauthenticated'}
+
+    # Strict server-side authorization check: verify user owns this project
+    if not db.user_owns_project(user_id, project_id):
+        emit('error', {'message': 'Forbidden: you do not own this project'})
+        return {'status': 'error', 'message': 'Forbidden'}
+
+    old_room = session.get('current_socket_room')
+    if old_room:
+        leave_room(old_room)
+
+    room_name = f"project_{project_id}"
+    join_room(room_name)
+    session['current_socket_room'] = room_name
+    emit('project_joined', {'project_id': project_id, 'room': room_name})
+    return {'status': 'joined', 'room': room_name}
+
+
+@socketio.on('leave_project')
+def handle_leave_project(data):
+    data = data or {}
+    project_id = data.get('project_id')
+    if project_id:
+        leave_room(f"project_{project_id}")
+    return {'status': 'left'}
 
 
 # ---------------------------------------------------------
@@ -204,7 +264,27 @@ def get_project_route(project_id):
     proj = db.get_project_by_id(project_id)
     keys = db.list_api_keys_for_project(project_id)
     webhook_cfg = db.get_webhook_config(project_id)
-    return jsonify({"project": proj, "keys": keys, "webhook": webhook_cfg}), 200
+    event_count = db.get_all_events_count(project_id)
+    return jsonify({
+        "project": proj,
+        "keys": keys,
+        "webhook": webhook_cfg,
+        "event_count": event_count
+    }), 200
+
+
+@app.route("/api/projects/<project_id>", methods=["DELETE"])
+@login_required
+def delete_project_route(project_id):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: you do not have access to this project"}), 403
+
+    ok, msg = db.delete_project(g.current_user["id"], project_id)
+    if not ok:
+        return jsonify({"error": msg}), 400
+
+    return jsonify({"message": msg, "deleted_project_id": project_id}), 200
+
 
 
 @app.route("/api/projects/<project_id>/keys", methods=["GET"])
@@ -233,6 +313,124 @@ def revoke_project_key(project_id, key_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
     ok = db.revoke_api_key(key_id, project_id)
     return jsonify({"success": ok}), 200
+
+
+@app.route("/api/projects/<project_id>/keys/regenerate", methods=["POST"])
+@login_required
+def regenerate_project_key(project_id):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "Regenerated SDK Key").strip() or "Regenerated SDK Key"
+    key_info = db.regenerate_api_key(project_id, name=name)
+    return jsonify({"key": key_info, "message": "API key regenerated successfully"}), 201
+
+
+@app.route("/api/projects/<project_id>/download-sdk", methods=["GET"])
+@login_required
+def download_sdk(project_id):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    proj = db.get_project_by_id(project_id)
+    if not proj:
+        return jsonify({"error": "Project not found"}), 404
+
+    # Use active key or provision a dedicated preconfigured key
+    raw_key = request.args.get("api_key")
+    if not raw_key:
+        # Check if project has active keys or generate one
+        active_keys = [k for k in db.list_api_keys_for_project(project_id) if not k.get("revoked_at")]
+        if not active_keys:
+            key_info = db.create_api_key(project_id, name="SDK Preconfigured Key")
+            raw_key = key_info["raw_key"]
+        else:
+            # Generate a new dedicated key so download is immediately usable
+            key_info = db.create_api_key(project_id, name="SDK Download Key")
+            raw_key = key_info["raw_key"]
+
+    sdk_file_path = os.path.join(os.path.dirname(__file__), "..", "sdk", "middleware.py")
+    with open(sdk_file_path, "r", encoding="utf-8") as f:
+        middleware_code = f.read()
+
+    collector_url = request.host_url.rstrip("/")
+
+    config_code = f"""# ML-O11Y Security SDK Configuration
+# Auto-generated configuration for project: {proj['name']}
+COLLECTOR_URL = "{collector_url}"
+PROJECT_ID = "{proj['id']}"
+SDK_KEY = "{raw_key}"
+"""
+
+    example_code = f"""\"\"\"
+Sample integration of ML-O11Y Security SDK into your Flask application.
+\"\"\"
+from flask import Flask, jsonify
+from middleware import SecurityMiddleware, observe
+import config
+
+app = Flask(__name__)
+
+# Attach zero-latency security observability middleware:
+SecurityMiddleware(
+    app,
+    collector_url=config.COLLECTOR_URL,
+    api_key=config.SDK_KEY
+)
+
+@app.route("/")
+def index():
+    return jsonify({{"status": "online", "message": "API is protected by ML-O11Y!"}})
+
+@app.route("/api/data", methods=["GET"])
+def get_data():
+    return jsonify({{"data": [1, 2, 3]}})
+
+if __name__ == "__main__":
+    print(f"Server starting. Telemetry forwarding to {{config.COLLECTOR_URL}}...")
+    app.run(port=5002)
+"""
+
+    readme_code = f"""# 🛡️ ML-O11Y Security SDK
+
+Preconfigured SDK for project: **{proj['name']}** (`{proj['id']}`)
+
+## Quickstart
+
+1. Place `middleware.py` and `config.py` in your Flask project directory.
+2. Install dependencies:
+   ```bash
+   pip install requests
+   ```
+3. Attach the middleware in your Flask entrypoint:
+   ```python
+   from flask import Flask
+   from middleware import SecurityMiddleware
+   import config
+
+   app = Flask(__name__)
+   SecurityMiddleware(app, collector_url=config.COLLECTOR_URL, api_key=config.SDK_KEY)
+   ```
+
+Your application telemetry is now observed asynchronously with zero added response latency!
+"""
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("middleware.py", middleware_code)
+        z.writestr("config.py", config_code)
+        z.writestr("sample_app.py", example_code)
+        z.writestr("README.md", readme_code)
+    buf.seek(0)
+
+    zip_filename = f"mlo11y-sdk-{proj['id']}.zip"
+    return send_file(
+        buf,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=zip_filename
+    )
+
 
 
 @app.route("/api/projects/<project_id>/webhooks", methods=["GET", "POST"])
@@ -283,15 +481,23 @@ def ingest():
         "tenant_id": project_id,
     }
 
-    # Check rate limiter — block abusive IPs
+    # Check rate limiter — block abusive IPs for this project
     ip = event["ip"]
-    rate_status = rate_limiter.record_request(ip)
+    rate_status = rate_limiter.record_request(ip, project_id=project_id)
+    room_name = f"project_{project_id}"
+
     if rate_status.get("blocked"):
         if rate_status.get("auto_blocked"):
             socketio.emit(f'ip_blocked_{project_id}', {
                 "ip": ip,
-                "reason": rate_status["reason"]
-            })
+                "reason": rate_status["reason"],
+                "project_id": project_id
+            }, room=room_name)
+            socketio.emit('ip_blocked', {
+                "ip": ip,
+                "reason": rate_status["reason"],
+                "project_id": project_id
+            }, room=room_name)
         return jsonify({"error": "rate limited", "detail": rate_status}), 429
 
     # Warn dashboard if IP is approaching the limit
@@ -299,8 +505,15 @@ def ingest():
         socketio.emit(f'ip_warning_{project_id}', {
             "ip": ip,
             "count": rate_status["count"],
-            "limit": rate_status["limit"]
-        })
+            "limit": rate_status["limit"],
+            "project_id": project_id
+        }, room=room_name)
+        socketio.emit('ip_warning', {
+            "ip": ip,
+            "count": rate_status["count"],
+            "limit": rate_status["limit"],
+            "project_id": project_id
+        }, room=room_name)
 
     # Run detection inline (feature computation + rules + score + fusion)
     scored_event = detection.score_event(event)
@@ -308,12 +521,14 @@ def ingest():
     event_id = db.insert_event(scored_event)
     scored_event["id"] = event_id
 
-    # Push to dashboard via WebSocket (namespaced by project_id)
-    socketio.emit(f'new_event_{project_id}', scored_event)
+    # Push to dashboard via WebSocket (strictly scoped to project room)
+    socketio.emit(f'new_event_{project_id}', scored_event, room=room_name)
+    socketio.emit('new_event', scored_event, room=room_name)
 
     # If it's an alert (medium or high), push that too
     if scored_event.get("severity") in ("medium", "high"):
-        socketio.emit(f'new_alert_{project_id}', scored_event)
+        socketio.emit(f'new_alert_{project_id}', scored_event, room=room_name)
+        socketio.emit('new_alert', scored_event, room=room_name)
 
         # Fire automated webhook for alerts using project-specific or fallback URL
         webhook_cfg = db.get_webhook_config(project_id)
@@ -375,7 +590,10 @@ def history():
 @app.route("/blocked-ips", methods=["GET"])
 @login_required
 def blocked_ips():
-    return jsonify(rate_limiter.get_blocked_ips())
+    project_id, err = _resolve_and_verify_project(g.current_user["id"])
+    if err:
+        return err
+    return jsonify(rate_limiter.get_blocked_ips(project_id=project_id))
 
 
 @app.route("/block-ip", methods=["POST"])
@@ -391,9 +609,11 @@ def block_ip():
 
     duration = data.get("duration", 300)
     reason = data.get("reason", "Manually blocked from dashboard")
-    ok = rate_limiter.block_ip(data["ip"], duration, reason)
+    ok = rate_limiter.block_ip(data["ip"], duration, reason, project_id=project_id)
     if ok:
-        socketio.emit(f'ip_blocked_{project_id}', {"ip": data["ip"], "reason": reason})
+        room_name = f"project_{project_id}"
+        socketio.emit(f'ip_blocked_{project_id}', {"ip": data["ip"], "reason": reason, "project_id": project_id}, room=room_name)
+        socketio.emit('ip_blocked', {"ip": data["ip"], "reason": reason, "project_id": project_id}, room=room_name)
     return jsonify({"success": ok})
 
 
@@ -403,7 +623,10 @@ def unblock_ip():
     data = request.get_json(silent=True)
     if not data or "ip" not in data:
         return jsonify({"error": "ip required"}), 400
-    ok = rate_limiter.unblock_ip(data["ip"])
+    project_id, err = _resolve_and_verify_project(g.current_user["id"])
+    if err:
+        return err
+    ok = rate_limiter.unblock_ip(data["ip"], project_id=project_id)
     return jsonify({"success": ok})
 
 

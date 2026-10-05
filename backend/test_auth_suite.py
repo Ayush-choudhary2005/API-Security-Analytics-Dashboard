@@ -22,6 +22,7 @@ import json
 sys.path.insert(0, os.path.dirname(__file__))
 
 import server
+from server import app, socketio
 import db
 
 
@@ -254,6 +255,369 @@ def run_tests():
             headers={"Authorization": "Bearer invalid_bad_key_12345"}
         )
         assert_test("Ingest with invalid token rejected -> HTTP 401", res_ingest_invalid.status_code == 401)
+
+        # ---------------------------------------------------------
+        # Test J: Multi-Project Creation, Details, Switching, Deletion
+        # ---------------------------------------------------------
+        print("\n--- Test J: Multi-Project Creation, Details, Switching & Deletion ---")
+        # 1. User A (Alice) creates: E-Commerce API, Payment API, College API
+        p1 = client.post("/api/projects", json={"name": "E-Commerce API", "description": "Online storefront"}).get_json()["project"]
+        p2 = client.post("/api/projects", json={"name": "Payment API", "description": "Payment processor"}).get_json()["project"]
+        p3 = client.post("/api/projects", json={"name": "College API", "description": "Student management"}).get_json()["project"]
+
+        assert_test("Project IDs generated with unique prefix/UUID", p1["id"].startswith("proj_") and p2["id"].startswith("proj_"))
+        assert_test("All 3 projects have distinct IDs", len({p1["id"], p2["id"], p3["id"]}) == 3)
+
+        # 2. User B creates Project B
+        p_bob = bob_client.post("/api/projects", json={"name": "Bob Finance API", "description": "Banking API"}).get_json()["project"]
+        assert_test("Bob created Project B", bool(p_bob["id"]))
+
+        # 3. Project Listing Isolation
+        alice_projs = client.get("/api/projects").get_json()["projects"]
+        bob_projs = bob_client.get("/api/projects").get_json()["projects"]
+        assert_test("Alice only retrieves her own projects", all(p["user_id"] == data["user"]["id"] for p in alice_projs))
+        assert_test("Bob only retrieves his own projects", all(p["user_id"] == res_bob_reg.get_json()["user"]["id"] for p in bob_projs))
+        assert_test("Bob's project not visible in Alice's project list", p_bob["id"] not in [p["id"] for p in alice_projs])
+
+        # 4. Project Details verification
+        res_p2_details = client.get(f"/api/projects/{p2['id']}")
+        assert_test("Alice can view Payment API details -> HTTP 200", res_p2_details.status_code == 200)
+        p2_data = res_p2_details.get_json()
+        assert_test("Project details include metadata, keys, event count", "project" in p2_data and "keys" in p2_data and "event_count" in p2_data)
+
+        # 5. Cross-user access prevention (IDOR)
+        assert_test("Alice cannot view Bob's project details -> HTTP 403", client.get(f"/api/projects/{p_bob['id']}").status_code == 403)
+        assert_test("Bob cannot view Alice's Payment API details -> HTTP 403", bob_client.get(f"/api/projects/{p2['id']}").status_code == 403)
+
+        # 6. Project Switching: telemetry & alerts scoping
+        assert_test("Alice queries telemetry for Payment API -> HTTP 200", client.get(f"/events/recent?project_id={p2['id']}").status_code == 200)
+        assert_test("Alice queries telemetry for College API -> HTTP 200", client.get(f"/events/recent?project_id={p3['id']}").status_code == 200)
+        assert_test("Alice cannot query telemetry for Bob's project -> HTTP 403", client.get(f"/events/recent?project_id={p_bob['id']}").status_code == 403)
+        assert_test("Bob cannot query telemetry for Alice's project -> HTTP 403", bob_client.get(f"/events/recent?project_id={p1['id']}").status_code == 403)
+
+        # 7. Project Deletion & Safety Checks
+        # Safety Check: Bob cannot delete Alice's project
+        res_del_unauth = bob_client.delete(f"/api/projects/{p3['id']}")
+        assert_test("Bob cannot delete Alice's project -> HTTP 403", res_del_unauth.status_code == 403)
+
+        # Alice successfully deletes College API (p3)
+        res_del_ok = client.delete(f"/api/projects/{p3['id']}")
+        assert_test("Alice deletes College API -> HTTP 200", res_del_ok.status_code == 200)
+
+        # Verify College API no longer exists in Alice's project list
+        alice_projs_after = client.get("/api/projects").get_json()["projects"]
+        assert_test("Deleted project no longer in Alice's project list", p3["id"] not in [p["id"] for p in alice_projs_after])
+
+        # Safety Check: Cannot delete only project
+        # Delete Bob's second project so he only has 1 left
+        bob_client.delete(f"/api/projects/{p_bob['id']}")
+        # Now Bob has only 1 project left (his default project); attempt to delete it
+        res_del_last = bob_client.delete(f"/api/projects/{bob_proj_id}")
+        assert_test("Cannot delete user's only project -> HTTP 400", res_del_last.status_code == 400)
+        assert_test("Helpful safety error message", "at least one active project" in res_del_last.get_json().get("error", ""))
+
+        # ---------------------------------------------------------
+        # Test K: SDK Identity, Credentials, Lifecycle & Download
+        # ---------------------------------------------------------
+        print("\n--- Test K: SDK Credentials, Lifecycle, Download & Isolation ---")
+        # 1. User A (Alice) generates new SDK key for Project A
+        res_key_a = client.post(f"/api/projects/{p1['id']}/keys", json={"name": "Alice Microservice Key"})
+        assert_test("Key generation returns HTTP 201", res_key_a.status_code == 201)
+        key_a_obj = res_key_a.get_json()["key"]
+        raw_key_a = key_a_obj["raw_key"]
+        key_a_id = key_a_obj["id"]
+
+        # Credential format: ask_<project_identifier>_<random_secret>
+        assert_test("Credential begins with ask_ prefix", raw_key_a.startswith("ask_"))
+        assert_test("Credential contains project ID component", p1["id"].replace("proj_", "") in raw_key_a)
+        assert_test("Credential has secure random secret", len(raw_key_a) > 25)
+
+        # 2. User B (Bob) generates SDK key for Project B
+        res_key_b = bob_client.post(f"/api/projects/{bob_proj_id}/keys", json={"name": "Bob Banking Key"})
+        raw_key_b = res_key_b.get_json()["key"]["raw_key"]
+        assert_test("Bob credential begins with ask_ prefix", raw_key_b.startswith("ask_"))
+
+        # 3. Telemetry Ingest with Key A -> Project A
+        telemetry_a = {
+            "endpoint": "/api/checkout",
+            "method": "POST",
+            "status_code": 200,
+            "latency_ms": 45.2,
+            "ip": "192.168.1.100",
+            "payload_size": 256
+        }
+        res_ingest_a = client.post(
+            "/ingest",
+            json=telemetry_a,
+            headers={"Authorization": f"Bearer {raw_key_a}"}
+        )
+        assert_test("Telemetry with Key A succeeds -> HTTP 201", res_ingest_a.status_code == 201)
+        assert_test("Event saved with Project A id", res_ingest_a.get_json().get("project_id") == p1["id"])
+
+        # 4. Telemetry Ingest with Key B -> Project B (using X-API-Key header)
+        telemetry_b = {
+            "endpoint": "/api/transfers",
+            "method": "POST",
+            "status_code": 201,
+            "latency_ms": 110.0,
+            "ip": "10.0.1.50",
+            "payload_size": 512
+        }
+        res_ingest_b = client.post(
+            "/ingest",
+            json=telemetry_b,
+            headers={"X-API-Key": raw_key_b}
+        )
+        assert_test("Telemetry with Key B via X-API-Key succeeds -> HTTP 201", res_ingest_b.status_code == 201)
+        assert_test("Event saved with Project B id", res_ingest_b.get_json().get("project_id") == bob_proj_id)
+
+        # 5. Isolation: Key A must NEVER create events for Project B, and queries are strictly scoped
+        events_proj_a = client.get(f"/events/recent?project_id={p1['id']}").get_json()
+        events_proj_b = bob_client.get(f"/events/recent?project_id={bob_proj_id}").get_json()
+        assert_test("Alice Project A contains /api/checkout", any(e["endpoint"] == "/api/checkout" for e in events_proj_a))
+        assert_test("Alice Project A DOES NOT contain /api/transfers", not any(e["endpoint"] == "/api/transfers" for e in events_proj_a))
+        assert_test("Bob Project B contains /api/transfers", any(e["endpoint"] == "/api/transfers" for e in events_proj_b))
+        assert_test("Bob Project B DOES NOT contain /api/checkout", not any(e["endpoint"] == "/api/checkout" for e in events_proj_b))
+
+        # 6. Invalid key rejected
+        res_bad_key = client.post("/ingest", json=telemetry_a, headers={"Authorization": "Bearer ask_invalid_fake_key_999"})
+        assert_test("Invalid key returns HTTP 401", res_bad_key.status_code == 401)
+
+        # 7. Key Revocation Lifecycle
+        res_revoke = client.post(f"/api/projects/{p1['id']}/keys/{key_a_id}/revoke")
+        assert_test("Revoke key returns HTTP 200", res_revoke.status_code == 200)
+
+        # Telemetry with revoked key MUST be rejected
+        res_revoked_ingest = client.post("/ingest", json=telemetry_a, headers={"Authorization": f"Bearer {raw_key_a}"})
+        assert_test("Revoked key rejected on ingest -> HTTP 401", res_revoked_ingest.status_code == 401)
+
+        # 8. Key Regeneration Lifecycle
+        res_regen = client.post(f"/api/projects/{p1['id']}/keys/regenerate")
+        assert_test("Regenerate key returns HTTP 201", res_regen.status_code == 201)
+        new_key_a = res_regen.get_json()["key"]["raw_key"]
+        assert_test("Regenerated key is new and valid", new_key_a.startswith("ask_") and new_key_a != raw_key_a)
+
+        # Telemetry with regenerated key works
+        res_regen_ingest = client.post("/ingest", json=telemetry_a, headers={"Authorization": f"Bearer {new_key_a}"})
+        assert_test("Ingest with regenerated key succeeds -> HTTP 201", res_regen_ingest.status_code == 201)
+
+        # 9. SDK Download Feature
+        res_download = client.get(f"/api/projects/{p1['id']}/download-sdk")
+        assert_test("Download SDK returns HTTP 200", res_download.status_code == 200)
+        assert_test("Download Content-Type is application/zip", "application/zip" in res_download.headers.get("Content-Type", ""))
+
+        import zipfile
+        import io
+        zip_buf = io.BytesIO(res_download.data)
+        with zipfile.ZipFile(zip_buf, "r") as zf:
+            file_names = zf.namelist()
+            assert_test("ZIP contains middleware.py", "middleware.py" in file_names)
+            assert_test("ZIP contains config.py", "config.py" in file_names)
+            assert_test("ZIP contains sample_app.py", "sample_app.py" in file_names)
+            assert_test("ZIP contains README.md", "README.md" in file_names)
+
+            cfg_content = zf.read("config.py").decode("utf-8")
+            assert_test("config.py contains correct PROJECT_ID", f'PROJECT_ID = "{p1["id"]}"' in cfg_content)
+            assert_test("config.py contains preconfigured SDK_KEY", 'SDK_KEY = "ask_' in cfg_content)
+
+            # Security verification: NO user passwords, session tokens, or internal keys
+            all_zip_content = " ".join(zf.read(name).decode("utf-8", errors="ignore") for name in file_names)
+            assert_test("SDK does NOT expose user password", "Password123" not in all_zip_content)
+            assert_test("SDK does NOT expose session cookie or secret key", "api-security-dashboard-secret" not in all_zip_content)
+            assert_test("SDK does NOT expose Gemini key", "GEMINI_API_KEY" not in all_zip_content)
+            assert_test("SDK does NOT expose database credentials", "events.db" not in all_zip_content)
+
+        # Security check: Bob cannot download Alice's project SDK
+        assert_test("Bob cannot download Alice's SDK -> HTTP 403", bob_client.get(f"/api/projects/{p1['id']}/download-sdk").status_code == 403)
+
+        # ---------------------------------------------------------
+        # Test L: Full Pipeline Project-Awareness & Attack Isolation
+        # ---------------------------------------------------------
+        print("\n--- Test L: Full Pipeline Project-Awareness & Attack Isolation ---")
+        proj_a_id = p1['id']
+        proj_b_id = bob_proj_id
+
+        # 1. Generate Brute-Force Attack on Project A
+        # IP 198.51.100.1 sends 8 consecutive failed logins to /api/login (> 5 threshold)
+        attacker_a_ip = "198.51.100.1"
+        for i in range(8):
+            res_atk_a = client.post("/ingest", json={
+                "endpoint": "/api/login",
+                "method": "POST",
+                "status_code": 401,
+                "latency_ms": 12.0,
+                "ip": attacker_a_ip,
+                "payload_size": 128
+            }, headers={"Authorization": f"Bearer {new_key_a}"})
+            assert_test(f"Project A attack event {i+1} ingested -> HTTP 201", res_atk_a.status_code == 201)
+
+        # 2. Generate Endpoint Scanning Attack on Project B
+        # IP 198.51.100.2 sends requests across 20 distinct endpoints (> 15 threshold)
+        attacker_b_ip = "198.51.100.2"
+        for i in range(20):
+            res_atk_b = bob_client.post("/ingest", json={
+                "endpoint": f"/api/v1/scan_probe_{i}",
+                "method": "GET",
+                "status_code": 404,
+                "latency_ms": 15.0,
+                "ip": attacker_b_ip,
+                "payload_size": 64
+            }, headers={"Authorization": f"Bearer {raw_key_b}"})
+            assert_test(f"Project B scan event {i+1} ingested -> HTTP 201", res_atk_b.status_code == 201)
+
+        # 3. REST Telemetry Isolation
+        a_events = client.get(f"/events/recent?project_id={proj_a_id}").get_json()
+        b_events = bob_client.get(f"/events/recent?project_id={proj_b_id}").get_json()
+
+        assert_test("Alice Project A telemetry contains attacker A IP", any(e["ip"] == attacker_a_ip for e in a_events))
+        assert_test("Alice Project A telemetry DOES NOT contain attacker B IP", not any(e["ip"] == attacker_b_ip for e in a_events))
+        assert_test("Alice Project A telemetry DOES NOT contain scan probe endpoints", not any("scan_probe" in e["endpoint"] for e in a_events))
+
+        assert_test("Bob Project B telemetry contains attacker B IP", any(e["ip"] == attacker_b_ip for e in b_events))
+        assert_test("Bob Project B telemetry DOES NOT contain attacker A IP", not any(e["ip"] == attacker_a_ip for e in b_events))
+        assert_test("Bob Project B telemetry DOES NOT contain /api/login events", not any(e["endpoint"] == "/api/login" for e in b_events))
+
+        # 4. REST Alert Isolation
+        a_alerts = client.get(f"/alerts/recent?project_id={proj_a_id}").get_json()
+        b_alerts = bob_client.get(f"/alerts/recent?project_id={proj_b_id}").get_json()
+
+        assert_test("Alice has at least 1 alert for Project A", len(a_alerts) >= 1)
+        assert_test("Alice's alert is for /api/login", any(a["endpoint"] == "/api/login" for a in a_alerts))
+        assert_test("Alice sees NO scan probe alerts", not any("scan_probe" in a["endpoint"] for a in a_alerts))
+
+        assert_test("Bob has at least 1 alert for Project B", len(b_alerts) >= 1)
+        assert_test("Bob's alert is for endpoint_scan", any("scan_probe" in a["endpoint"] for a in b_alerts))
+        assert_test("Bob sees NO /api/login alerts", not any(a["endpoint"] == "/api/login" for a in b_alerts))
+
+        # 5. Attack Distribution Stats Isolation
+        a_stats = client.get(f"/alerts/stats?project_id={proj_a_id}").get_json()
+        b_stats = bob_client.get(f"/alerts/stats?project_id={proj_b_id}").get_json()
+
+        assert_test("Alice stats show brute_force >= 1", a_stats.get("brute_force", 0) >= 1)
+        assert_test("Alice stats show endpoint_scan == 0", a_stats.get("endpoint_scan", 0) == 0)
+        assert_test("Bob stats show endpoint_scan >= 1", b_stats.get("endpoint_scan", 0) >= 1)
+        assert_test("Bob stats show brute_force == 0", b_stats.get("brute_force", 0) == 0)
+
+        # 6. Historical Analytics Isolation
+        a_hist = client.get(f"/history?project_id={proj_a_id}").get_json()
+        b_hist = bob_client.get(f"/history?project_id={proj_b_id}").get_json()
+
+        a_top_endpoints = [e["endpoint"] for e in a_hist.get("top_endpoints", [])]
+        b_top_endpoints = [e["endpoint"] for e in b_hist.get("top_endpoints", [])]
+        assert_test("Alice top endpoints include /api/login", "/api/login" in a_top_endpoints)
+        assert_test("Alice top endpoints DO NOT include scan probes", not any("scan_probe" in ep for ep in a_top_endpoints))
+        assert_test("Bob top endpoints include scan probes", any("scan_probe" in ep for ep in b_top_endpoints))
+        assert_test("Bob top endpoints DO NOT include /api/login", "/api/login" not in b_top_endpoints)
+
+        # 7. Threat Investigation & GenAI Context Isolation
+        alert_a_id = a_alerts[0]["id"]
+        alert_b_id = b_alerts[0]["id"]
+
+        # Alice investigates Project A alert -> 200
+        res_inv_a = client.get(f"/api/investigate/{alert_a_id}")
+        assert_test("Alice investigates Project A alert -> HTTP 200", res_inv_a.status_code == 200)
+        report_text = res_inv_a.get_json().get("report", "")
+        assert_test("Threat report includes Project A id", proj_a_id in report_text)
+        assert_test("Threat report includes attacker A IP", attacker_a_ip in report_text)
+        assert_test("Threat report DOES NOT leak attacker B IP", attacker_b_ip not in report_text)
+        assert_test("Threat report DOES NOT leak Project B endpoints", "scan_probe" not in report_text)
+
+        # Cross-user investigation prevention (IDOR)
+        assert_test("Bob cannot investigate Alice's alert -> HTTP 403", bob_client.get(f"/api/investigate/{alert_a_id}").status_code == 403)
+        assert_test("Alice cannot investigate Bob's alert -> HTTP 403", client.get(f"/api/investigate/{alert_b_id}").status_code == 403)
+
+        # 8. Project-Scoped IP Rate Limiting & Blocking Isolation
+        # Block IP 198.51.100.1 on Project A
+        res_block = client.post(f"/block-ip?project_id={proj_a_id}", json={"ip": attacker_a_ip, "reason": "Brute force test block"})
+        assert_test("Alice blocks IP on Project A -> HTTP 200", res_block.status_code == 200)
+
+        # Blocked IPs query for Project A shows the IP
+        a_blocked = client.get(f"/blocked-ips?project_id={proj_a_id}").get_json()
+        assert_test("Project A blocked list contains attacker IP", any(b["ip"] == attacker_a_ip for b in a_blocked))
+
+        # Blocked IPs query for Project B DOES NOT contain attacker IP
+        b_blocked = bob_client.get(f"/blocked-ips?project_id={proj_b_id}").get_json()
+        assert_test("Project B blocked list DOES NOT contain attacker IP", not any(b["ip"] == attacker_a_ip for b in b_blocked))
+
+        # Further request from 198.51.100.1 to Project A is rate limited (429)
+        res_ingest_blocked = client.post("/ingest", json={
+            "endpoint": "/api/test", "method": "GET", "status_code": 200, "latency_ms": 10.0, "ip": attacker_a_ip, "payload_size": 10
+        }, headers={"Authorization": f"Bearer {new_key_a}"})
+        assert_test("Request from blocked IP on Project A rejected -> HTTP 429", res_ingest_blocked.status_code == 429)
+
+        # BUT request from the SAME IP to Project B succeeds! (tenant-isolated defense)
+        res_ingest_b_allowed = bob_client.post("/ingest", json={
+            "endpoint": "/api/test", "method": "GET", "status_code": 200, "latency_ms": 10.0, "ip": attacker_a_ip, "payload_size": 10
+        }, headers={"Authorization": f"Bearer {raw_key_b}"})
+        assert_test("Request from same IP on Project B allowed -> HTTP 201", res_ingest_b_allowed.status_code == 201)
+
+        # Unblock IP on Project A
+        client.post(f"/unblock-ip?project_id={proj_a_id}", json={"ip": attacker_a_ip})
+
+        # 9. Server-Side WebSocket Room Authorization & Multi-Tenant Push Isolation
+        alice_socket = socketio.test_client(app, flask_test_client=client)
+        bob_socket = socketio.test_client(app, flask_test_client=bob_client)
+
+        assert_test("Alice WebSocket connected", alice_socket.is_connected())
+        assert_test("Bob WebSocket connected", bob_socket.is_connected())
+
+        # Alice joins Project A room
+        alice_socket.emit("join_project", {"project_id": proj_a_id})
+        alice_join_resp = alice_socket.get_received()
+        assert_test("Alice joined Project A room", any(msg["name"] == "project_joined" and msg["args"][0]["project_id"] == proj_a_id for msg in alice_join_resp))
+
+        # Bob attempts to join Alice's Project A room -> Rejected by server!
+        bob_socket.emit("join_project", {"project_id": proj_a_id})
+        bob_bad_join = bob_socket.get_received()
+        assert_test("Bob forbidden from joining Alice's room", any(msg["name"] == "error" for msg in bob_bad_join))
+
+        # Bob joins his own Project B room -> Succeeded
+        bob_socket.emit("join_project", {"project_id": proj_b_id})
+        bob_join_resp = bob_socket.get_received()
+        assert_test("Bob joined Project B room", any(msg["name"] == "project_joined" and msg["args"][0]["project_id"] == proj_b_id for msg in bob_join_resp))
+
+        # Clear received buffers
+        alice_socket.get_received()
+        bob_socket.get_received()
+
+        # Send an event to Project A
+        client.post("/ingest", json={
+            "endpoint": "/api/secure/checkout",
+            "method": "POST",
+            "status_code": 200,
+            "latency_ms": 20.0,
+            "ip": "10.10.10.10",
+            "payload_size": 100
+        }, headers={"Authorization": f"Bearer {new_key_a}"})
+
+        alice_msgs = alice_socket.get_received()
+        bob_msgs = bob_socket.get_received()
+
+        # Alice MUST receive the event
+        assert_test("Alice received live WebSocket event for Project A", any(msg["name"] in ("new_event", f"new_event_{proj_a_id}") and msg["args"][0]["endpoint"] == "/api/secure/checkout" for msg in alice_msgs))
+        # Bob MUST NOT receive anything!
+        assert_test("Bob received ZERO WebSocket events from Project A", len(bob_msgs) == 0)
+
+        # Now send an event to Project B
+        bob_client.post("/ingest", json={
+            "endpoint": "/api/secure/transfers",
+            "method": "POST",
+            "status_code": 200,
+            "latency_ms": 25.0,
+            "ip": "20.20.20.20",
+            "payload_size": 150
+        }, headers={"Authorization": f"Bearer {raw_key_b}"})
+
+        alice_msgs_2 = alice_socket.get_received()
+        bob_msgs_2 = bob_socket.get_received()
+
+        # Bob MUST receive the event
+        assert_test("Bob received live WebSocket event for Project B", any(msg["name"] in ("new_event", f"new_event_{proj_b_id}") and msg["args"][0]["endpoint"] == "/api/secure/transfers" for msg in bob_msgs_2))
+        # Alice MUST NOT receive anything!
+        assert_test("Alice received ZERO WebSocket events from Project B", len(alice_msgs_2) == 0)
+
+        alice_socket.disconnect()
+        bob_socket.disconnect()
 
         print("\n==================================================")
         print(f"TEST SUITE COMPLETE: {passed}/{total} TESTS PASSED")

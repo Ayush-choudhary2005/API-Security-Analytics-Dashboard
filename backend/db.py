@@ -286,6 +286,33 @@ def user_owns_project(user_id: str, project_id: str) -> bool:
     return bool(row)
 
 
+def delete_project(user_id: str, project_id: str) -> tuple:
+    """
+    Delete a project and its associated data if owned by the user.
+    Safety checks:
+    - Verifies ownership.
+    - Prevents deleting if it is the user's only project.
+    """
+    if not user_owns_project(user_id, project_id):
+        return False, "Forbidden: you do not own this project"
+
+    user_projects = get_projects_by_user(user_id)
+    if len(user_projects) <= 1:
+        return False, "Cannot delete your only project. You must have at least one active project."
+
+    with _lock:
+        conn = get_conn()
+        conn.execute("DELETE FROM api_keys WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM webhook_configs WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM events WHERE project_id = ? OR tenant_id = ?", (project_id, project_id))
+        conn.execute("DELETE FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
+        conn.commit()
+        conn.close()
+
+    return True, "Project deleted successfully"
+
+
+
 # ---------------------------------------------------------
 # API Key Operations
 # ---------------------------------------------------------
@@ -294,10 +321,13 @@ def create_api_key(project_id: str, name: str = "Default Key", raw_key: str = No
     """
     Generate an API key for a project. Returns the raw key once for display.
     Only the hash is persisted in the database.
+    Format: ask_<project_identifier>_<random_secret>
     """
     if not raw_key:
-        raw_key = f"mlo_live_{secrets.token_hex(16)}"
-    key_prefix = raw_key[:12]
+        clean_pid = project_id.replace("proj_", "")
+        random_secret = secrets.token_hex(16)
+        raw_key = f"ask_{clean_pid}_{random_secret}"
+    key_prefix = raw_key[:18] + "..." if len(raw_key) > 18 else raw_key
     key_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
     now = time.time()
 
@@ -318,6 +348,7 @@ def create_api_key(project_id: str, name: str = "Default Key", raw_key: str = No
         "key_prefix": key_prefix,
         "raw_key": raw_key,
         "created_at": now,
+        "status": "active",
     }
 
 
@@ -336,10 +367,10 @@ def get_project_by_api_key(raw_key: str) -> dict:
         """,
         (key_hash,),
     ).fetchone()
-    
+
     if row:
-        # Update last_used_at asynchronously/safely
-        conn.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?", (time.time(), row["key_id"]))
+        now = time.time()
+        conn.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now, row["key_id"]))
         conn.commit()
         project = dict(row)
         conn.close()
@@ -363,7 +394,26 @@ def list_api_keys_for_project(project_id: str) -> list:
         (project_id,),
     ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["status"] = "revoked" if d.get("revoked_at") else "active"
+        result.append(d)
+    return result
+
+
+def regenerate_api_key(project_id: str, name: str = "Regenerated SDK Key") -> dict:
+    """Revoke existing active keys for a project and create a fresh new key."""
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            "UPDATE api_keys SET revoked_at = ? WHERE project_id = ? AND revoked_at IS NULL",
+            (now, project_id),
+        )
+        conn.commit()
+        conn.close()
+    return create_api_key(project_id, name=name)
 
 
 def revoke_api_key(key_id: int, project_id: str) -> bool:
@@ -379,6 +429,7 @@ def revoke_api_key(key_id: int, project_id: str) -> bool:
         affected = cur.rowcount
         conn.close()
     return affected > 0
+
 
 
 # ---------------------------------------------------------

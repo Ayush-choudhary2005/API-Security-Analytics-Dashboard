@@ -254,11 +254,13 @@
       </div>
       <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <label style="font-size: 12px; color: var(--muted);">Project:</label>
-          <select id="project-select" onchange="changeProject()" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; font-size: 13px;">
+          <label style="font-size: 12px; color: var(--muted); font-weight: 500;">Active App:</label>
+          <select id="project-select" onchange="changeProject()" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; font-size: 13px; font-weight: 500;">
           </select>
+          <span id="active-project-tag" style="background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;"></span>
         </div>
         <button onclick="openNewProjectModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px;">+ New Project</button>
+        <button onclick="openProjectDetailsModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px;">⚙️ Project Info</button>
         <button onclick="openSdkModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(88,166,255,0.4);">⚡ SDK Keys</button>
         <span style="color: var(--muted); font-size: 13px; padding-left: 6px;">👤 <strong id="current-user-email" style="color: var(--text);"></strong></span>
         <button onclick="handleLogout()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; color: var(--high); border-color: rgba(248,81,73,0.3);">Sign Out</button>
@@ -475,27 +477,95 @@
 
   <!-- SDK Keys & Setup Modal -->
   <div class="modal-overlay" id="sdk-modal" onclick="if(event.target===this) closeSdkModal()">
-    <div class="modal" style="width: 620px;">
+    <div class="modal" style="width: 660px;">
       <div class="modal-header">
-        <h2>⚡ SDK Integration & API Keys</h2>
+        <h2>⚡ SDK Integration & Project Credentials</h2>
         <button class="modal-close" onclick="closeSdkModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div style="margin-bottom: 12px;">
-          <span style="font-size: 13px; color: var(--muted);">Active Project:</span>
-          <strong id="sdk-project-name" style="color: #58a6ff;"></strong>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <span style="font-size: 13px; color: var(--muted);">Project:</span>
+            <strong id="sdk-project-name" style="color: #58a6ff; font-size: 14px;"></strong>
+            <span style="color: var(--muted); font-size: 12px; margin-left: 6px;">(<code id="sdk-project-id" style="color: var(--text);"></code>)</span>
+          </div>
+          <button onclick="downloadProjectSdk()" class="auth-btn" style="width: auto; background: #238636; padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+            ⬇️ Download Preconfigured SDK
+          </button>
         </div>
-        <div style="background: var(--bg); border: 1px solid var(--border); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Project ID:</div>
-          <code id="sdk-project-id" style="font-size: 13px; color: #e6edf3;"></code>
-          <div style="font-size: 12px; color: var(--muted); margin-top: 10px; margin-bottom: 4px;">Primary API Key / Token:</div>
+
+        <div style="background: var(--bg); border: 1px solid var(--border); padding: 14px; border-radius: 6px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="font-size: 12px; color: var(--muted);">Active SDK Credential:</div>
+            <div style="display: flex; gap: 6px;">
+              <button onclick="regenerateProjectKey()" class="btn-investigate" style="color: #d29922; border-color: rgba(210,153,34,0.3);">🔄 Regenerate</button>
+              <button onclick="generateNewKeyForProject()" class="btn-investigate">+ New Key</button>
+            </div>
+          </div>
           <code id="sdk-active-key" style="font-size: 13px; color: var(--low); word-break: break-all;"></code>
         </div>
-        <div style="font-size: 13px; color: var(--muted); margin-bottom: 6px;">3-Line Integration Snippet:</div>
+
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; font-weight: 600;">Project Credentials</div>
+          <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+            <table style="font-size: 12px;">
+              <thead>
+                <tr><th>Name</th><th>Key Prefix</th><th>Status</th><th>Last Used</th><th>Action</th></tr>
+              </thead>
+              <tbody id="sdk-keys-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500;">Quickstart Integration (Zero-Latency):</div>
         <pre style="background: var(--bg); padding: 12px; border-radius: 6px; font-size: 13px; border: 1px solid var(--border); overflow-x: auto;"><code id="sdk-code-snippet"></code></pre>
-        <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px;">
-          <button onclick="generateNewKeyForProject()" class="btn-investigate">+ Generate New Key</button>
-          <button onclick="closeSdkModal()" class="btn-investigate">Done</button>
+        <div style="margin-top: 14px; display: flex; justify-content: flex-end; gap: 8px;">
+          <button onclick="closeSdkModal()" class="btn-investigate">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Details & Settings Modal -->
+  <div class="modal-overlay" id="project-details-modal" onclick="if(event.target===this) closeProjectDetailsModal()">
+    <div class="modal" style="width: 540px;">
+      <div class="modal-header">
+        <h2>⚙️ Project Details & Settings</h2>
+        <button class="modal-close" onclick="closeProjectDetailsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="project-details-error" class="auth-error"></div>
+        <div style="background: var(--bg); border: 1px solid var(--border); padding: 14px; border-radius: 6px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--muted); font-size: 12px;">Name:</span>
+            <strong id="pd-name" style="color: var(--text); font-size: 14px;"></strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--muted); font-size: 12px;">Project ID:</span>
+            <code id="pd-id" style="color: #58a6ff; font-size: 12px;"></code>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--muted); font-size: 12px;">Description:</span>
+            <span id="pd-desc" style="color: var(--text); font-size: 12px;"></span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--muted); font-size: 12px;">Total Recorded Events:</span>
+            <strong id="pd-events" style="color: var(--low); font-size: 13px;">0</strong>
+          </div>
+        </div>
+
+        <h3 style="font-size: 13px; color: var(--muted); margin-top: 16px; margin-bottom: 8px; text-transform: uppercase;">Slack / Discord Webhook</h3>
+        <input type="text" id="pd-webhook-url" class="auth-input" placeholder="https://hooks.slack.com/services/..." style="margin-bottom: 8px;">
+        <button onclick="saveProjectWebhook()" class="btn-investigate" style="padding: 6px 14px; font-size: 12px;">Save Webhook URL</button>
+        <span id="pd-webhook-status" style="font-size: 12px; color: var(--low); margin-left: 10px; display: none;">Saved!</span>
+
+        <h3 style="font-size: 13px; color: var(--high); margin-top: 24px; margin-bottom: 8px; text-transform: uppercase;">Danger Zone</h3>
+        <div style="border: 1px solid rgba(248,81,73,0.3); background: rgba(248,81,73,0.05); padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--high);">Delete This Project</div>
+            <div style="font-size: 11px; color: var(--muted);">Permanently remove this project, its API keys, and all telemetry events.</div>
+          </div>
+          <button onclick="deleteCurrentProject()" class="btn-investigate" style="color: var(--high); border-color: var(--high); padding: 6px 12px;">Delete Project</button>
         </div>
       </div>
     </div>
@@ -652,11 +722,18 @@ async function loadProjects() {
       select.appendChild(opt);
     });
 
-    // Select the first project or keep existing
-    if (!currentProject || !userProjects.some(p => p.id === currentProject.id)) {
+    // Select persisted project or first project
+    const savedId = localStorage.getItem('mlo11y_active_project_id');
+    if (savedId && userProjects.some(p => p.id === savedId)) {
+      currentProject = userProjects.find(p => p.id === savedId);
+    } else if (!currentProject || !userProjects.some(p => p.id === currentProject.id)) {
       currentProject = userProjects[0];
     }
     select.value = currentProject.id;
+    localStorage.setItem('mlo11y_active_project_id', currentProject.id);
+
+    const tag = document.getElementById('active-project-tag');
+    if (tag) tag.textContent = currentProject.name;
 
     setupDashboard();
   } catch (err) {
@@ -673,12 +750,110 @@ function changeProject() {
   const selectedId = select.value;
   currentProject = userProjects.find(p => p.id === selectedId) || null;
 
-  initWebSocket();
-  if (chart) chart.data.labels = [];
-  if (pieChart) pieChart.data.datasets[0].data = [0, 0, 0, 0];
+  if (currentProject) {
+    localStorage.setItem('mlo11y_active_project_id', currentProject.id);
+    const tag = document.getElementById('active-project-tag');
+    if (tag) tag.textContent = currentProject.name;
+  }
+
+  // Clear feed and alerts DOM
+  document.getElementById('feed-body').innerHTML = '';
+  document.getElementById('alerts-body').innerHTML = '<div class="empty">Loading alerts...</div>';
+  document.getElementById('stat-total').textContent = '0';
+  document.getElementById('stat-alerts').textContent = '0';
+  document.getElementById('stat-high').textContent = '0';
+  document.getElementById('stat-time').textContent = '—';
+
+  // Clear map markers
+  if (map && markers) {
+    Object.keys(markers).forEach(ip => {
+      if (markers[ip] && markers[ip].remove) markers[ip].remove();
+    });
+    markers = {};
+  }
+
+  // Reset charts
+  if (chart) {
+    chart.data.labels = [];
+    chart.data.datasets[0].data = [];
+    chart.update();
+  }
+  if (pieChart) {
+    pieChart.data.datasets[0].data = [0, 0, 0, 0];
+    pieChart.update();
+  }
+
+  // Switch WebSocket room subscription
+  initWebSocket(true);
   poll();
   if (document.getElementById('tab-history').classList.contains('active')) {
     loadHistory().then(() => { if (historyChart) historyChart.resize(); });
+  }
+}
+
+async function openProjectDetailsModal() {
+  if (!currentProject) return;
+  document.getElementById('project-details-modal').style.display = 'flex';
+  document.getElementById('project-details-error').style.display = 'none';
+  document.getElementById('pd-webhook-status').style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}`);
+    const data = await res.json();
+    if (res.ok && data.project) {
+      document.getElementById('pd-name').textContent = data.project.name;
+      document.getElementById('pd-id').textContent = data.project.id;
+      document.getElementById('pd-desc').textContent = data.project.description || 'No description';
+      document.getElementById('pd-events').textContent = data.event_count || 0;
+      const hookUrl = (data.webhook && data.webhook.webhook_url) ? data.webhook.webhook_url : '';
+      document.getElementById('pd-webhook-url').value = hookUrl;
+    }
+  } catch (err) {}
+}
+
+function closeProjectDetailsModal() {
+  document.getElementById('project-details-modal').style.display = 'none';
+}
+
+async function saveProjectWebhook() {
+  if (!currentProject) return;
+  const url = document.getElementById('pd-webhook-url').value.trim();
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/webhooks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhook_url: url, provider: 'slack' })
+    });
+    if (res.ok) {
+      const statusEl = document.getElementById('pd-webhook-status');
+      statusEl.style.display = 'inline';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    }
+  } catch (e) {}
+}
+
+async function deleteCurrentProject() {
+  if (!currentProject) return;
+  const confirmed = confirm(`Are you sure you want to permanently delete project "${currentProject.name}"?\nAll associated telemetry events and API keys will be deleted.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) {
+      const errBox = document.getElementById('project-details-error');
+      errBox.textContent = data.error || 'Failed to delete project';
+      errBox.style.display = 'block';
+      return;
+    }
+    localStorage.removeItem('mlo11y_active_project_id');
+    closeProjectDetailsModal();
+    currentProject = null;
+    await loadProjects();
+  } catch (err) {
+    const errBox = document.getElementById('project-details-error');
+    errBox.textContent = 'Network error deleting project';
+    errBox.style.display = 'block';
   }
 }
 
@@ -692,6 +867,7 @@ function openNewProjectModal() {
 function closeNewProjectModal() {
   document.getElementById('new-project-modal').style.display = 'none';
 }
+
 
 async function submitNewProject() {
   const name = document.getElementById('new-project-name').value.trim();
@@ -728,32 +904,94 @@ async function submitNewProject() {
   }
 }
 
+let latestGeneratedKey = null;
+
 async function openSdkModal() {
   if (!currentProject) return;
   document.getElementById('sdk-modal').style.display = 'flex';
   document.getElementById('sdk-project-name').textContent = currentProject.name;
   document.getElementById('sdk-project-id').textContent = currentProject.id;
+  await refreshSdkKeysList();
+}
 
+async function refreshSdkKeysList() {
+  if (!currentProject) return;
   try {
     const res = await fetch(`/api/projects/${currentProject.id}/keys`);
     const data = await res.json();
     const keys = data.keys || [];
-    const activeKey = keys.find(k => !k.revoked_at) || { key_prefix: 'mlo_live_...' };
-    
-    const keyVal = activeKey.key_prefix + '****************';
-    document.getElementById('sdk-active-key').textContent = keyVal;
+
+    const activeKey = keys.find(k => !k.revoked_at);
+    const activeKeyDisplay = latestGeneratedKey || (activeKey ? activeKey.key_prefix : 'No active key (Click Regenerate)');
+    document.getElementById('sdk-active-key').textContent = activeKeyDisplay;
+
+    const displayToken = latestGeneratedKey || (activeKey ? activeKey.key_prefix : 'YOUR_SDK_KEY');
     document.getElementById('sdk-code-snippet').textContent = 
-`from middleware import observe
+`from middleware import SecurityMiddleware
 from flask import Flask
 
 app = Flask(__name__)
-# Add telemetry observability:
-observe(app, collector_url="http://localhost:5001", token="${activeKey.key_prefix || 'YOUR_API_KEY'}")`;
+
+# Zero-latency async API security observation:
+SecurityMiddleware(
+    app,
+    collector_url="http://localhost:5001",
+    api_key="${displayToken}"
+)`;
+
+    const tbody = document.getElementById('sdk-keys-table-body');
+    if (keys.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:10px;">No keys found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = keys.map(k => {
+      const isRevoked = !!k.revoked_at;
+      const statusBadge = isRevoked ? '<span style="color:var(--high);">Revoked</span>' : '<span style="color:var(--low);">Active</span>';
+      const lastUsed = k.last_used_at ? new Date(k.last_used_at * 1000).toLocaleTimeString() : 'Never';
+      const actionBtn = !isRevoked ? `<button onclick="revokeKey(${k.id})" class="btn-investigate" style="color:var(--high); border-color:rgba(248,81,73,0.3); padding:2px 8px;">Revoke</button>` : '—';
+      return `<tr>
+        <td><strong>${k.name}</strong></td>
+        <td><code>${k.key_prefix}</code></td>
+        <td>${statusBadge}</td>
+        <td>${lastUsed}</td>
+        <td>${actionBtn}</td>
+      </tr>`;
+    }).join('');
   } catch (e) {}
 }
 
 function closeSdkModal() {
   document.getElementById('sdk-modal').style.display = 'none';
+  latestGeneratedKey = null;
+}
+
+function downloadProjectSdk() {
+  if (!currentProject) return;
+  let url = `/api/projects/${currentProject.id}/download-sdk`;
+  if (latestGeneratedKey) {
+    url += `?api_key=${encodeURIComponent(latestGeneratedKey)}`;
+  }
+  window.location.href = url;
+}
+
+async function regenerateProjectKey() {
+  if (!currentProject) return;
+  const ok = confirm(`Regenerating your SDK key will immediately revoke existing keys for "${currentProject.name}". Continue?`);
+  if (!ok) return;
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/keys/regenerate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Primary SDK Key' })
+    });
+    const data = await res.json();
+    if (res.ok && data.key) {
+      latestGeneratedKey = data.key.raw_key;
+      await refreshSdkKeysList();
+    }
+  } catch (e) {}
 }
 
 async function generateNewKeyForProject() {
@@ -765,15 +1003,22 @@ async function generateNewKeyForProject() {
       body: JSON.stringify({ name: 'Secondary SDK Key' })
     });
     const data = await res.json();
-    if (data.key && data.key.raw_key) {
-      document.getElementById('sdk-active-key').textContent = data.key.raw_key;
-      document.getElementById('sdk-code-snippet').textContent = 
-`from middleware import observe
-from flask import Flask
-
-app = Flask(__name__)
-observe(app, collector_url="http://localhost:5001", token="${data.key.raw_key}")`;
+    if (res.ok && data.key) {
+      latestGeneratedKey = data.key.raw_key;
+      await refreshSdkKeysList();
     }
+  } catch (e) {}
+}
+
+async function revokeKey(keyId) {
+  if (!currentProject) return;
+  const ok = confirm('Are you sure you want to revoke this SDK credential? Any applications using it will be blocked.');
+  if (!ok) return;
+
+  try {
+    await fetch(`/api/projects/${currentProject.id}/keys/${keyId}/revoke`, { method: 'POST' });
+    latestGeneratedKey = null;
+    await refreshSdkKeysList();
   } catch (e) {}
 }
 
@@ -826,9 +1071,10 @@ function closeInvestigateModal() {
 
 function downloadPDF() {
   const element = document.getElementById('modal-content');
+  const projSlug = currentProject ? currentProject.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Project';
   const opt = {
     margin:       0.5,
-    filename:     'Threat_Report.pdf',
+    filename:     `Threat_Report_${projSlug}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { scale: 2 },
     jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
@@ -1159,18 +1405,19 @@ async function manualBlockIP() {
   });
   
   input.value = '';
-  const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+  const blocked = await fetchJSON(`/blocked-ips?project_id=${tenant}`).catch(() => []);
   renderBlockedIPs(blocked);
 }
 
 async function unblockIP(ip) {
-  await fetch('/unblock-ip', {
+  const tenant = getTenant();
+  await fetch(`/unblock-ip?project_id=${tenant}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ip: ip })
   });
   
-  const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+  const blocked = await fetchJSON(`/blocked-ips?project_id=${tenant}`).catch(() => []);
   renderBlockedIPs(blocked);
 }
 
@@ -1230,7 +1477,7 @@ async function poll() {
       fetchJSON(`/alerts/recent?limit=20&project_id=${t}`).catch(() => []),
       fetchJSON(`/health?project_id=${t}`).catch(() => ({ event_count: 0 })),
       fetchJSON(`/alerts/stats?project_id=${t}`).catch(() => ({ brute_force: 0, endpoint_scan: 0, request_burst: 0, anomaly: 0 })),
-      fetchJSON('/blocked-ips').catch(() => [])
+      fetchJSON(`/blocked-ips?project_id=${t}`).catch(() => [])
     ]);
     renderFeed(events);
     renderAlerts(alerts);
@@ -1286,32 +1533,49 @@ function setChartWindow(points, btnId) {
   }
 }
 
-function initWebSocket() {
+function initWebSocket(force = false) {
+  const tenant = getTenant();
+  
   if (!socket) {
     socket = io();
     socket.on('connect', () => {
       const el = document.getElementById('ws-status');
       if (el) { el.textContent = '● WebSocket Connected'; el.style.color = 'var(--low)'; }
+      const currentT = getTenant();
+      socket.emit('join_project', { project_id: currentT });
     });
     socket.on('disconnect', () => {
       const el = document.getElementById('ws-status');
       if (el) { el.textContent = '○ Reconnecting...'; el.style.color = 'var(--medium)'; }
     });
+    socket.on('error', (err) => {
+      console.warn('[Socket Error]', err);
+    });
   }
 
-  const tenant = getTenant();
-  if (currentWsTenant === tenant) return;
+  if (socket.connected) {
+    socket.emit('join_project', { project_id: tenant });
+  }
+
+  if (currentWsTenant === tenant && !force) return;
   
   if (currentWsTenant) {
     socket.off(`new_event_${currentWsTenant}`);
     socket.off(`new_alert_${currentWsTenant}`);
     socket.off(`ip_blocked_${currentWsTenant}`);
     socket.off(`ip_warning_${currentWsTenant}`);
+    socket.off('new_event');
+    socket.off('new_alert');
+    socket.off('ip_blocked');
+    socket.off('ip_warning');
   }
   
   currentWsTenant = tenant;
 
-  socket.on(`new_event_${tenant}`, (event) => {
+  const handleNewEvent = (event) => {
+    // Defense-in-depth: verify event project matches active project
+    if (event.project_id && event.project_id !== tenant && tenant !== 'proj_demo_default') return;
+
     const body = document.getElementById('feed-body');
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -1367,9 +1631,11 @@ function initWebSocket() {
         wsChartTimer = null;
       }, 1000);
     }
-  });
-  
-  socket.on(`new_alert_${tenant}`, (alert) => {
+  };
+
+  const handleNewAlert = (alert) => {
+    if (alert.project_id && alert.project_id !== tenant && tenant !== 'proj_demo_default') return;
+
     const body = document.getElementById('alerts-body');
     const div = document.createElement('div');
     div.innerHTML = `
@@ -1389,16 +1655,16 @@ function initWebSocket() {
     if (alert.severity === 'high') {
       showNotification(`🚨 High-severity alert on ${alert.endpoint} from ${alert.ip}!`);
     }
-  });
+  };
 
-  socket.on(`ip_blocked_${tenant}`, async (data) => {
+  const handleIpBlocked = async (data) => {
     showNotification(`🛡️ IP ${data.ip} auto-blocked: ${data.reason}`);
     document.getElementById('suggestion-bar').style.display = 'none';
-    const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+    const blocked = await fetchJSON(`/blocked-ips?project_id=${tenant}`).catch(() => []);
     renderBlockedIPs(blocked);
-  });
-  
-  socket.on(`ip_warning_${tenant}`, (data) => {
+  };
+
+  const handleIpWarning = (data) => {
     const bar = document.getElementById('suggestion-bar');
     document.getElementById('suggestion-text').textContent = 
       `IP ${data.ip} has made ${data.count}/${data.limit} requests in the last 60s — likely an attack in progress.`;
@@ -1412,7 +1678,7 @@ function initWebSocket() {
       });
       bar.style.display = 'none';
       showNotification(`🛡️ IP ${data.ip} blocked preemptively!`);
-      const blocked = await fetchJSON('/blocked-ips').catch(() => []);
+      const blocked = await fetchJSON(`/blocked-ips?project_id=${tenant}`).catch(() => []);
       renderBlockedIPs(blocked);
     };
     
@@ -1420,7 +1686,12 @@ function initWebSocket() {
     bar.style.animation = 'none';
     bar.offsetHeight;
     bar.style.animation = 'fadeIn 0.3s';
-  });
+  };
+
+  socket.on(`new_event_${tenant}`, handleNewEvent);
+  socket.on(`new_alert_${tenant}`, handleNewAlert);
+  socket.on(`ip_blocked_${tenant}`, handleIpBlocked);
+  socket.on(`ip_warning_${tenant}`, handleIpWarning);
 }
 
 // Initial authentication check on page load

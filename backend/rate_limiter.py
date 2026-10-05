@@ -19,138 +19,161 @@ BLOCK_DURATION_SEC = 300  # How long an auto-blocked IP stays blocked (5 min)
 # ---- State ----
 _lock = threading.Lock()
 
-# { ip: [timestamp1, timestamp2, ...] }
+# { (project_id, ip): [timestamp1, timestamp2, ...] }
 _request_log = defaultdict(list)
 
-# { ip: { "blocked_at": float, "expires_at": float, "reason": str, "request_count": int } }
+# { (project_id, ip): { "blocked_at": float, "expires_at": float, "reason": str, "request_count": int, "project_id": str } }
 _blocked_ips = {}
 
-# IPs that have already triggered a warning (avoid spamming)
+# Set of (project_id, ip)
 _warned_ips = set()
 
 # Manually whitelisted IPs that should never be blocked
 _whitelist = {"127.0.0.1"}
 
 
-def _cleanup_window(ip: str, now: float):
-    """Remove timestamps older than the sliding window."""
+def _cleanup_window(key: tuple, now: float):
+    """Remove timestamps older than the sliding window for a given (project_id, ip)."""
     cutoff = now - WINDOW_SEC
-    _request_log[ip] = [t for t in _request_log[ip] if t > cutoff]
+    _request_log[key] = [t for t in _request_log[key] if t > cutoff]
 
 
-def is_blocked(ip: str) -> bool:
-    """Check if an IP is currently blocked."""
+def is_blocked(ip: str, project_id: str = "default") -> bool:
+    """Check if an IP is currently blocked for a given project."""
     if ip in _whitelist:
         return False
         
+    key = (project_id, ip)
     with _lock:
-        if ip in _blocked_ips:
-            info = _blocked_ips[ip]
+        if key in _blocked_ips:
+            info = _blocked_ips[key]
             if time.time() < info["expires_at"]:
                 return True
             else:
-                # Block expired, remove it
-                del _blocked_ips[ip]
+                del _blocked_ips[key]
                 return False
     return False
 
 
-def record_request(ip: str) -> dict:
+def record_request(ip: str, project_id: str = "default") -> dict:
     """
-    Record a request from an IP. Returns status dict.
-    If the IP exceeds the threshold, it gets auto-blocked.
+    Record a request from an IP for a specific project. Returns status dict.
+    If the IP exceeds the threshold in this project, it gets auto-blocked for this project.
     Includes a 'warning' flag when the IP crosses the warning threshold.
     """
     if ip in _whitelist:
-        return {"blocked": False, "count": 0}
+        return {"blocked": False, "count": 0, "project_id": project_id}
     
     now = time.time()
+    key = (project_id, ip)
     
     with _lock:
         # Check if already blocked
-        if ip in _blocked_ips:
-            info = _blocked_ips[ip]
+        if key in _blocked_ips:
+            info = _blocked_ips[key]
             if now < info["expires_at"]:
                 remaining = int(info["expires_at"] - now)
-                return {"blocked": True, "reason": info["reason"], "remaining_sec": remaining}
+                return {"blocked": True, "reason": info["reason"], "remaining_sec": remaining, "project_id": project_id}
             else:
-                del _blocked_ips[ip]
+                del _blocked_ips[key]
         
         # Record and count
-        _request_log[ip].append(now)
-        _cleanup_window(ip, now)
-        count = len(_request_log[ip])
+        _request_log[key].append(now)
+        _cleanup_window(key, now)
+        count = len(_request_log[key])
         
         # Auto-block if threshold exceeded
         if count > MAX_REQUESTS:
-            _warned_ips.discard(ip)
-            _blocked_ips[ip] = {
+            _warned_ips.discard(key)
+            _blocked_ips[key] = {
                 "blocked_at": now,
                 "expires_at": now + BLOCK_DURATION_SEC,
                 "reason": f"Rate limit exceeded: {count} requests in {WINDOW_SEC}s (limit: {MAX_REQUESTS})",
                 "request_count": count,
                 "block_type": "auto",
+                "project_id": project_id,
             }
-            return {"blocked": True, "reason": _blocked_ips[ip]["reason"], "auto_blocked": True}
+            return {"blocked": True, "reason": _blocked_ips[key]["reason"], "auto_blocked": True, "project_id": project_id}
         
         # Warning if approaching threshold
-        if count >= WARNING_THRESHOLD and ip not in _warned_ips:
-            _warned_ips.add(ip)
-            return {"blocked": False, "count": count, "limit": MAX_REQUESTS, "warning": True, "ip": ip}
+        if count >= WARNING_THRESHOLD and key not in _warned_ips:
+            _warned_ips.add(key)
+            return {"blocked": False, "count": count, "limit": MAX_REQUESTS, "warning": True, "ip": ip, "project_id": project_id}
         
-        return {"blocked": False, "count": count, "limit": MAX_REQUESTS}
+        return {"blocked": False, "count": count, "limit": MAX_REQUESTS, "project_id": project_id}
 
 
-def get_blocked_ips() -> list:
-    """Return all currently blocked IPs with metadata."""
+def get_blocked_ips(project_id: str = None) -> list:
+    """Return all currently blocked IPs, optionally filtered by project_id."""
     now = time.time()
     result = []
     
     with _lock:
         expired = []
-        for ip, info in _blocked_ips.items():
+        for key, info in _blocked_ips.items():
+            proj, ip = key
             if now < info["expires_at"]:
-                result.append({
-                    "ip": ip,
-                    "blocked_at": info["blocked_at"],
-                    "expires_at": info["expires_at"],
-                    "remaining_sec": int(info["expires_at"] - now),
-                    "reason": info["reason"],
-                    "request_count": info.get("request_count", 0),
-                    "block_type": info.get("block_type", "auto"),
-                })
+                if project_id is None or proj == project_id or (proj in ("proj_demo_default", "default") and project_id in ("proj_demo_default", "default", "phase1-demo-token")):
+                    result.append({
+                        "ip": ip,
+                        "project_id": proj,
+                        "blocked_at": info["blocked_at"],
+                        "expires_at": info["expires_at"],
+                        "remaining_sec": int(info["expires_at"] - now),
+                        "reason": info["reason"],
+                        "request_count": info.get("request_count", 0),
+                        "block_type": info.get("block_type", "auto"),
+                    })
             else:
-                expired.append(ip)
+                expired.append(key)
         
-        for ip in expired:
-            del _blocked_ips[ip]
+        for key in expired:
+            del _blocked_ips[key]
     
     return result
 
 
-def unblock_ip(ip: str) -> bool:
-    """Manually unblock an IP. Returns True if it was blocked."""
+def unblock_ip(ip: str, project_id: str = "default") -> bool:
+    """Manually unblock an IP for a specific project. Returns True if it was blocked."""
+    key = (project_id, ip)
     with _lock:
-        if ip in _blocked_ips:
-            del _blocked_ips[ip]
+        if key in _blocked_ips:
+            del _blocked_ips[key]
             return True
+        if project_id in ("proj_demo_default", "default"):
+            for alt_proj in ("proj_demo_default", "default"):
+                alt_key = (alt_proj, ip)
+                if alt_key in _blocked_ips:
+                    del _blocked_ips[alt_key]
+                    return True
     return False
 
 
-def block_ip(ip: str, duration_sec: int = None, reason: str = "Manually blocked") -> bool:
-    """Manually block an IP."""
+def block_ip(ip: str, duration_sec: int = None, reason: str = "Manually blocked", project_id: str = "default") -> bool:
+    """Manually block an IP for a specific project."""
     if ip in _whitelist:
         return False
     
     now = time.time()
     dur = duration_sec or BLOCK_DURATION_SEC
+    key = (project_id, ip)
     
     with _lock:
-        _blocked_ips[ip] = {
+        _blocked_ips[key] = {
             "blocked_at": now,
             "expires_at": now + dur,
             "reason": reason,
             "request_count": 0,
             "block_type": "manual",
+            "project_id": project_id,
         }
     return True
+
+
+def reset_state():
+    """Clear all rate limiter state (useful for test suites)."""
+    with _lock:
+        _request_log.clear()
+        _blocked_ips.clear()
+        _warned_ips.clear()
+
