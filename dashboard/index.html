@@ -357,7 +357,16 @@
         <input type="text" id="settings-webhook-url" placeholder="https://hooks.slack.com/services/..." style="width:100%; background: rgba(13,17,23,0.8); color: var(--text); border: 1px solid var(--border); padding: 10px; border-radius: 4px; outline: none; margin-bottom: 16px;">
         <button onclick="saveSettings()" class="btn" style="padding: 10px 20px;">Save Configuration</button>
         <span id="settings-status" style="margin-left: 12px; color: #3fb950; display:none;">Saved successfully!</span>
+
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 30px 0;">
+      
+      <h3 style="margin-bottom: 15px;">🧠 Machine Learning</h3>
+      <p style="color: var(--muted); font-size: 13px; margin-bottom: 15px;">Trigger the Isolation Forest algorithm to re-train itself on your latest API traffic patterns to reduce false positives.</p>
+      
+      <button onclick="triggerSelfLearn()" class="btn" style="background: var(--low); color: #fff; border: none; padding: 10px 20px; font-weight: bold;">Initiate Self-Learning 🤖</button>
+      <div id="learn-status" style="margin-top: 10px; font-size: 13px; color: var(--success); display: none;"></div>
       </div>
+
     </div>
   </div>
   <!-- End Settings View -->
