@@ -1,26 +1,33 @@
 import os
 import json
 from google import genai
-from db import get_conn, _row_to_dict
+from db import get_pool, get_cursor, _row_to_dict
 
 def get_event_by_id(event_id: int):
-    conn = get_conn()
-    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
-    conn.close()
-    if row:
-        return _row_to_dict(row)
-    return None
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute("SELECT * FROM events WHERE id = %s", (event_id,))
+        row = cur.fetchone()
+        if row:
+            return _row_to_dict(row)
+        return None
+    finally:
+        get_pool().putconn(conn)
 
 def get_recent_ip_history(ip: str, limit: int = 50):
-    conn = get_conn()
-    rows = conn.execute(
-        "SELECT timestamp, method, endpoint, status_code, latency_ms FROM events WHERE ip = ? ORDER BY timestamp DESC LIMIT ?", 
-        (ip, limit)
-    ).fetchall()
-    conn.close()
-    # Reverse so they are in chronological order
-    events = [dict(r) for r in rows][::-1]
-    return events
+    conn = get_pool().getconn()
+    try:
+        cur = get_cursor(conn)
+        cur.execute(
+            "SELECT timestamp, method, endpoint, status_code, latency_ms FROM events WHERE ip = %s ORDER BY timestamp DESC LIMIT %s", 
+            (ip, limit)
+        )
+        rows = cur.fetchall()
+        events = [dict(r) for r in rows][::-1]
+        return events
+    finally:
+        get_pool().putconn(conn)
 
 def generate_threat_report(event_id: int):
     """Generates an LLM threat report for a specific anomalous event."""
