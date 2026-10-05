@@ -40,6 +40,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'api-security-dashboard-secret-321')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 7  # 7 days session persistence
 
 # Initialize SocketIO with CORS allowed for dev
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -185,7 +186,8 @@ def auth_register():
     default_proj = db.create_project(user["id"], name="Default Project", description="Primary security project")
     key_info = db.create_api_key(default_proj["id"], name="Primary SDK Key")
 
-    # Establish session
+    # Establish persistent session
+    session.permanent = True
     session["user_id"] = user["id"]
 
     return jsonify({
@@ -210,6 +212,7 @@ def auth_login():
     if not user or not auth.verify_password(user["password_hash"], password):
         return jsonify({"error": "Invalid email or password"}), 401
 
+    session.permanent = True
     session["user_id"] = user["id"]
     return jsonify({
         "user": {"id": user["id"], "email": user["email"], "created_at": user["created_at"]},
@@ -338,6 +341,11 @@ def download_sdk(project_id):
 
     # Use active key or provision a dedicated preconfigured key
     raw_key = request.args.get("api_key")
+    if raw_key:
+        validated_proj_id = db.verify_api_key(raw_key)
+        if validated_proj_id != project_id:
+            raw_key = None  # Key invalid, revoked, or belongs to another tenant; provision fresh key below
+
     if not raw_key:
         # Check if project has active keys or generate one
         active_keys = [k for k in db.list_api_keys_for_project(project_id) if not k.get("revoked_at")]

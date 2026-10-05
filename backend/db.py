@@ -386,6 +386,12 @@ def get_project_by_api_key(raw_key: str) -> dict:
     return None
 
 
+def verify_api_key(raw_key: str) -> str:
+    """Validate raw key and return the project_id string, or None if invalid/revoked."""
+    project = get_project_by_api_key(raw_key)
+    return project["id"] if project else None
+
+
 def list_api_keys_for_project(project_id: str) -> list:
     """List active and revoked API keys for a project (never returns secrets)."""
     conn = get_conn()

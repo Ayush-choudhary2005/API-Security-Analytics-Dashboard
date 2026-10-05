@@ -195,12 +195,25 @@
 </head>
 <body>
 
+  <!-- ================= INITIAL APP LOADING OVERLAY ================= -->
+  <div id="app-loading" style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 85vh; gap: 16px;">
+    <div class="loader" style="display: block; width: 36px; height: 36px; border-width: 3px; border-top-color: #58a6ff;"></div>
+    <div style="font-family: monospace; font-size: 13px; color: #58a6ff; letter-spacing: 1.5px;">
+      [ INITIALIZING SECURITY CONSOLE... ]
+    </div>
+  </div>
+
   <!-- ================= AUTH VIEW ================= -->
   <div id="auth-app" class="auth-wrapper" style="display: none;">
-    <div class="auth-card">
+    <div class="auth-card" style="background: linear-gradient(180deg, #161b22 0%, #0d1117 100%); border: 1px solid rgba(88,166,255,0.3); box-shadow: 0 0 35px rgba(0,0,0,0.8), 0 0 15px rgba(88,166,255,0.12);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 11px; font-family: monospace; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+        <span>// ML-O11Y ACTIVE DEFENSE</span>
+        <span style="color: var(--low); font-weight: 600;">● SYSTEM PROTECTED</span>
+      </div>
+
       <div style="text-align: center; margin-bottom: 24px;">
-        <h1 style="font-size: 22px; margin-bottom: 8px;">🛡️ API Security Analytics</h1>
-        <p style="color: var(--muted); font-size: 13px; margin: 0;">Active Defense & Real-Time Observability Platform</p>
+        <h1 style="font-size: 22px; margin-bottom: 6px;">🛡️ API Security Analytics</h1>
+        <p style="color: var(--muted); font-size: 13px; margin: 0;">Multi-Tenant Real-Time Threat Intelligence & Active Defense</p>
       </div>
 
       <div class="auth-tabs">
@@ -212,67 +225,96 @@
 
       <!-- Login Form -->
       <form id="form-login" onsubmit="handleLogin(event)">
-        <label style="font-size: 12px; color: var(--muted);">Email Address</label>
-        <input type="email" id="login-email" class="auth-input" placeholder="user@example.com" required>
+        <label style="font-size: 12px; color: var(--muted); font-weight: 500;">Email Address</label>
+        <input type="email" id="login-email" class="auth-input" placeholder="user@example.com" required autocomplete="email">
 
-        <label style="font-size: 12px; color: var(--muted);">Password</label>
-        <input type="password" id="login-password" class="auth-input" placeholder="••••••••" required>
+        <label style="font-size: 12px; color: var(--muted); font-weight: 500;">Password</label>
+        <input type="password" id="login-password" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
 
-        <button type="submit" class="auth-btn" style="margin-top: 8px;">Sign In</button>
+        <button type="submit" id="btn-login-submit" class="auth-btn" style="margin-top: 8px;">Sign In</button>
+        <button type="button" onclick="switchAuthTab('register')" class="btn-investigate" style="width: 100%; margin-top: 10px; padding: 10px; font-size: 13px; text-align: center;">
+          Create New Account
+        </button>
 
-        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--muted);">
-          <span>Demo Account:</span>
-          <button type="button" onclick="fillDemoCredentials()" class="btn-investigate" style="margin-left: 6px;">Fill Demo Login</button>
+        <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--muted);">
+          <span>Demo Sandbox:</span>
+          <button type="button" onclick="fillDemoCredentials()" class="btn-investigate" style="margin-left: 6px; padding: 4px 10px;">Fill Demo Login</button>
         </div>
       </form>
 
       <!-- Registration Form -->
       <form id="form-register" style="display: none;" onsubmit="handleRegister(event)">
-        <label style="font-size: 12px; color: var(--muted);">Email Address</label>
-        <input type="email" id="reg-email" class="auth-input" placeholder="user@example.com" required>
+        <label style="font-size: 12px; color: var(--muted); font-weight: 500;">Email Address</label>
+        <input type="email" id="reg-email" class="auth-input" placeholder="user@example.com" required autocomplete="email">
 
-        <label style="font-size: 12px; color: var(--muted);">Password (min 8 chars)</label>
-        <input type="password" id="reg-password" class="auth-input" placeholder="••••••••" required minlength="8">
+        <label style="font-size: 12px; color: var(--muted); font-weight: 500;">Password (min 8 chars)</label>
+        <input type="password" id="reg-password" class="auth-input" placeholder="••••••••" required minlength="8" autocomplete="new-password">
 
-        <label style="font-size: 12px; color: var(--muted);">Confirm Password</label>
-        <input type="password" id="reg-confirm" class="auth-input" placeholder="••••••••" required minlength="8">
+        <label style="font-size: 12px; color: var(--muted); font-weight: 500;">Confirm Password</label>
+        <input type="password" id="reg-confirm" class="auth-input" placeholder="••••••••" required minlength="8" autocomplete="new-password">
 
-        <button type="submit" class="auth-btn" style="margin-top: 8px; background: #1f6feb;">Create Account</button>
+        <button type="submit" id="btn-register-submit" class="auth-btn" style="margin-top: 8px; background: #1f6feb;">Create Account</button>
+        <button type="button" onclick="switchAuthTab('login')" class="btn-investigate" style="width: 100%; margin-top: 10px; padding: 10px; font-size: 13px; text-align: center;">
+          Already have an account? Sign In
+        </button>
       </form>
     </div>
   </div>
 
   <!-- ================= DASHBOARD APP VIEW ================= -->
   <div id="dashboard-app" style="display: none;">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+    <!-- Top Navigation HUD -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 14px;">
       <div>
-        <h1><span class="pulse"></span>API Security Analytics Dashboard</h1>
-        <div class="subtitle">
+        <h1 style="display: flex; align-items: center; gap: 8px; font-size: 20px; margin: 0 0 4px;">
+          <span class="pulse"></span>API Security Analytics & Active Defense
+        </h1>
+        <div class="subtitle" style="margin: 0;">
           <span id="ws-status" style="color: var(--low);">● WebSocket Connected</span> &middot; 
-          Machine Learning anomaly scoring &middot; GenAI Threat Reports
+          Isolation Forest Anomaly Scoring &middot; Automated Mitigation
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <label style="font-size: 12px; color: var(--muted); font-weight: 500;">Active App:</label>
-          <select id="project-select" onchange="changeProject()" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 4px; font-size: 13px; font-weight: 500;">
+        <!-- Project Selector HUD -->
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.35); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px;">
+          <label style="font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Current Project:</label>
+          <select id="project-select" onchange="handleProjectSelectChange(this)" style="background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer;">
           </select>
-          <span id="active-project-tag" style="background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;"></span>
+          <span id="active-project-tag" style="background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-family: monospace;"></span>
+          <button onclick="openNewProjectModal()" class="btn-investigate" style="padding: 4px 10px; font-size: 11px; color: #58a6ff; border-color: rgba(88,166,255,0.4);" title="Create new project">➕ New</button>
         </div>
-        <button onclick="openNewProjectModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px;">+ New Project</button>
-        <button onclick="openProjectDetailsModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px;">⚙️ Project Info</button>
-        <button onclick="openIntegrationsModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(63,185,80,0.4); color: var(--low);">🔔 Integrations</button>
-        <button onclick="openSdkModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(88,166,255,0.4);">⚡ SDK Keys</button>
-        <span style="color: var(--muted); font-size: 13px; padding-left: 6px;">👤 <strong id="current-user-email" style="color: var(--text);"></strong></span>
-        <button onclick="handleLogout()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; color: var(--high); border-color: rgba(248,81,73,0.3);">Sign Out</button>
+
+        <!-- Section Action Buttons -->
+        <button onclick="openSdkModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(88,166,255,0.4); color: #58a6ff;">📦 SDK Integration</button>
+        <button onclick="openIntegrationsModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(63,185,80,0.4); color: var(--low);">🔔 Slack Webhook</button>
+        <button onclick="openProjectDetailsModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; color: var(--text);">⚙️ Project Info</button>
+
+        <!-- User Identity & Logout -->
+        <div style="display: flex; align-items: center; gap: 8px; border-left: 1px solid var(--border); padding-left: 10px;">
+          <span style="color: var(--muted); font-size: 12px;">👤 <strong id="current-user-email" style="color: var(--text);"></strong></span>
+          <button onclick="handleLogout()" class="btn-investigate" style="padding: 5px 10px; font-size: 11px; color: var(--high); border-color: rgba(248,81,73,0.3);">🚪 Sign Out</button>
+        </div>
       </div>
     </div>
-    
-    <div class="tabs">
-      <div class="tab active" id="tab-live" onclick="switchTab('live')">🔴 Live Telemetry</div>
-      <div class="tab" id="tab-history" onclick="switchTab('history')">📊 Historical Analytics</div>
-      <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">📖 Architecture & Flow</div>
+
+    <!-- Empty Projects View -->
+    <div id="no-projects-view" style="display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 60px 24px; text-align: center; margin: 30px 0;">
+      <div style="font-size: 44px; margin-bottom: 12px;">📂</div>
+      <h2 style="font-size: 18px; color: var(--text); margin: 0 0 8px;">No Projects Found</h2>
+      <p style="color: var(--muted); font-size: 13px; max-width: 480px; margin: 0 auto 20px; line-height: 1.6;">
+        Every telemetry stream, detection model, alert feed, and webhook integration belongs to a project. Create your first project to start observing your APIs.
+      </p>
+      <button onclick="openNewProjectModal()" class="auth-btn" style="width: auto; padding: 10px 24px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">
+        ➕ Create Your First Project
+      </button>
     </div>
+
+    <div id="dashboard-main-content">
+      <div class="tabs">
+        <div class="tab active" id="tab-live" onclick="switchTab('live')">🔴 Live Telemetry</div>
+        <div class="tab" id="tab-history" onclick="switchTab('history')">📊 Historical Analytics</div>
+        <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">📖 Architecture & Flow</div>
+      </div>
 
     <div id="notification-bar" style="display:none; background: rgba(248,81,73,0.15); border: 1px solid var(--high); border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: var(--high); animation: fadeIn 0.3s;">
       🚨 <strong id="notification-text">New high-severity alert detected!</strong>
@@ -434,8 +476,9 @@
           </div>
         </div>
       </div>
-    </div>
     <!-- End Architecture View -->
+    </div>
+    <!-- End Dashboard Main Content -->
   </div>
   <!-- End Dashboard App -->
 
@@ -477,39 +520,109 @@
   </div>
 
   <!-- SDK Keys & Setup Modal -->
+  <!-- SDK Integration Modal -->
   <div class="modal-overlay" id="sdk-modal" onclick="if(event.target===this) closeSdkModal()">
-    <div class="modal" style="width: 660px;">
+    <div class="modal" style="width: 720px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
-        <h2>⚡ SDK Integration & Project Credentials</h2>
+        <h2>📦 SDK Integration</h2>
         <button class="modal-close" onclick="closeSdkModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <div>
-            <span style="font-size: 13px; color: var(--muted);">Project:</span>
-            <strong id="sdk-project-name" style="color: #58a6ff; font-size: 14px;"></strong>
-            <span style="color: var(--muted); font-size: 12px; margin-left: 6px;">(<code id="sdk-project-id" style="color: var(--text);"></code>)</span>
-          </div>
-          <button onclick="downloadProjectSdk()" class="auth-btn" style="width: auto; background: #238636; padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
-            ⬇️ Download Preconfigured SDK
-          </button>
-        </div>
-
-        <div style="background: var(--bg); border: 1px solid var(--border); padding: 14px; border-radius: 6px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <div style="font-size: 12px; color: var(--muted);">Active SDK Credential:</div>
-            <div style="display: flex; gap: 6px;">
-              <button onclick="regenerateProjectKey()" class="btn-investigate" style="color: #d29922; border-color: rgba(210,153,34,0.3);">🔄 Regenerate</button>
-              <button onclick="generateNewKeyForProject()" class="btn-investigate">+ New Key</button>
+        <!-- Project & Status Grid -->
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;">
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600;">Project Name</div>
+              <div id="sdk-project-name" style="font-size: 13px; font-weight: 600; color: #58a6ff; margin-top: 2px;">—</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600;">Project ID</div>
+              <code id="sdk-project-id" style="font-size: 11px; color: var(--text); display: inline-block; margin-top: 2px;">—</code>
+            </div>
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600;">SDK Status</div>
+              <div id="sdk-status-badge" style="font-size: 12px; font-weight: 600; margin-top: 2px; color: var(--muted);">Checking...</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600;">Credential Status</div>
+              <div id="sdk-cred-status" style="font-size: 12px; font-weight: 600; margin-top: 2px; color: var(--muted);">Checking...</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600;">Last Used</div>
+              <div id="sdk-last-used" style="font-size: 12px; color: var(--muted); margin-top: 2px;">Never</div>
             </div>
           </div>
-          <code id="sdk-active-key" style="font-size: 13px; color: var(--low); word-break: break-all;"></code>
         </div>
 
+        <!-- Security Warning -->
+        <div style="background: rgba(210,153,34,0.12); border: 1px solid rgba(210,153,34,0.35); color: #e3b341; padding: 10px 14px; border-radius: 6px; font-size: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">⚠️</span>
+          <div>
+            <strong>Security Warning:</strong> Treat this SDK credential like a secret. Anyone who has it can send telemetry to this project.
+          </div>
+        </div>
+
+        <!-- Active Credential Display & One-Time Reveal -->
+        <div style="background: var(--bg); border: 1px solid var(--border); padding: 14px; border-radius: 6px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+            <div id="sdk-cred-title" style="font-size: 12px; font-weight: 600; color: var(--muted);">Active SDK Credential:</div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button onclick="downloadProjectSdk()" class="auth-btn" style="width: auto; background: #238636; padding: 4px 12px; font-size: 11px;">⬇️ Download SDK (.zip)</button>
+              <button onclick="regenerateProjectKey()" class="btn-investigate" style="color: #d29922; border-color: rgba(210,153,34,0.3); font-size: 11px; padding: 3px 10px;">🔄 Regenerate SDK Credential</button>
+              <button onclick="revokeActiveKey()" class="btn-investigate" style="color: var(--high); border-color: rgba(248,81,73,0.3); font-size: 11px; padding: 3px 10px;">🚫 Revoke Credential</button>
+            </div>
+          </div>
+          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <code id="sdk-active-key" style="font-size: 13px; color: var(--low); word-break: break-all; flex: 1;">No active key</code>
+            <button id="sdk-inline-copy-btn" onclick="copySdkCredential()" class="btn-investigate" style="font-size: 11px; padding: 3px 8px; white-space: nowrap;">📋 Copy</button>
+          </div>
+          <div id="sdk-reveal-note" style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+            For security, full credentials are only revealed upon creation or regeneration.
+          </div>
+        </div>
+
+        <!-- 5-Step Integration Guide -->
+        <div style="margin-bottom: 18px;">
+          <div style="font-size: 13px; font-weight: 600; color: #58a6ff; margin-bottom: 10px;">📖 5-Step Integration Guide</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: #f0883e; margin-bottom: 3px;">STEP 1: Download SDK</div>
+              <div style="font-size: 12px; color: var(--text);">Click <strong>⬇️ Download SDK (.zip)</strong> above. The package contains preconfigured <code>middleware.py</code>, <code>config.py</code>, and a working <code>sample_app.py</code>.</div>
+            </div>
+
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: #f0883e; margin-bottom: 3px;">STEP 2: Install dependencies</div>
+              <div style="font-size: 12px; color: var(--text);">Install the required dependencies in your Flask application environment:</div>
+              <pre style="background: rgba(0,0,0,0.4); padding: 8px 10px; border-radius: 4px; font-size: 12px; margin-top: 4px; border: 1px solid var(--border); color: #7ee787;"><code>pip install requests flask</code></pre>
+            </div>
+
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: #f0883e; margin-bottom: 3px;">STEP 3: Add SDK to your Flask application</div>
+              <div style="font-size: 12px; color: var(--text); margin-bottom: 4px;">Attach the non-blocking <code>SecurityMiddleware</code> to observe traffic with zero latency overhead:</div>
+              <pre style="background: rgba(0,0,0,0.4); padding: 10px; border-radius: 4px; font-size: 12px; margin-top: 4px; border: 1px solid var(--border); overflow-x: auto;"><code id="sdk-code-snippet"></code></pre>
+            </div>
+
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: #f0883e; margin-bottom: 3px;">STEP 4: Start your application</div>
+              <div style="font-size: 12px; color: var(--text);">Launch your Flask application or execute the included sample runner:</div>
+              <pre style="background: rgba(0,0,0,0.4); padding: 8px 10px; border-radius: 4px; font-size: 12px; margin-top: 4px; border: 1px solid var(--border); color: #7ee787;"><code>python sample_app.py</code></pre>
+            </div>
+
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: #f0883e; margin-bottom: 3px;">STEP 5: Telemetry appears in the dashboard</div>
+              <div style="font-size: 12px; color: var(--text);">Every incoming HTTP request is analyzed by the Isolation Forest model and displayed on this dashboard in real-time.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Credential History Table -->
         <div style="margin-bottom: 16px;">
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; font-weight: 600;">Project Credentials</div>
-          <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
-            <table style="font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div style="font-size: 12px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Project Credentials History</div>
+            <button onclick="generateNewKeyForProject()" class="btn-investigate" style="font-size: 11px; padding: 2px 8px;">+ New Key</button>
+          </div>
+          <div style="max-height: 140px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+            <table style="font-size: 12px; width: 100%;">
               <thead>
                 <tr><th>Name</th><th>Key Prefix</th><th>Status</th><th>Last Used</th><th>Action</th></tr>
               </thead>
@@ -518,8 +631,6 @@
           </div>
         </div>
 
-        <div style="font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500;">Quickstart Integration (Zero-Latency):</div>
-        <pre style="background: var(--bg); padding: 12px; border-radius: 6px; font-size: 13px; border: 1px solid var(--border); overflow-x: auto;"><code id="sdk-code-snippet"></code></pre>
         <div style="margin-top: 14px; display: flex; justify-content: flex-end; gap: 8px;">
           <button onclick="closeSdkModal()" class="btn-investigate">Close</button>
         </div>
@@ -603,13 +714,13 @@
           <div id="int-action-buttons" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; display: none;">
             <button id="btn-test-webhook" onclick="testProjectWebhook()" class="btn-investigate" style="color: #58a6ff; border-color: rgba(88,166,255,0.4);">🧪 Test Webhook</button>
             <button id="btn-toggle-webhook" onclick="toggleProjectWebhook()" class="btn-investigate"></button>
-            <button onclick="removeProjectWebhook()" class="btn-investigate" style="color: var(--high); border-color: rgba(248,81,73,0.3);">🗑️ Remove</button>
+            <button onclick="removeProjectWebhook()" class="btn-investigate" style="color: var(--high); border-color: rgba(248,81,73,0.3);">🔌 Disconnect Webhook</button>
           </div>
         </div>
 
         <!-- Add / Update Form -->
         <div style="border-top: 1px solid var(--border); padding-top: 16px;">
-          <h3 style="font-size: 13px; color: var(--text); margin: 0 0 10px; text-transform: uppercase;">Configure Webhook URL</h3>
+          <h3 style="font-size: 13px; color: var(--text); margin: 0 0 10px; text-transform: uppercase;">Connect or Update Webhook</h3>
           <div style="display: flex; gap: 10px; margin-bottom: 10px;">
             <div style="flex: 1;">
               <label style="font-size: 12px; color: var(--muted);">Webhook Provider:</label>
@@ -625,7 +736,7 @@
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-size: 11px; color: var(--muted);">URL tokens are masked (e.g. <code>hooks.slack.com/services/****</code>).</div>
-            <button onclick="saveProjectWebhook()" class="auth-btn" style="width: auto; padding: 8px 18px; background: #238636;">Save Webhook</button>
+            <button onclick="saveProjectWebhook()" class="auth-btn" style="width: auto; padding: 8px 18px; background: #238636;">🔌 Connect Webhook</button>
           </div>
         </div>
       </div>
@@ -659,12 +770,16 @@ async function checkAuth() {
 }
 
 function showAuthView() {
+  const loadingEl = document.getElementById('app-loading');
+  if (loadingEl) loadingEl.style.display = 'none';
   document.getElementById('auth-app').style.display = 'flex';
   document.getElementById('dashboard-app').style.display = 'none';
   if (pollInterval) clearInterval(pollInterval);
 }
 
 function showDashboardView() {
+  const loadingEl = document.getElementById('app-loading');
+  if (loadingEl) loadingEl.style.display = 'none';
   document.getElementById('auth-app').style.display = 'none';
   document.getElementById('dashboard-app').style.display = 'block';
   document.getElementById('current-user-email').textContent = currentUser.email;
@@ -695,6 +810,11 @@ async function handleLogin(e) {
   e.preventDefault();
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
+  const submitBtn = document.getElementById('btn-login-submit');
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="pulse" style="background:#fff;"></span> Authenticating...';
+
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
@@ -702,14 +822,19 @@ async function handleLogin(e) {
       body: JSON.stringify({ email, password })
     });
     const data = await res.json();
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Sign In';
+
     if (!res.ok) {
-      showAuthError(data.error || 'Login failed');
+      showAuthError(data.error || 'Invalid email or password');
       return;
     }
     currentUser = data.user;
     showDashboardView();
   } catch (err) {
-    showAuthError('Connection error during login');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Sign In';
+    showAuthError('Connection error during login. Please try again.');
   }
 }
 
@@ -718,11 +843,19 @@ async function handleRegister(e) {
   const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-password').value;
   const confirm = document.getElementById('reg-confirm').value;
+  const submitBtn = document.getElementById('btn-register-submit');
 
   if (password !== confirm) {
     showAuthError('Passwords do not match');
     return;
   }
+  if (password.length < 8) {
+    showAuthError('Password must be at least 8 characters long');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="pulse" style="background:#fff;"></span> Creating Account...';
 
   try {
     const res = await fetch('/api/auth/register', {
@@ -731,6 +864,9 @@ async function handleRegister(e) {
       body: JSON.stringify({ email, password, confirm_password: confirm })
     });
     const data = await res.json();
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Create Account';
+
     if (!res.ok) {
       showAuthError(data.error || 'Registration failed');
       return;
@@ -738,7 +874,9 @@ async function handleRegister(e) {
     currentUser = data.user;
     showDashboardView();
   } catch (err) {
-    showAuthError('Connection error during registration');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Create Account';
+    showAuthError('Connection error during registration. Please try again.');
   }
 }
 
@@ -749,6 +887,7 @@ async function handleLogout() {
   currentUser = null;
   currentProject = null;
   userProjects = [];
+  localStorage.removeItem('mlo11y_active_project_id');
   if (socket && currentWsTenant) {
     socket.off(`new_event_${currentWsTenant}`);
     socket.off(`new_alert_${currentWsTenant}`);
@@ -764,17 +903,30 @@ async function handleLogout() {
 async function loadProjects() {
   try {
     const res = await fetch('/api/projects');
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (res.status === 401) showAuthView();
+      return;
+    }
     const data = await res.json();
     userProjects = data.projects || [];
 
     const select = document.getElementById('project-select');
+    const noProjectsView = document.getElementById('no-projects-view');
+    const mainContent = document.getElementById('dashboard-main-content');
     select.innerHTML = '';
 
     if (userProjects.length === 0) {
+      currentProject = null;
+      if (noProjectsView) noProjectsView.style.display = 'block';
+      if (mainContent) mainContent.style.display = 'none';
       select.innerHTML = '<option value="">No projects</option>';
+      const tag = document.getElementById('active-project-tag');
+      if (tag) tag.textContent = 'None';
       return;
     }
+
+    if (noProjectsView) noProjectsView.style.display = 'none';
+    if (mainContent) mainContent.style.display = 'block';
 
     userProjects.forEach(p => {
       const opt = document.createElement('option');
@@ -782,6 +934,17 @@ async function loadProjects() {
       opt.textContent = p.name;
       select.appendChild(opt);
     });
+
+    // Add separator & "+ Create Project..." option
+    const sep = document.createElement('option');
+    sep.disabled = true;
+    sep.textContent = '──────────';
+    select.appendChild(sep);
+
+    const createOpt = document.createElement('option');
+    createOpt.value = '__CREATE_NEW__';
+    createOpt.textContent = '➕ Create Project...';
+    select.appendChild(createOpt);
 
     // Select persisted project or first project
     const savedId = localStorage.getItem('mlo11y_active_project_id');
@@ -794,11 +957,20 @@ async function loadProjects() {
     localStorage.setItem('mlo11y_active_project_id', currentProject.id);
 
     const tag = document.getElementById('active-project-tag');
-    if (tag) tag.textContent = currentProject.name;
+    if (tag) tag.textContent = currentProject.id;
 
     setupDashboard();
   } catch (err) {
     console.error('Failed to load projects', err);
+  }
+}
+
+function handleProjectSelectChange(el) {
+  if (el.value === '__CREATE_NEW__') {
+    if (currentProject) el.value = currentProject.id;
+    openNewProjectModal();
+  } else {
+    changeProject();
   }
 }
 
@@ -933,8 +1105,16 @@ async function loadIntegrationsData() {
       toggleBtn.style.borderColor = isEnabled ? 'rgba(210,153,34,0.3)' : 'rgba(63,185,80,0.3)';
       document.getElementById('int-provider-select').value = wh.provider || 'slack';
     } else {
-      badgeEl.innerHTML = '<span style="background: rgba(139,148,158,0.15); color: var(--muted); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">⚪ NOT CONFIGURED</span>';
-      detailsEl.innerHTML = '<div>No webhook configured for this project yet. Add a Slack or Discord webhook below to receive instant attack alerts.</div>';
+      badgeEl.innerHTML = '<span style="background: rgba(139,148,158,0.15); color: var(--muted); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">⚪ DISCONNECTED</span>';
+      detailsEl.innerHTML = `
+        <div style="text-align: center; padding: 18px 10px; color: var(--muted);">
+          <div style="font-size: 26px; margin-bottom: 6px;">🔕</div>
+          <strong style="color: var(--text); font-size: 13px;">No Webhook Connected</strong>
+          <div style="font-size: 12px; margin-top: 4px; max-width: 380px; margin-left: auto; margin-right: auto;">
+            Connect a Slack webhook below to receive automated notifications whenever high-severity threats or brute-force attacks are detected.
+          </div>
+        </div>
+      `;
       btnWrap.style.display = 'none';
     }
   } catch (err) {
@@ -1130,6 +1310,10 @@ async function submitNewProject() {
 
 let latestGeneratedKey = null;
 
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
 async function openSdkModal() {
   if (!currentProject) return;
   document.getElementById('sdk-modal').style.display = 'flex';
@@ -1141,48 +1325,151 @@ async function openSdkModal() {
 async function refreshSdkKeysList() {
   if (!currentProject) return;
   try {
-    const res = await fetch(`/api/projects/${currentProject.id}/keys`);
+    const res = await fetch(`/api/projects/${currentProject.id}`);
     const data = await res.json();
+    const eventCount = data.event_count || 0;
     const keys = data.keys || [];
 
     const activeKey = keys.find(k => !k.revoked_at);
-    const activeKeyDisplay = latestGeneratedKey || (activeKey ? activeKey.key_prefix : 'No active key (Click Regenerate)');
-    document.getElementById('sdk-active-key').textContent = activeKeyDisplay;
 
-    const displayToken = latestGeneratedKey || (activeKey ? activeKey.key_prefix : 'YOUR_SDK_KEY');
-    document.getElementById('sdk-code-snippet').textContent = 
+    // 1. SDK Status
+    const statusBadge = document.getElementById('sdk-status-badge');
+    if (statusBadge) {
+      if (eventCount > 0 || (activeKey && activeKey.last_used_at)) {
+        statusBadge.innerHTML = `<span style="color:var(--low);">🟢 Active (${eventCount} events)</span>`;
+      } else {
+        statusBadge.innerHTML = `<span style="color:var(--muted);">⚪ Waiting for Connection</span>`;
+      }
+    }
+
+    // 2. Credential Status
+    const credStatus = document.getElementById('sdk-cred-status');
+    if (credStatus) {
+      if (activeKey) {
+        credStatus.innerHTML = `<span style="color:var(--low);">🟢 Active (${escapeHtml(activeKey.name)})</span>`;
+      } else {
+        credStatus.innerHTML = `<span style="color:var(--high);">🔴 Revoked / None</span>`;
+      }
+    }
+
+    // 3. Last Used
+    const lastUsedEl = document.getElementById('sdk-last-used');
+    if (lastUsedEl) {
+      if (activeKey && activeKey.last_used_at) {
+        lastUsedEl.textContent = new Date(activeKey.last_used_at * 1000).toLocaleString();
+      } else {
+        lastUsedEl.textContent = 'Never';
+      }
+    }
+
+    // 4. Active Credential Display & One-Time Reveal
+    const activeKeyEl = document.getElementById('sdk-active-key');
+    const credTitle = document.getElementById('sdk-cred-title');
+    const revealNote = document.getElementById('sdk-reveal-note');
+
+    if (latestGeneratedKey) {
+      if (credTitle) credTitle.textContent = '✨ Freshly Generated Credential (Shown Once):';
+      if (activeKeyEl) {
+        activeKeyEl.textContent = latestGeneratedKey;
+        activeKeyEl.style.color = '#7ee787';
+      }
+      if (revealNote) revealNote.innerHTML = '⚠️ <strong style="color:#e3b341;">Copy this credential now.</strong> For security, only the prefix is visible once closed.';
+    } else if (activeKey) {
+      if (credTitle) credTitle.textContent = 'Active SDK Credential (Masked):';
+      if (activeKeyEl) {
+        activeKeyEl.textContent = `${activeKey.key_prefix}••••••••••••••••••••••••`;
+        activeKeyEl.style.color = 'var(--text)';
+      }
+      if (revealNote) revealNote.textContent = 'For security, full credentials are only revealed upon creation or regeneration.';
+    } else {
+      if (credTitle) credTitle.textContent = 'Active SDK Credential:';
+      if (activeKeyEl) {
+        activeKeyEl.textContent = 'No active credential (Click "Regenerate SDK Credential" to create one)';
+        activeKeyEl.style.color = 'var(--muted)';
+      }
+      if (revealNote) revealNote.textContent = 'All credentials for this project have been revoked.';
+    }
+
+    // 5. Code snippet
+    const snippetKey = latestGeneratedKey || (activeKey ? `${activeKey.key_prefix}••••••••` : 'YOUR_SDK_KEY');
+    const snippetEl = document.getElementById('sdk-code-snippet');
+    if (snippetEl) {
+      snippetEl.textContent = 
 `from middleware import SecurityMiddleware
 from flask import Flask
+import config
 
 app = Flask(__name__)
 
 # Zero-latency async API security observation:
 SecurityMiddleware(
     app,
-    collector_url="http://localhost:5001",
-    api_key="${displayToken}"
+    collector_url=config.COLLECTOR_URL,
+    api_key=config.SDK_KEY
 )`;
-
-    const tbody = document.getElementById('sdk-keys-table-body');
-    if (keys.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:10px;">No keys found.</td></tr>';
-      return;
     }
 
-    tbody.innerHTML = keys.map(k => {
-      const isRevoked = !!k.revoked_at;
-      const statusBadge = isRevoked ? '<span style="color:var(--high);">Revoked</span>' : '<span style="color:var(--low);">Active</span>';
-      const lastUsed = k.last_used_at ? new Date(k.last_used_at * 1000).toLocaleTimeString() : 'Never';
-      const actionBtn = !isRevoked ? `<button onclick="revokeKey(${k.id})" class="btn-investigate" style="color:var(--high); border-color:rgba(248,81,73,0.3); padding:2px 8px;">Revoke</button>` : '—';
-      return `<tr>
-        <td><strong>${k.name}</strong></td>
-        <td><code>${k.key_prefix}</code></td>
-        <td>${statusBadge}</td>
-        <td>${lastUsed}</td>
-        <td>${actionBtn}</td>
-      </tr>`;
-    }).join('');
-  } catch (e) {}
+    // 6. Keys history table
+    const tbody = document.getElementById('sdk-keys-table-body');
+    if (tbody) {
+      if (keys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:10px;">No credentials found.</td></tr>';
+      } else {
+        tbody.innerHTML = keys.map(k => {
+          const isRevoked = !!k.revoked_at;
+          const kStatus = isRevoked ? '<span style="color:var(--high);">Revoked</span>' : '<span style="color:var(--low);">Active</span>';
+          const kUsed = k.last_used_at ? new Date(k.last_used_at * 1000).toLocaleTimeString() : 'Never';
+          const actionBtn = !isRevoked ? `<button onclick="revokeKey(${k.id})" class="btn-investigate" style="color:var(--high); border-color:rgba(248,81,73,0.3); padding:2px 8px; font-size:11px;">Revoke</button>` : '—';
+          return `<tr>
+            <td><strong>${escapeHtml(k.name)}</strong></td>
+            <td><code>${escapeHtml(k.key_prefix)}</code></td>
+            <td>${kStatus}</td>
+            <td>${kUsed}</td>
+            <td>${actionBtn}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+  } catch (e) {
+    console.error('Error refreshing SDK keys:', e);
+  }
+}
+
+function copySdkCredential() {
+  const activeKeyEl = document.getElementById('sdk-active-key');
+  const textToCopy = latestGeneratedKey || (activeKeyEl ? activeKeyEl.textContent : '');
+  if (!textToCopy || textToCopy.includes('No active credential')) return;
+
+  const copyBtn = document.getElementById('sdk-inline-copy-btn');
+  const notifySuccess = () => {
+    if (copyBtn) {
+      const orig = copyBtn.textContent;
+      copyBtn.textContent = '✅ Copied!';
+      copyBtn.style.color = '#7ee787';
+      setTimeout(() => {
+        copyBtn.textContent = orig;
+        copyBtn.style.color = '';
+      }, 2000);
+    }
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(textToCopy).then(notifySuccess).catch(() => fallbackCopy(textToCopy, notifySuccess));
+  } else {
+    fallbackCopy(textToCopy, notifySuccess);
+  }
+}
+
+function fallbackCopy(text, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    if (cb) cb();
+  } catch (err) {}
+  document.body.removeChild(ta);
 }
 
 function closeSdkModal() {
@@ -1201,7 +1488,7 @@ function downloadProjectSdk() {
 
 async function regenerateProjectKey() {
   if (!currentProject) return;
-  const ok = confirm(`Regenerating your SDK key will immediately revoke existing keys for "${currentProject.name}". Continue?`);
+  const ok = confirm(`Regenerating your SDK key will immediately revoke existing keys for "${currentProject.name}". Applications using the old key will stop sending telemetry immediately. Continue?`);
   if (!ok) return;
 
   try {
@@ -1236,13 +1523,27 @@ async function generateNewKeyForProject() {
 
 async function revokeKey(keyId) {
   if (!currentProject) return;
-  const ok = confirm('Are you sure you want to revoke this SDK credential? Any applications using it will be blocked.');
+  const ok = confirm('Are you sure you want to revoke this SDK credential? Any applications using it will be blocked immediately.');
   if (!ok) return;
 
   try {
     await fetch(`/api/projects/${currentProject.id}/keys/${keyId}/revoke`, { method: 'POST' });
     latestGeneratedKey = null;
     await refreshSdkKeysList();
+  } catch (e) {}
+}
+
+async function revokeActiveKey() {
+  if (!currentProject) return;
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/keys`);
+    const data = await res.json();
+    const activeKey = (data.keys || []).find(k => !k.revoked_at);
+    if (!activeKey) {
+      alert('There is no active SDK credential to revoke.');
+      return;
+    }
+    await revokeKey(activeKey.id);
   } catch (e) {}
 }
 
@@ -1482,13 +1783,30 @@ async function fetchJSON(url) {
 
 function renderFeed(events) {
   const body = document.getElementById('feed-body');
+  if (!events || events.length === 0) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="7" class="empty" style="text-align: center; padding: 48px 16px;">
+          <div style="font-size: 28px; margin-bottom: 8px;">📡</div>
+          <strong style="color: var(--text); font-size: 14px;">No Telemetry Events Yet</strong>
+          <div style="color: var(--muted); font-size: 12px; margin-top: 6px; max-width: 400px; margin-left: auto; margin-right: auto;">
+            This project has not received any API traffic yet. Connect the SDK to start monitoring incoming requests in real-time.
+          </div>
+          <button onclick="openSdkModal()" class="btn-investigate" style="margin-top: 14px; padding: 6px 16px; font-size: 12px; color: #58a6ff; border-color: rgba(88,166,255,0.4);">
+            📦 View SDK Integration Guide
+          </button>
+        </td>
+      </tr>
+    `;
+    return;
+  }
   body.innerHTML = events.slice(0, 15).map(e => `
     <tr>
       <td>${fmtTime(e.timestamp)}</td>
-      <td>${e.endpoint}</td>
-      <td>${e.method}</td>
+      <td>${escapeHtml(e.endpoint)}</td>
+      <td>${escapeHtml(e.method)}</td>
       <td>${e.status_code}</td>
-      <td>${e.ip}</td>
+      <td>${escapeHtml(e.ip)}</td>
       <td>${e.latency_ms.toFixed(1)}ms</td>
       <td>${badge(e.severity)}</td>
     </tr>
@@ -1497,20 +1815,28 @@ function renderFeed(events) {
 
 function renderAlerts(alerts) {
   const body = document.getElementById('alerts-body');
-  if (alerts.length === 0) {
-    body.innerHTML = '<div class="empty">No alerts yet.</div>';
+  if (!alerts || alerts.length === 0) {
+    body.innerHTML = `
+      <div class="empty" style="text-align: center; padding: 48px 16px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">🛡️</div>
+        <strong style="color: var(--low); font-size: 14px;">All Systems Clear</strong>
+        <div style="color: var(--muted); font-size: 12px; margin-top: 6px; max-width: 320px; margin-left: auto; margin-right: auto;">
+          No security threats or anomalous traffic patterns detected for this project.
+        </div>
+      </div>
+    `;
     return;
   }
   body.innerHTML = alerts.map(a => `
     <div class="alert-row ${a.severity}">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div><strong>${a.endpoint}</strong> — ${badge(a.severity)}</div>
+        <div><strong>${escapeHtml(a.endpoint)}</strong> — ${badge(a.severity)}</div>
         <button onclick="openInvestigateModal(${a.id})" class="btn-investigate">Investigate</button>
       </div>
       <div class="meta">
-        IP ${a.ip} &middot; ${fmtTime(a.timestamp)} &middot;
+        IP ${escapeHtml(a.ip)} &middot; ${fmtTime(a.timestamp)} &middot;
         score ${a.anomaly_score.toFixed(2)} &middot;
-        rules: ${a.rule_flags.length ? a.rule_flags.join(', ') : 'none'}
+        rules: ${a.rule_flags && a.rule_flags.length ? a.rule_flags.map(escapeHtml).join(', ') : 'none'}
       </div>
     </div>
   `).join('');

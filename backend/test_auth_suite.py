@@ -17,6 +17,13 @@ import sys
 import os
 import uuid
 import json
+import io
+import re
+import zipfile
+import tempfile
+import time
+import importlib.util
+from unittest.mock import patch
 
 # Ensure backend directory is in path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -769,6 +776,254 @@ def run_tests():
 
         # Bob's webhook still exists and remains untouched
         assert_test("Bob's webhook still exists intact", bob_client.get(f"/api/projects/{proj_b_id}/webhooks").get_json().get("webhook") is not None)
+
+        # ---------------------------------------------------------
+        # Test N: SDK Download, Zero Secret Leakage & Fresh Sample App Ingestion
+        # ---------------------------------------------------------
+        print("\n--- Test N: SDK Download, Zero Secret Leakage & Fresh Sample App Ingestion ---")
+
+        # 1. Download SDK for Alice's Project A
+        res_dl = client.get(f"/api/projects/{proj_a_id}/download-sdk")
+        assert_test("Alice downloads SDK -> HTTP 200", res_dl.status_code == 200)
+        assert_test("Download content type is application/zip", res_dl.content_type == "application/zip")
+        assert_test("Attachment filename matches project id", f"mlo11y-sdk-{proj_a_id}.zip" in res_dl.headers.get("Content-Disposition", ""))
+
+        # 2. Authorization guards on download
+        res_bob_dl = bob_client.get(f"/api/projects/{proj_a_id}/download-sdk")
+        assert_test("Bob cannot download Alice's SDK -> HTTP 403", res_bob_dl.status_code == 403)
+        res_anon_dl = app.test_client().get(f"/api/projects/{proj_a_id}/download-sdk")
+        assert_test("Unauthenticated user cannot download SDK -> HTTP 401", res_anon_dl.status_code == 401)
+        res_fake_dl = client.get("/api/projects/proj_nonexistent_999/download-sdk")
+        assert_test("Nonexistent project download returns HTTP 403 or 404", res_fake_dl.status_code in (403, 404))
+
+        # 3. ZIP File Verification & Content Extraction
+        zip_buf = io.BytesIO(res_dl.data)
+        with zipfile.ZipFile(zip_buf, "r") as zf:
+            file_names = set(zf.namelist())
+            assert_test("ZIP contains middleware.py", "middleware.py" in file_names)
+            assert_test("ZIP contains config.py", "config.py" in file_names)
+            assert_test("ZIP contains sample_app.py", "sample_app.py" in file_names)
+            assert_test("ZIP contains README.md", "README.md" in file_names)
+
+            middleware_content = zf.read("middleware.py").decode("utf-8")
+            config_content = zf.read("config.py").decode("utf-8")
+            sample_app_content = zf.read("sample_app.py").decode("utf-8")
+            readme_content = zf.read("README.md").decode("utf-8")
+
+        all_sdk_content = middleware_content + config_content + sample_app_content + readme_content
+
+        # 4. Strict Zero Secret Leakage Assertions
+        assert_test("Zero Leak: Alice password absent from SDK files", "Password123!" not in all_sdk_content)
+        assert_test("Zero Leak: Database credentials/sqlite file absent", ".db" not in all_sdk_content and "sqlite" not in all_sdk_content.lower())
+        assert_test("Zero Leak: Gemini API key absent", "AIzaSy" not in all_sdk_content and "gemini" not in all_sdk_content.lower())
+        assert_test("Zero Leak: Slack webhook secrets absent", "hooks.slack.com" not in all_sdk_content)
+        assert_test("Zero Leak: User session tokens absent", "session_token" not in all_sdk_content.lower())
+
+        # Check config.py parameters
+        assert_test("config.py contains PROJECT_ID", f'PROJECT_ID = "{proj_a_id}"' in config_content)
+        assert_test("config.py contains COLLECTOR_URL", "COLLECTOR_URL" in config_content)
+        assert_test("config.py contains valid SDK_KEY", 'SDK_KEY = "ask_' in config_content)
+
+        # Extract SDK key from config.py
+        m = re.search(r'SDK_KEY\s*=\s*"([^"]+)"', config_content)
+        assert_test("Extracted SDK_KEY from config.py", m is not None)
+        active_dl_key = m.group(1) if m else ""
+
+        # 5. Execute fresh sample Flask application with extracted SDK
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zf_temp = zipfile.ZipFile(io.BytesIO(res_dl.data), "r")
+            zf_temp.extractall(temp_dir)
+
+            # Load the extracted middleware module dynamically from disk
+            spec = importlib.util.spec_from_file_location("downloaded_middleware", os.path.join(temp_dir, "middleware.py"))
+            dl_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(dl_module)
+
+            from flask import Flask as FreshFlask, jsonify as fresh_jsonify
+
+            fresh_app = FreshFlask("fresh_consumer_app")
+            
+            # Hook the extracted middleware
+            dl_module.SecurityMiddleware(
+                fresh_app,
+                collector_url="http://collector.local:5001",
+                api_key=active_dl_key
+            )
+
+            @fresh_app.route("/api/v1/ping", methods=["GET"])
+            def fresh_ping():
+                return fresh_jsonify({"status": "fresh_app_online"})
+
+            @fresh_app.route("/api/v1/orders", methods=["POST"])
+            def fresh_order():
+                return fresh_jsonify({"order_id": 42, "status": "processed"})
+
+            fresh_client = fresh_app.test_client()
+
+            # Intercept background HTTP requests from middleware._send and forward to backend /ingest
+            captured_telemetry = []
+            def mock_requests_post(url, json=None, headers=None, timeout=None):
+                captured_telemetry.append({"url": url, "json": json, "headers": headers})
+                # Forward directly to the collector backend!
+                return client.post("/ingest", json=json, headers=headers)
+
+            with patch("requests.post", side_effect=mock_requests_post):
+                # Send sample requests to the fresh application
+                res_ping = fresh_client.get("/api/v1/ping", headers={"X-Forwarded-For": "55.66.77.88"})
+                assert_test("Fresh app ping returns HTTP 200", res_ping.status_code == 200)
+
+                res_order = fresh_client.post("/api/v1/orders", json={"item": "widget", "qty": 2}, headers={"X-Forwarded-For": "55.66.77.88"})
+                assert_test("Fresh app order returns HTTP 200", res_order.status_code == 200)
+
+                # Give threads a moment to finish firing
+                time.sleep(0.2)
+
+            assert_test("Middleware dispatched telemetry events", len(captured_telemetry) >= 2)
+            assert_test("Dispatched event has Bearer ask_ key in Authorization header", captured_telemetry[0]["headers"].get("Authorization", "").startswith("Bearer ask_"))
+            assert_test("Dispatched event has X-API-Key header", captured_telemetry[0]["headers"].get("X-API-Key", "").startswith("ask_"))
+
+            # Verify that ingested telemetry is stored under Alice's Project A
+            alice_events_after = client.get(f"/events/recent?project_id={proj_a_id}").get_json()
+            assert_test("Alice Project A recorded /api/v1/ping from fresh app", any(e["endpoint"] == "/api/v1/ping" for e in alice_events_after))
+            assert_test("Alice Project A recorded /api/v1/orders from fresh app", any(e["endpoint"] == "/api/v1/orders" for e in alice_events_after))
+
+            # Bob must see NONE of this telemetry
+            bob_events_after = bob_client.get(f"/events/recent?project_id={proj_b_id}").get_json()
+            assert_test("Bob Project B received NONE of fresh app telemetry", not any("/api/v1/orders" in e.get("endpoint", "") for e in bob_events_after))
+
+            # Verify last_used_at timestamp updated
+            proj_a_keys = db.list_api_keys_for_project(proj_a_id)
+            used_keys = [k for k in proj_a_keys if active_dl_key.startswith(k["key_prefix"].rstrip("."))]
+            assert_test("Active SDK key last_used_at was updated in DB", len(used_keys) > 0 and used_keys[0]["last_used_at"] is not None)
+
+        # 6. SDK Key Lifecycle: Immediate Revocation on Regeneration
+        res_regen2 = client.post(f"/api/projects/{proj_a_id}/keys/regenerate")
+        assert_test("Alice regenerates SDK key -> HTTP 201", res_regen2.status_code == 201)
+        new_active_key = res_regen2.get_json()["key"]["raw_key"]
+        assert_test("New active key is different from previous key", new_active_key != active_dl_key)
+
+        # Immediate Invalidation: Old SDK key MUST be rejected with HTTP 401
+        res_old_ingest = client.post("/ingest", json={
+            "endpoint": "/api/v1/ping_old",
+            "method": "GET",
+            "status_code": 200,
+            "latency_ms": 15.0,
+            "ip": "55.66.77.88",
+            "payload_size": 0
+        }, headers={"Authorization": f"Bearer {active_dl_key}"})
+        assert_test("Old SDK key rejected immediately -> HTTP 401 Unauthorized", res_old_ingest.status_code == 401)
+
+        # New key MUST be accepted immediately
+        res_new_ingest = client.post("/ingest", json={
+            "endpoint": "/api/v1/ping_new",
+            "method": "GET",
+            "status_code": 200,
+            "latency_ms": 15.0,
+            "ip": "55.66.77.88",
+            "payload_size": 0
+        }, headers={"Authorization": f"Bearer {new_active_key}"})
+        assert_test("New active key accepted immediately -> HTTP 201", res_new_ingest.status_code == 201)
+
+        # Download SDK with regenerated key
+        res_dl2 = client.get(f"/api/projects/{proj_a_id}/download-sdk?api_key={new_active_key}")
+        assert_test("Alice downloads updated SDK -> HTTP 200", res_dl2.status_code == 200)
+        with zipfile.ZipFile(io.BytesIO(res_dl2.data), "r") as zf2:
+            cfg2 = zf2.read("config.py").decode("utf-8")
+            assert_test("Newly downloaded SDK config.py contains the active regenerated key", f'SDK_KEY = "{new_active_key}"' in cfg2)
+
+        # ---------------------------------------------------------
+        # Test O: Complete User Journey, Session Persistence & Empty States
+        # ---------------------------------------------------------
+        print("\n--- Test O: Complete User Journey, Session Persistence & Empty States ---")
+
+        # 1. Clean Visitor Experience: Check Dashboard Page Assets
+        visitor_client = server.app.test_client()
+        res_page = visitor_client.get("/")
+        assert_test("Visitor receives 200 for dashboard UI", res_page.status_code == 200)
+        page_html = res_page.data.decode("utf-8")
+        assert_test("HTML contains app-loading screen", "id=\"app-loading\"" in page_html)
+        assert_test("HTML contains auth-app login card", "id=\"auth-app\"" in page_html)
+        assert_test("HTML contains Current Project selector", "Current Project:" in page_html)
+        assert_test("HTML contains SDK Integration button", "📦 SDK Integration" in page_html)
+        assert_test("HTML contains Slack Webhook button", "🔔 Slack Webhook" in page_html)
+        assert_test("HTML contains Sign Out control", "🚪 Sign Out" in page_html)
+        assert_test("HTML contains No Projects empty state", "id=\"no-projects-view\"" in page_html)
+
+        # Visitor is unauthenticated
+        res_me_anon = visitor_client.get("/api/auth/me")
+        assert_test("Unauthenticated visitor /api/auth/me returns 401", res_me_anon.status_code == 401)
+
+        # 2. Complete Signup Journey
+        charlie_email = f"charlie_{run_id}@example.com"
+        res_charlie_reg = visitor_client.post("/api/auth/register", json={
+            "email": charlie_email,
+            "password": "Password123!",
+            "confirm_password": "Password123!"
+        })
+        assert_test("Visitor signup succeeds -> HTTP 201", res_charlie_reg.status_code == 201)
+
+        # 3. Session Persistence Across Simulated Page Refresh
+        # Using the same cookie jar simulates browser refresh with session cookie
+        res_refresh_me = visitor_client.get("/api/auth/me")
+        assert_test("Session persists across refresh -> HTTP 200", res_refresh_me.status_code == 200)
+        assert_test("Session identifies correct user", res_refresh_me.get_json().get("user", {}).get("email") == charlie_email)
+
+        # 4. Project Management: Create required sample projects (E-Commerce API, Payment API, College API)
+        res_p1 = visitor_client.post("/api/projects", json={"name": "E-Commerce API", "description": "Retail checkout service"})
+        res_p2 = visitor_client.post("/api/projects", json={"name": "Payment API", "description": "Payment gateway processing"})
+        res_p3 = visitor_client.post("/api/projects", json={"name": "College API", "description": "Student management service"})
+        assert_test("Created E-Commerce API -> HTTP 201", res_p1.status_code == 201)
+        assert_test("Created Payment API -> HTTP 201", res_p2.status_code == 201)
+        assert_test("Created College API -> HTTP 201", res_p3.status_code == 201)
+
+        p1_id = res_p1.get_json()["project"]["id"]
+        p2_id = res_p2.get_json()["project"]["id"]
+        p3_id = res_p3.get_json()["project"]["id"]
+
+        # List projects: All 3 user projects must be returned
+        res_projs = visitor_client.get("/api/projects")
+        projs_list = res_projs.get_json().get("projects", [])
+        proj_names = [p["name"] for p in projs_list]
+        assert_test("Project selector has E-Commerce API", "E-Commerce API" in proj_names)
+        assert_test("Project selector has Payment API", "Payment API" in proj_names)
+        assert_test("Project selector has College API", "College API" in proj_names)
+
+        # 5. Empty States Handling for Fresh Project
+        res_empty_events = visitor_client.get(f"/events/recent?project_id={p1_id}")
+        assert_test("Fresh project returns 200 with empty events array", res_empty_events.status_code == 200 and res_empty_events.get_json() == [])
+        res_empty_alerts = visitor_client.get(f"/alerts/recent?project_id={p1_id}")
+        assert_test("Fresh project returns 200 with empty alerts array", res_empty_alerts.status_code == 200 and res_empty_alerts.get_json() == [])
+        res_empty_wh = visitor_client.get(f"/api/projects/{p1_id}/webhooks")
+        assert_test("Fresh project returns 200 with null webhook", res_empty_wh.status_code == 200 and res_empty_wh.get_json().get("webhook") is None)
+
+        # 6. Webhook Section Flow: Connect -> Test -> Disconnect
+        # Connect Slack webhook
+        res_wh_conn = visitor_client.post(f"/api/projects/{p1_id}/webhooks", json={
+            "webhook_url": "https://hooks.slack.com/services/T111/B222/CHARLIE_SECRET",
+            "provider": "slack"
+        })
+        assert_test("Connect Slack webhook -> HTTP 200", res_wh_conn.status_code == 200)
+        assert_test("Connected webhook URL is masked", "hooks.slack.com/services/****" in res_wh_conn.get_json().get("webhook", {}).get("masked_url", ""))
+
+        # Test Webhook
+        res_wh_test = visitor_client.post(f"/api/projects/{p1_id}/webhooks/test")
+        assert_test("Test webhook endpoint responds", res_wh_test.status_code in (200, 400))
+
+        # Disconnect Webhook
+        res_wh_disc = visitor_client.delete(f"/api/projects/{p1_id}/webhooks")
+        assert_test("Disconnect webhook succeeds -> HTTP 200", res_wh_disc.status_code == 200)
+        res_wh_after = visitor_client.get(f"/api/projects/{p1_id}/webhooks")
+        assert_test("Webhook is now disconnected (None)", res_wh_after.get_json().get("webhook") is None)
+
+        # 7. Clean Logout & Invalidation
+        res_logout = visitor_client.post("/api/auth/logout")
+        assert_test("User logout succeeds -> HTTP 200", res_logout.status_code == 200)
+
+        # Verify session is strictly invalidated
+        res_me_logged_out = visitor_client.get("/api/auth/me")
+        assert_test("Logged out user /api/auth/me returns 401 Unauthorized", res_me_logged_out.status_code == 401)
+        res_proj_logged_out = visitor_client.get("/api/projects")
+        assert_test("Logged out user accessing /api/projects returns 401 Unauthorized", res_proj_logged_out.status_code == 401)
 
         print("\n==================================================")
         print(f"TEST SUITE COMPLETE: {passed}/{total} TESTS PASSED")
