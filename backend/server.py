@@ -200,6 +200,10 @@ def auth_register():
 
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote_addr or "unknown"
+    if rate_limiter.is_login_rate_limited(client_ip):
+        return jsonify({"error": "Too many failed login attempts. Please try again later."}), 429
+
     data = request.get_json(silent=True) or {}
     email = data.get("email", "").strip()
     password = data.get("password", "")
@@ -210,8 +214,10 @@ def auth_login():
     user = db.get_user_by_email(email)
     # Generic error message to prevent user enumeration
     if not user or not auth.verify_password(user["password_hash"], password):
+        rate_limiter.record_failed_login(client_ip)
         return jsonify({"error": "Invalid email or password"}), 401
 
+    rate_limiter.clear_failed_logins(client_ip)
     session.permanent = True
     session["user_id"] = user["id"]
     return jsonify({

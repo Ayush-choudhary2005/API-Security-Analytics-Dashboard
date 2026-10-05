@@ -170,10 +170,42 @@ def block_ip(ip: str, duration_sec: int = None, reason: str = "Manually blocked"
     return True
 
 
+_login_failed_log = defaultdict(list)
+LOGIN_MAX_FAILED = 10
+LOGIN_LOCKOUT_SEC = 300  # 5 minutes
+
+
+def record_failed_login(ip: str) -> bool:
+    """Record a failed login from an IP. Returns True if now rate-limited."""
+    now = time.time()
+    cutoff = now - LOGIN_LOCKOUT_SEC
+    with _lock:
+        _login_failed_log[ip] = [t for t in _login_failed_log[ip] if t > cutoff]
+        _login_failed_log[ip].append(now)
+        return len(_login_failed_log[ip]) >= LOGIN_MAX_FAILED
+
+
+def is_login_rate_limited(ip: str) -> bool:
+    """Check if an IP has exceeded the failed login threshold."""
+    now = time.time()
+    cutoff = now - LOGIN_LOCKOUT_SEC
+    with _lock:
+        _login_failed_log[ip] = [t for t in _login_failed_log[ip] if t > cutoff]
+        return len(_login_failed_log[ip]) >= LOGIN_MAX_FAILED
+
+
+def clear_failed_logins(ip: str):
+    """Clear failed login count for an IP upon successful authentication."""
+    with _lock:
+        if ip in _login_failed_log:
+            del _login_failed_log[ip]
+
+
 def reset_state():
     """Clear all rate limiter state (useful for test suites)."""
     with _lock:
         _request_log.clear()
         _blocked_ips.clear()
         _warned_ips.clear()
+        _login_failed_log.clear()
 
