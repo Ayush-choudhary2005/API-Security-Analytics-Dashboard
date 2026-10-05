@@ -357,7 +357,16 @@
         <input type="text" id="settings-webhook-url" placeholder="https://hooks.slack.com/services/..." style="width:100%; background: rgba(13,17,23,0.8); color: var(--text); border: 1px solid var(--border); padding: 10px; border-radius: 4px; outline: none; margin-bottom: 16px;">
         <button onclick="saveSettings()" class="btn" style="padding: 10px 20px;">Save Configuration</button>
         <span id="settings-status" style="margin-left: 12px; color: #3fb950; display:none;">Saved successfully!</span>
+
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 30px 0;">
+      
+      <h3 style="margin-bottom: 15px;">🧠 Machine Learning</h3>
+      <p style="color: var(--muted); font-size: 13px; margin-bottom: 15px;">Trigger the Isolation Forest algorithm to re-train itself on your latest API traffic patterns to reduce false positives.</p>
+      
+      <button onclick="triggerSelfLearn()" class="btn" style="background: var(--low); color: #fff; border: none; padding: 10px 20px; font-weight: bold;">Initiate Self-Learning 🤖</button>
+      <div id="learn-status" style="margin-top: 10px; font-size: 13px; color: var(--success); display: none;"></div>
       </div>
+
     </div>
   </div>
   <!-- End Settings View -->
@@ -483,21 +492,66 @@ function openInvestigateModal(id) {
   document.getElementById('modal-loader').style.display = 'block';
   document.getElementById('export-pdf-btn').style.display = 'none';
   
+  // 1. Fetch raw event data instantly
   fetch('/api/investigate/' + id)
     .then(r => r.json())
     .then(data => {
       document.getElementById('modal-loader').style.display = 'none';
-      if (data.report) {
-        // Render markdown with marked.js
-        document.getElementById('modal-content').innerHTML = marked.parse(data.report);
-        document.getElementById('export-pdf-btn').style.display = 'inline-block';
-      } else {
-        document.getElementById('modal-content').innerText = 'Error loading report.';
+      
+      if (data.error) {
+        document.getElementById('modal-content').innerText = data.error;
+        return;
       }
+      
+      const date = new Date(data.timestamp * 1000).toLocaleString();
+      const rules = data.rule_flags && data.rule_flags.length > 0 ? data.rule_flags.join(', ') : 'None';
+      
+      let html = `
+        <h3 style="margin-top: 0; color: var(--high);">🚨 Threat Intelligence Data</h3>
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <p><strong>Time:</strong> ${date}</p>
+          <p><strong>Attacker IP:</strong> <span style="color: #f85149; font-family: monospace;">${data.ip}</span></p>
+          <p><strong>Target Endpoint:</strong> <span style="color: var(--medium);">${data.method} ${data.endpoint}</span></p>
+          <p><strong>Machine Learning Score:</strong> <span style="font-weight: bold; color: ${data.anomaly_score > 5 ? '#f85149' : '#d29922'};">${data.anomaly_score}</span></p>
+          <p><strong>Rule Flags Triggered:</strong> ${rules}</p>
+          <p><strong>Network Latency:</strong> ${data.latency_ms} ms</p>
+        </div>
+        <button id="ai-btn" class="btn" style="background: linear-gradient(90deg, #1f6feb, #8957e5); border: none; padding: 10px 20px; font-weight: bold; width: 100%;" onclick="generateAIReport(${id})">✨ Generate AI Threat Analysis ✨</button>
+        <div id="ai-loader" style="display:none; text-align:center; margin-top:20px; color: var(--muted);">
+          <div class="loader" style="margin: 0 auto 10px auto;"></div>
+          Consulting Gemini AI Models (This may take up to 30 seconds if Google servers are busy)...
+        </div>
+        <div id="ai-report-content" style="margin-top: 20px;"></div>
+      `;
+      document.getElementById('modal-content').innerHTML = html;
     })
     .catch(err => {
       document.getElementById('modal-loader').style.display = 'none';
       document.getElementById('modal-content').innerText = 'Fetch failed: ' + err;
+    });
+}
+
+function generateAIReport(id) {
+  document.getElementById('ai-btn').style.display = 'none';
+  document.getElementById('ai-loader').style.display = 'block';
+  
+  fetch('/api/generate_report/' + id)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('ai-loader').style.display = 'none';
+      if (data.report) {
+        document.getElementById('export-pdf-btn').style.display = 'inline-block';
+        window.currentReportText = data.report;
+        const html = marked.parse(data.report);
+        document.getElementById('ai-report-content').innerHTML = `<hr style="border-top: 1px solid var(--border); margin: 20px 0;">` + html;
+      } else {
+        document.getElementById('ai-report-content').innerText = 'No report available.';
+      }
+    })
+    .catch(err => {
+      document.getElementById('ai-loader').style.display = 'none';
+      document.getElementById('ai-btn').style.display = 'block';
+      document.getElementById('ai-report-content').innerText = 'AI Generation failed: ' + err;
     });
 }
 
