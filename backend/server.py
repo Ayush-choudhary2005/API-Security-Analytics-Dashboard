@@ -136,7 +136,9 @@ def api_retrain():
         # We can dynamically pass the DB connection to pull the latest events
         # For now, if we have enough events, we trigger the script
         import subprocess
-        subprocess.Popen(["python", "backend/train_model.py"])
+        import os
+        script_path = os.path.join(os.path.dirname(__file__), "train_model.py")
+        subprocess.Popen(["python", script_path])
         
         # Reload the ML model into memory
         global anomaly_detector
