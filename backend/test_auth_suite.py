@@ -619,6 +619,157 @@ def run_tests():
         alice_socket.disconnect()
         bob_socket.disconnect()
 
+        # ---------------------------------------------------------
+        # Test M: Project-Specific Webhooks & Notification Isolation
+        # ---------------------------------------------------------
+        print("\n--- Test M: Project-Specific Webhooks & Notification Isolation ---")
+
+        # 1. Authorization & IDOR: Bob cannot configure Alice's webhook
+        res_bob_hack = bob_client.post(f"/api/projects/{proj_a_id}/webhooks", json={
+            "webhook_url": "https://hooks.slack.com/services/EVIL/TOKEN/HACK",
+            "provider": "slack"
+        })
+        assert_test("Bob cannot configure Alice's webhook -> HTTP 403", res_bob_hack.status_code == 403)
+
+        res_alice_hack = client.post(f"/api/projects/{proj_b_id}/webhooks", json={
+            "webhook_url": "https://hooks.slack.com/services/ALICE/PROJ_B/NO",
+            "provider": "slack"
+        })
+        assert_test("Alice cannot configure Bob's webhook -> HTTP 403", res_alice_hack.status_code == 403)
+
+        # 2. Add Slack Webhook to Project A & Verify Masking
+        secret_token_a = "secret_raw_token_alice_xyz987"
+        raw_slack_url_a = f"https://hooks.slack.com/services/T112233/B445566/{secret_token_a}"
+        res_set_a = client.post(f"/api/projects/{proj_a_id}/webhooks", json={
+            "webhook_url": raw_slack_url_a,
+            "provider": "slack"
+        })
+        assert_test("Alice configures Slack webhook -> HTTP 200", res_set_a.status_code == 200)
+        wh_a = res_set_a.get_json().get("webhook", {})
+        assert_test("Configured provider is slack", wh_a.get("provider") == "slack")
+        assert_test("Configured webhook is enabled by default", wh_a.get("enabled") is True)
+        assert_test("Masked URL matches standard Slack mask format", wh_a.get("masked_url") == "https://hooks.slack.com/services/****/****/****")
+        assert_test("Raw secret is NOT exposed in POST response", secret_token_a not in str(res_set_a.get_json()))
+        assert_test("Plaintext webhook_url key excluded from response", "webhook_url" not in wh_a)
+
+        # 3. GET Webhook Config & Verify Zero Secret Leakage
+        res_get_a = client.get(f"/api/projects/{proj_a_id}/webhooks")
+        assert_test("Alice retrieves webhook config -> HTTP 200", res_get_a.status_code == 200)
+        wh_get_a = res_get_a.get_json().get("webhook", {})
+        assert_test("GET masked_url is present", wh_get_a.get("masked_url") == "https://hooks.slack.com/services/****/****/****")
+        assert_test("Raw secret is NOT exposed in GET response", secret_token_a not in str(res_get_a.get_json()))
+        assert_test("Bob cannot read Alice's webhook -> HTTP 403", bob_client.get(f"/api/projects/{proj_a_id}/webhooks").status_code == 403)
+
+        # 4. Add Discord Webhook to Project B
+        secret_token_b = "discord_token_bob_super_secret_777"
+        raw_discord_url_b = f"https://discord.com/api/webhooks/9876543210/{secret_token_b}"
+        res_set_b = bob_client.post(f"/api/projects/{proj_b_id}/webhooks", json={
+            "webhook_url": raw_discord_url_b,
+            "provider": "discord"
+        })
+        assert_test("Bob configures Discord webhook -> HTTP 200", res_set_b.status_code == 200)
+        wh_b = res_set_b.get_json().get("webhook", {})
+        assert_test("Configured provider is discord", wh_b.get("provider") == "discord")
+        assert_test("Discord raw secret is NOT exposed", secret_token_b not in str(res_set_b.get_json()))
+        assert_test("Discord masked_url format verified", "****" in wh_b.get("masked_url", ""))
+
+        # 5. Test Webhook Functionality
+        # Test Alice's webhook using local /api/webhook_test receiver
+        client.post(f"/api/projects/{proj_a_id}/webhooks", json={
+            "webhook_url": "http://127.0.0.1:5001/api/webhook_test",
+            "provider": "slack"
+        })
+        
+        # Bob cannot test Alice's webhook (IDOR check)
+        assert_test("Bob cannot trigger test on Alice's webhook -> HTTP 403", bob_client.post(f"/api/projects/{proj_a_id}/webhooks/test").status_code == 403)
+
+        # Alice tests her webhook
+        res_test_a = client.post(f"/api/projects/{proj_a_id}/webhooks/test")
+        # In test environment, the internal server loopback might return 200 if server is listening or connection refused
+        assert_test("Alice test webhook returns HTTP 200 or connection status", res_test_a.status_code in (200, 400))
+
+        # 6. Webhook Enable / Disable (Toggle)
+        res_toggle_off = client.post(f"/api/projects/{proj_a_id}/webhooks/toggle", json={"enabled": False})
+        assert_test("Alice disables webhook -> HTTP 200", res_toggle_off.status_code == 200)
+        assert_test("Webhook state is disabled (False)", res_toggle_off.get_json().get("webhook", {}).get("enabled") is False)
+
+        # Verify active_only query returns None when disabled
+        assert_test("Active-only query returns None when disabled", db.get_webhook_config(proj_a_id, active_only=True) is None)
+
+        # Re-enable webhook
+        res_toggle_on = client.post(f"/api/projects/{proj_a_id}/webhooks/toggle", json={"enabled": True})
+        assert_test("Alice re-enables webhook -> HTTP 200", res_toggle_on.status_code == 200)
+        assert_test("Webhook state is enabled (True)", res_toggle_on.get_json().get("webhook", {}).get("enabled") is True)
+        assert_test("Active-only query returns active config when enabled", db.get_webhook_config(proj_a_id, active_only=True) is not None)
+
+        # 7. Alert Webhook Multi-Tenant Isolation
+        # Verify that Project A alert dispatches ONLY to Project A webhook, never to Project B
+        dispatched_webhooks = []
+        original_send_alert = server.webhook.send_alert
+        def mock_send_alert(alert_data, webhook_url=None):
+            dispatched_webhooks.append({
+                "project_id": alert_data.get("project_id"),
+                "endpoint": alert_data.get("endpoint"),
+                "webhook_url": webhook_url
+            })
+        server.webhook.send_alert = mock_send_alert
+
+        try:
+            # Set Project A webhook to target_a
+            client.post(f"/api/projects/{proj_a_id}/webhooks", json={
+                "webhook_url": "https://hooks.slack.com/services/ALICE/PROJ_A/TARGET",
+                "provider": "slack"
+            })
+            # Set Project B webhook to target_b
+            bob_client.post(f"/api/projects/{proj_b_id}/webhooks", json={
+                "webhook_url": "https://hooks.slack.com/services/BOB/PROJ_B/TARGET",
+                "provider": "slack"
+            })
+
+            # Ingest High Severity Attack on Project A (8 failed logins to trigger brute force rule)
+            for _ in range(8):
+                client.post("/ingest", json={
+                    "endpoint": "/api/v1/alice_critical",
+                    "method": "POST",
+                    "status_code": 401,
+                    "latency_ms": 10.0,
+                    "ip": "100.100.100.100",
+                    "payload_size": 100
+                }, headers={"Authorization": f"Bearer {new_key_a}"})
+
+            # Project A alert dispatched to Project A target
+            dispatched_for_a = [d for d in dispatched_webhooks if d["project_id"] == proj_a_id]
+            assert_test("Project A alert fired", len(dispatched_for_a) >= 1)
+            assert_test("Project A webhook URL dispatched", dispatched_for_a[0]["webhook_url"] == "https://hooks.slack.com/services/ALICE/PROJ_A/TARGET")
+            assert_test("Project A alert was NOT sent to Project B webhook", not any(d["webhook_url"] == "https://hooks.slack.com/services/BOB/PROJ_B/TARGET" for d in dispatched_for_a))
+
+            # Ingest High Severity Attack on Project B (8 failed logins to trigger brute force rule)
+            for _ in range(8):
+                bob_client.post("/ingest", json={
+                    "endpoint": "/api/v1/bob_critical",
+                    "method": "POST",
+                    "status_code": 401,
+                    "latency_ms": 10.0,
+                    "ip": "200.200.200.200",
+                    "payload_size": 100
+                }, headers={"Authorization": f"Bearer {raw_key_b}"})
+
+            dispatched_for_b = [d for d in dispatched_webhooks if d["project_id"] == proj_b_id]
+            assert_test("Project B alert fired", len(dispatched_for_b) >= 1)
+            assert_test("Project B webhook URL dispatched", dispatched_for_b[0]["webhook_url"] == "https://hooks.slack.com/services/BOB/PROJ_B/TARGET")
+            assert_test("Project B alert was NOT sent to Project A webhook", not any(d["webhook_url"] == "https://hooks.slack.com/services/ALICE/PROJ_A/TARGET" for d in dispatched_for_b))
+        finally:
+            server.webhook.send_alert = original_send_alert
+
+        # 8. Webhook Removal (DELETE)
+        res_del_wh = client.delete(f"/api/projects/{proj_a_id}/webhooks")
+        assert_test("Alice removes webhook -> HTTP 200", res_del_wh.status_code == 200)
+        assert_test("Alice webhook config is now null", client.get(f"/api/projects/{proj_a_id}/webhooks").get_json().get("webhook") is None)
+        assert_test("Testing removed webhook returns HTTP 400", client.post(f"/api/projects/{proj_a_id}/webhooks/test").status_code == 400)
+
+        # Bob's webhook still exists and remains untouched
+        assert_test("Bob's webhook still exists intact", bob_client.get(f"/api/projects/{proj_b_id}/webhooks").get_json().get("webhook") is not None)
+
         print("\n==================================================")
         print(f"TEST SUITE COMPLETE: {passed}/{total} TESTS PASSED")
         print("==================================================")

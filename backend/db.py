@@ -436,36 +436,103 @@ def revoke_api_key(key_id: int, project_id: str) -> bool:
 # Webhook Configurations
 # ---------------------------------------------------------
 
-def get_webhook_config(project_id: str) -> dict:
-    """Retrieve the active webhook config for a project."""
+def mask_webhook_url(url: str) -> str:
+    """Mask sensitive tokens in webhook URL for display in API and UI."""
+    if not url:
+        return ""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        path = parsed.path
+        if "hooks.slack.com" in parsed.netloc:
+            parts = [p for p in path.split("/") if p]
+            if len(parts) >= 2 and parts[0] == "services":
+                masked_parts = ["services"] + ["****" for _ in parts[1:]]
+                return f"{parsed.scheme}://{parsed.netloc}/{'/'.join(masked_parts)}"
+        elif "discord.com" in parsed.netloc or "discordapp.com" in parsed.netloc:
+            parts = [p for p in path.split("/") if p]
+            if len(parts) >= 4:
+                return f"{parsed.scheme}://{parsed.netloc}/api/webhooks/{parts[2][:4]}****/********"
+        
+        parts = [p for p in path.split("/") if p]
+        if parts:
+            masked_path = "/" + parts[0] + "/****"
+        else:
+            masked_path = "/****"
+        return f"{parsed.scheme}://{parsed.netloc}{masked_path}"
+    except Exception:
+        if len(url) > 20:
+            return url[:12] + "****" + url[-4:]
+        return "****"
+
+
+def get_webhook_config(project_id: str, raw: bool = False, active_only: bool = False) -> dict:
+    """Retrieve webhook config for a project, with URL masked unless raw=True."""
     conn = get_conn()
-    row = conn.execute(
-        "SELECT * FROM webhook_configs WHERE project_id = ? AND enabled = 1 LIMIT 1",
-        (project_id,),
-    ).fetchone()
+    query = "SELECT * FROM webhook_configs WHERE project_id = ?"
+    if active_only:
+        query += " AND enabled = 1"
+    query += " LIMIT 1"
+    row = conn.execute(query, (project_id,)).fetchone()
     conn.close()
-    return dict(row) if row else None
+    if not row:
+        return None
+    d = dict(row)
+    d["enabled"] = bool(d.get("enabled", 1))
+    if not raw:
+        d["masked_url"] = mask_webhook_url(d.get("webhook_url", ""))
+        d.pop("webhook_url", None)
+    return d
 
 
-def set_webhook_config(project_id: str, webhook_url: str, provider: str = "slack") -> dict:
-    """Save or update webhook configuration for a project."""
+def set_webhook_config(project_id: str, webhook_url: str = None, provider: str = "slack", enabled: int = 1) -> dict:
+    """Save or update webhook configuration for a project. Returns masked config."""
     now = time.time()
     with _lock:
         conn = get_conn()
-        existing = conn.execute("SELECT id FROM webhook_configs WHERE project_id = ?", (project_id,)).fetchone()
+        existing = conn.execute("SELECT id, webhook_url FROM webhook_configs WHERE project_id = ?", (project_id,)).fetchone()
         if existing:
+            target_url = webhook_url.strip() if webhook_url and "****" not in webhook_url else existing["webhook_url"]
             conn.execute(
-                "UPDATE webhook_configs SET webhook_url = ?, provider = ?, enabled = 1, updated_at = ? WHERE project_id = ?",
-                (webhook_url.strip(), provider, now, project_id),
+                "UPDATE webhook_configs SET webhook_url = ?, provider = ?, enabled = ?, updated_at = ? WHERE project_id = ?",
+                (target_url, provider, 1 if enabled else 0, now, project_id),
             )
         else:
+            if not webhook_url:
+                conn.close()
+                return None
             conn.execute(
-                "INSERT INTO webhook_configs (project_id, provider, webhook_url, enabled, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)",
-                (project_id, provider, webhook_url.strip(), now, now),
+                "INSERT INTO webhook_configs (project_id, provider, webhook_url, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (project_id, provider, webhook_url.strip(), 1 if enabled else 0, now, now),
             )
         conn.commit()
         conn.close()
-    return get_webhook_config(project_id)
+    return get_webhook_config(project_id, raw=False)
+
+
+def toggle_webhook_enabled(project_id: str, enabled: bool) -> dict:
+    """Enable or disable webhook notifications for a project."""
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            "UPDATE webhook_configs SET enabled = ?, updated_at = ? WHERE project_id = ?",
+            (1 if enabled else 0, now, project_id),
+        )
+        conn.commit()
+        conn.close()
+    return get_webhook_config(project_id, raw=False)
+
+
+def delete_webhook_config(project_id: str) -> bool:
+    """Permanently delete a project's webhook configuration."""
+    with _lock:
+        conn = get_conn()
+        cur = conn.execute("DELETE FROM webhook_configs WHERE project_id = ?", (project_id,))
+        conn.commit()
+        affected = cur.rowcount
+        conn.close()
+    return affected > 0
 
 
 # ---------------------------------------------------------

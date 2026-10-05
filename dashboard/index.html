@@ -261,6 +261,7 @@
         </div>
         <button onclick="openNewProjectModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px;">+ New Project</button>
         <button onclick="openProjectDetailsModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px;">⚙️ Project Info</button>
+        <button onclick="openIntegrationsModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(63,185,80,0.4); color: var(--low);">🔔 Integrations</button>
         <button onclick="openSdkModal()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; border-color: rgba(88,166,255,0.4);">⚡ SDK Keys</button>
         <span style="color: var(--muted); font-size: 13px; padding-left: 6px;">👤 <strong id="current-user-email" style="color: var(--text);"></strong></span>
         <button onclick="handleLogout()" class="btn-investigate" style="padding: 6px 12px; font-size: 12px; color: var(--high); border-color: rgba(248,81,73,0.3);">Sign Out</button>
@@ -554,10 +555,14 @@
           </div>
         </div>
 
-        <h3 style="font-size: 13px; color: var(--muted); margin-top: 16px; margin-bottom: 8px; text-transform: uppercase;">Slack / Discord Webhook</h3>
-        <input type="text" id="pd-webhook-url" class="auth-input" placeholder="https://hooks.slack.com/services/..." style="margin-bottom: 8px;">
-        <button onclick="saveProjectWebhook()" class="btn-investigate" style="padding: 6px 14px; font-size: 12px;">Save Webhook URL</button>
-        <span id="pd-webhook-status" style="font-size: 12px; color: var(--low); margin-left: 10px; display: none;">Saved!</span>
+        <h3 style="font-size: 13px; color: var(--muted); margin-top: 16px; margin-bottom: 8px; text-transform: uppercase;">Slack / Discord Integration</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg); border: 1px solid var(--border); padding: 12px 14px; border-radius: 6px;">
+          <div>
+            <div id="pd-webhook-summary" style="font-size: 13px; font-weight: 500; color: var(--text);">No webhook configured</div>
+            <div id="pd-webhook-masked" style="font-size: 11px; color: var(--muted); font-family: monospace; margin-top: 2px;"></div>
+          </div>
+          <button onclick="closeProjectDetailsModal(); openIntegrationsModal();" class="btn-investigate" style="color: #58a6ff; border-color: rgba(88,166,255,0.4); padding: 5px 12px; font-size: 12px;">Configure ➔</button>
+        </div>
 
         <h3 style="font-size: 13px; color: var(--high); margin-top: 24px; margin-bottom: 8px; text-transform: uppercase;">Danger Zone</h3>
         <div style="border: 1px solid rgba(248,81,73,0.3); background: rgba(248,81,73,0.05); padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
@@ -566,6 +571,62 @@
             <div style="font-size: 11px; color: var(--muted);">Permanently remove this project, its API keys, and all telemetry events.</div>
           </div>
           <button onclick="deleteCurrentProject()" class="btn-investigate" style="color: var(--high); border-color: var(--high); padding: 6px 12px;">Delete Project</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Webhook & Notifications Integrations Modal -->
+  <div class="modal-overlay" id="integrations-modal" onclick="if(event.target===this) closeIntegrationsModal()">
+    <div class="modal" style="width: 580px;">
+      <div class="modal-header">
+        <h2>🔔 Webhook Integrations & Notifications</h2>
+        <button class="modal-close" onclick="closeIntegrationsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">
+          Send automated real-time alerts to Slack or Discord when security threats occur in project: <strong id="int-modal-project-name" style="color: var(--text);"></strong>
+        </div>
+
+        <div id="int-alert-box" class="auth-error" style="display: none;"></div>
+        <div id="int-success-box" style="display: none; background: rgba(63,185,80,0.15); border: 1px solid var(--low); color: var(--low); border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 16px;"></div>
+
+        <!-- Current Configuration Status Card -->
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--muted);">Current Status</div>
+            <div id="int-status-badge"><span style="color: var(--muted);">Checking...</span></div>
+          </div>
+          <div id="int-current-details" style="font-size: 13px; color: var(--muted);">
+            <!-- Populated via JS -->
+          </div>
+          <div id="int-action-buttons" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; display: none;">
+            <button id="btn-test-webhook" onclick="testProjectWebhook()" class="btn-investigate" style="color: #58a6ff; border-color: rgba(88,166,255,0.4);">🧪 Test Webhook</button>
+            <button id="btn-toggle-webhook" onclick="toggleProjectWebhook()" class="btn-investigate"></button>
+            <button onclick="removeProjectWebhook()" class="btn-investigate" style="color: var(--high); border-color: rgba(248,81,73,0.3);">🗑️ Remove</button>
+          </div>
+        </div>
+
+        <!-- Add / Update Form -->
+        <div style="border-top: 1px solid var(--border); padding-top: 16px;">
+          <h3 style="font-size: 13px; color: var(--text); margin: 0 0 10px; text-transform: uppercase;">Configure Webhook URL</h3>
+          <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <label style="font-size: 12px; color: var(--muted);">Webhook Provider:</label>
+              <select id="int-provider-select" style="width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; font-size: 13px; margin-top: 4px;">
+                <option value="slack">Slack Incoming Webhook</option>
+                <option value="discord">Discord Webhook</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 12px; color: var(--muted);">Target URL (Plaintext secrets are never stored or logged):</label>
+            <input type="url" id="int-webhook-url-input" class="auth-input" placeholder="https://hooks.slack.com/services/... or https://discord.com/api/webhooks/..." style="margin-top: 4px; margin-bottom: 12px;" required>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 11px; color: var(--muted);">URL tokens are masked (e.g. <code>hooks.slack.com/services/****</code>).</div>
+            <button onclick="saveProjectWebhook()" class="auth-btn" style="width: auto; padding: 8px 18px; background: #238636;">Save Webhook</button>
+          </div>
         </div>
       </div>
     </div>
@@ -795,7 +856,6 @@ async function openProjectDetailsModal() {
   if (!currentProject) return;
   document.getElementById('project-details-modal').style.display = 'flex';
   document.getElementById('project-details-error').style.display = 'none';
-  document.getElementById('pd-webhook-status').style.display = 'none';
 
   try {
     const res = await fetch(`/api/projects/${currentProject.id}`);
@@ -805,8 +865,17 @@ async function openProjectDetailsModal() {
       document.getElementById('pd-id').textContent = data.project.id;
       document.getElementById('pd-desc').textContent = data.project.description || 'No description';
       document.getElementById('pd-events').textContent = data.event_count || 0;
-      const hookUrl = (data.webhook && data.webhook.webhook_url) ? data.webhook.webhook_url : '';
-      document.getElementById('pd-webhook-url').value = hookUrl;
+      
+      const wh = data.webhook;
+      if (wh && wh.masked_url) {
+        const prov = (wh.provider || 'slack').toUpperCase();
+        const status = wh.enabled ? '🟢 Active' : '🟡 Disabled';
+        document.getElementById('pd-webhook-summary').textContent = `${prov} Webhook (${status})`;
+        document.getElementById('pd-webhook-masked').textContent = wh.masked_url;
+      } else {
+        document.getElementById('pd-webhook-summary').textContent = 'No webhook configured';
+        document.getElementById('pd-webhook-masked').textContent = '';
+      }
     }
   } catch (err) {}
 }
@@ -815,21 +884,176 @@ function closeProjectDetailsModal() {
   document.getElementById('project-details-modal').style.display = 'none';
 }
 
+let activeProjectWebhookConfig = null;
+
+async function openIntegrationsModal() {
+  if (!currentProject) return;
+  document.getElementById('integrations-modal').style.display = 'flex';
+  document.getElementById('int-modal-project-name').textContent = currentProject.name;
+  document.getElementById('int-alert-box').style.display = 'none';
+  document.getElementById('int-success-box').style.display = 'none';
+  document.getElementById('int-webhook-url-input').value = '';
+  await loadIntegrationsData();
+}
+
+function closeIntegrationsModal() {
+  document.getElementById('integrations-modal').style.display = 'none';
+  activeProjectWebhookConfig = null;
+}
+
+async function loadIntegrationsData() {
+  if (!currentProject) return;
+  const badgeEl = document.getElementById('int-status-badge');
+  const detailsEl = document.getElementById('int-current-details');
+  const btnWrap = document.getElementById('int-action-buttons');
+  const toggleBtn = document.getElementById('btn-toggle-webhook');
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/webhooks`);
+    const data = await res.json();
+    const wh = data.webhook;
+    activeProjectWebhookConfig = wh;
+
+    if (wh && wh.masked_url) {
+      const isEnabled = !!wh.enabled;
+      badgeEl.innerHTML = isEnabled 
+        ? '<span style="background: rgba(63,185,80,0.15); color: var(--low); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">🟢 ACTIVE</span>'
+        : '<span style="background: rgba(210,153,34,0.15); color: var(--medium); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">🟡 PAUSED</span>';
+
+      const providerIcon = wh.provider === 'discord' ? '🎮 Discord' : '💬 Slack';
+      detailsEl.innerHTML = `
+        <div style="margin-bottom: 6px;"><strong>Provider:</strong> ${providerIcon}</div>
+        <div style="margin-bottom: 6px;"><strong>Endpoint:</strong> <code style="color:#58a6ff; font-size:12px;">${wh.masked_url}</code></div>
+        <div style="font-size: 11px; color: var(--muted);">Alerts: High & Critical severity security anomalies are dispatched automatically.</div>
+      `;
+
+      btnWrap.style.display = 'flex';
+      toggleBtn.textContent = isEnabled ? '⏸️ Pause Alerts' : '▶️ Enable Alerts';
+      toggleBtn.style.color = isEnabled ? '#d29922' : 'var(--low)';
+      toggleBtn.style.borderColor = isEnabled ? 'rgba(210,153,34,0.3)' : 'rgba(63,185,80,0.3)';
+      document.getElementById('int-provider-select').value = wh.provider || 'slack';
+    } else {
+      badgeEl.innerHTML = '<span style="background: rgba(139,148,158,0.15); color: var(--muted); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">⚪ NOT CONFIGURED</span>';
+      detailsEl.innerHTML = '<div>No webhook configured for this project yet. Add a Slack or Discord webhook below to receive instant attack alerts.</div>';
+      btnWrap.style.display = 'none';
+    }
+  } catch (err) {
+    badgeEl.textContent = 'Error loading';
+  }
+}
+
 async function saveProjectWebhook() {
   if (!currentProject) return;
-  const url = document.getElementById('pd-webhook-url').value.trim();
+  const url = document.getElementById('int-webhook-url-input').value.trim();
+  const provider = document.getElementById('int-provider-select').value;
+  const alertBox = document.getElementById('int-alert-box');
+  const successBox = document.getElementById('int-success-box');
+
+  alertBox.style.display = 'none';
+  successBox.style.display = 'none';
+
+  if (!url) {
+    alertBox.textContent = 'Please enter a webhook URL';
+    alertBox.style.display = 'block';
+    return;
+  }
+
   try {
     const res = await fetch(`/api/projects/${currentProject.id}/webhooks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ webhook_url: url, provider: 'slack' })
+      body: JSON.stringify({ webhook_url: url, provider: provider, enabled: true })
     });
-    if (res.ok) {
-      const statusEl = document.getElementById('pd-webhook-status');
-      statusEl.style.display = 'inline';
-      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    const data = await res.json();
+    if (!res.ok) {
+      alertBox.textContent = data.error || 'Failed to save webhook';
+      alertBox.style.display = 'block';
+      return;
     }
-  } catch (e) {}
+
+    document.getElementById('int-webhook-url-input').value = '';
+    successBox.textContent = 'Webhook configuration saved and activated successfully!';
+    successBox.style.display = 'block';
+    await loadIntegrationsData();
+  } catch (err) {
+    alertBox.textContent = 'Network error saving webhook';
+    alertBox.style.display = 'block';
+  }
+}
+
+async function toggleProjectWebhook() {
+  if (!currentProject || !activeProjectWebhookConfig) return;
+  const newEnabled = !activeProjectWebhookConfig.enabled;
+  const alertBox = document.getElementById('int-alert-box');
+  const successBox = document.getElementById('int-success-box');
+  alertBox.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/webhooks/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newEnabled })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      successBox.textContent = `Webhook notifications ${newEnabled ? 'enabled' : 'paused'}.`;
+      successBox.style.display = 'block';
+      await loadIntegrationsData();
+    }
+  } catch (err) {}
+}
+
+async function testProjectWebhook() {
+  if (!currentProject) return;
+  const alertBox = document.getElementById('int-alert-box');
+  const successBox = document.getElementById('int-success-box');
+  const testBtn = document.getElementById('btn-test-webhook');
+
+  alertBox.style.display = 'none';
+  successBox.style.display = 'none';
+  testBtn.disabled = true;
+  testBtn.textContent = '⏳ Testing...';
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/webhooks/test`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    testBtn.disabled = false;
+    testBtn.textContent = '🧪 Test Webhook';
+
+    if (res.ok && data.success) {
+      successBox.textContent = `✅ ${data.message || 'Test webhook delivered successfully!'}`;
+      successBox.style.display = 'block';
+    } else {
+      alertBox.textContent = `❌ ${data.error || 'Failed to deliver test webhook.'}`;
+      alertBox.style.display = 'block';
+    }
+  } catch (err) {
+    testBtn.disabled = false;
+    testBtn.textContent = '🧪 Test Webhook';
+    alertBox.textContent = 'Failed to dispatch test request';
+    alertBox.style.display = 'block';
+  }
+}
+
+async function removeProjectWebhook() {
+  if (!currentProject) return;
+  const ok = confirm(`Are you sure you want to remove the webhook integration for "${currentProject.name}"?`);
+  if (!ok) return;
+
+  const alertBox = document.getElementById('int-alert-box');
+  const successBox = document.getElementById('int-success-box');
+  alertBox.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/projects/${currentProject.id}/webhooks`, { method: 'DELETE' });
+    if (res.ok) {
+      successBox.textContent = 'Webhook configuration removed.';
+      successBox.style.display = 'block';
+      await loadIntegrationsData();
+    }
+  } catch (err) {}
 }
 
 async function deleteCurrentProject() {

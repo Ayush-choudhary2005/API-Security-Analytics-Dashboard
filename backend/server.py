@@ -433,20 +433,60 @@ Your application telemetry is now observed asynchronously with zero added respon
 
 
 
-@app.route("/api/projects/<project_id>/webhooks", methods=["GET", "POST"])
+@app.route("/api/projects/<project_id>/webhooks", methods=["GET", "POST", "DELETE"])
 @login_required
 def project_webhooks(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
 
+    if request.method == "DELETE":
+        ok = db.delete_webhook_config(project_id)
+        return jsonify({"success": ok, "message": "Webhook removed successfully"}), 200
+
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
         webhook_url = data.get("webhook_url", "").strip()
-        provider = data.get("provider", "slack")
-        cfg = db.set_webhook_config(project_id, webhook_url, provider)
-        return jsonify({"webhook": cfg}), 200
+        provider = data.get("provider", "slack").strip().lower()
+        enabled = data.get("enabled", True)
 
-    return jsonify({"webhook": db.get_webhook_config(project_id)}), 200
+        if webhook_url and not (webhook_url.startswith("http://") or webhook_url.startswith("https://")):
+            return jsonify({"error": "Invalid webhook URL format. Must start with http:// or https://"}), 400
+
+        cfg = db.set_webhook_config(project_id, webhook_url=webhook_url, provider=provider, enabled=enabled)
+        return jsonify({"webhook": cfg, "message": "Webhook configuration saved successfully"}), 200
+
+    # GET returns masked config — never leaks raw secret
+    return jsonify({"webhook": db.get_webhook_config(project_id, raw=False)}), 200
+
+
+@app.route("/api/projects/<project_id>/webhooks/toggle", methods=["POST"])
+@login_required
+def toggle_project_webhook(project_id):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    data = request.get_json(silent=True) or {}
+    enabled = bool(data.get("enabled", True))
+    cfg = db.toggle_webhook_enabled(project_id, enabled)
+    return jsonify({"webhook": cfg, "message": f"Webhook {'enabled' if enabled else 'disabled'}"}), 200
+
+
+@app.route("/api/projects/<project_id>/webhooks/test", methods=["POST"])
+@login_required
+def test_project_webhook(project_id):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    proj = db.get_project_by_id(project_id)
+    raw_cfg = db.get_webhook_config(project_id, raw=True)
+    if not raw_cfg or not raw_cfg.get("webhook_url"):
+        return jsonify({"error": "No webhook configured for this project"}), 400
+
+    success, msg = webhook.test_webhook(raw_cfg["webhook_url"], project_name=proj.get("name", "Project"))
+    if success:
+        return jsonify({"success": True, "message": msg}), 200
+    else:
+        return jsonify({"success": False, "error": msg}), 400
 
 
 # ---------------------------------------------------------
@@ -530,10 +570,15 @@ def ingest():
         socketio.emit(f'new_alert_{project_id}', scored_event, room=room_name)
         socketio.emit('new_alert', scored_event, room=room_name)
 
-        # Fire automated webhook for alerts using project-specific or fallback URL
-        webhook_cfg = db.get_webhook_config(project_id)
-        webhook_url = webhook_cfg["webhook_url"] if webhook_cfg else None
-        webhook.send_alert(scored_event, webhook_url=webhook_url)
+        # Fire automated webhook for alerts strictly using this project's active configuration
+        webhook_cfg = db.get_webhook_config(project_id, raw=True, active_only=True)
+        if webhook_cfg and webhook_cfg.get("webhook_url"):
+            webhook.send_alert(scored_event, webhook_url=webhook_cfg["webhook_url"])
+        elif project_id in ('proj_demo_default', 'phase1-demo-token', 'default'):
+            # Backward-compatible environment fallback for default demo project only
+            env_slack = os.environ.get("SLACK_WEBHOOK_URL", "")
+            if env_slack:
+                webhook.send_alert(scored_event, webhook_url=env_slack)
 
     return jsonify(scored_event), 201
 
