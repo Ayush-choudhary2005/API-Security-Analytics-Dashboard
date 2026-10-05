@@ -229,9 +229,30 @@ def history():
 
 @app.route("/api/investigate/<int:alert_id>", methods=["GET"])
 def investigate(alert_id):
-    import investigator
-    report = investigator.generate_threat_report(alert_id)
-    return jsonify({"report": report})
+    try:
+        from db import get_pool, get_cursor, _row_to_dict
+        conn = get_pool().getconn()
+        try:
+            cur = get_cursor(conn)
+            cur.execute("SELECT * FROM events WHERE id = %s", (alert_id,))
+            row = cur.fetchone()
+            if row:
+                event_data = _row_to_dict(row)
+                return jsonify(event_data)
+            return jsonify({"error": "Event not found"}), 404
+        finally:
+            get_pool().putconn(conn)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/generate_report/<int:alert_id>", methods=["GET"])
+def generate_report(alert_id):
+    try:
+        import investigator
+        report = investigator.generate_threat_report(alert_id)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating report: {e}"})
 
 
 if __name__ == "__main__":
