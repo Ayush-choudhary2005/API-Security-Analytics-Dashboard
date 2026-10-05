@@ -24,6 +24,23 @@ import rate_limiter
 
 DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "..", "dashboard")
 
+import threading
+import subprocess
+
+def autonomous_training_loop():
+    script_path = os.path.join(os.path.dirname(__file__), "train_model.py")
+    while True:
+        # Train every 1 hour (3600 seconds)
+        time.sleep(3600)
+        try:
+            print("[AI ENGINE] 🧠 Autonomous background retraining initiated...")
+            subprocess.Popen(["python", script_path])
+        except Exception as e:
+            print(f"[AI ENGINE] Retraining error: {e}")
+
+# Start the periodic self-learning daemon
+threading.Thread(target=autonomous_training_loop, daemon=True).start()
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'api-security-dashboard-secret'
 
