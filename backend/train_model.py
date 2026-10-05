@@ -1,5 +1,5 @@
 import os
-import sqlite3
+
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 import joblib
@@ -8,17 +8,21 @@ import joblib
 import db
 import detection
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "events.db")
+
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "isolation_forest_model.joblib")
 
 def extract_features():
     print("1. Extracting raw events from the database...")
-    conn = db.get_conn()
+    conn = db.get_pool().getconn()
+    try:
+        cur = db.get_cursor(conn)
     
     # Fetch all events chronologically
-    rows = conn.execute("SELECT * FROM events ORDER BY timestamp ASC").fetchall()
+    cur.execute("SELECT * FROM events ORDER BY timestamp ASC")
+        rows = cur.fetchall()
     events = [db._row_to_dict(r) for r in rows]
-    conn.close()
+    finally:
+        db.get_pool().putconn(conn)
 
     if len(events) < 10:
         print("Warning: Very little data found. Generating a model anyway, but you might want to run generators.py more.")
