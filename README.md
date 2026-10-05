@@ -1,43 +1,38 @@
-# 🛡️ God-Tier API Security Analytics & Active Defense Platform
+# 🛡️ API Security Analytics & Active Defense SaaS Platform
 
-An end-to-end, zero-latency API observability and security platform. This project detects zero-day API abuse, behavioral anomalies, and automated attacks using an unsupervised Machine Learning model (**Isolation Forest**). It actively defends servers via auto-blocking and webhooks, and investigates threats autonomously using **Generative AI (Google Gemini)**.
+An enterprise-grade, Multi-Tenant **B2B SaaS** API observability and security platform. This platform detects zero-day API abuse, behavioral anomalies, and automated attacks using an unsupervised Machine Learning model (**Isolation Forest**). It actively defends client servers via auto-blocking and custom webhooks, and investigates threats autonomously using **Generative AI (Google Gemini)**.
 
 ---
 
 ## 🌟 Key Features
 
-### 1. Zero-Latency SDK (Telemetry)
-* **Asynchronous Capture:** A tiny Flask middleware (`sdk/middleware.py`) that hooks into any API. It extracts traffic data (IP, latency, endpoints) and forwards it to the security collector using background threads so the host API experiences absolutely **zero latency**.
+### 1. Multi-Tenant SaaS Architecture (PostgreSQL + OAuth)
+* **Google OAuth Authentication:** Fully integrated with Supabase Auth for seamless, passwordless Google Sign-In.
+* **Tenant Isolation:** A robust, strictly-typed **PostgreSQL** cloud database (Supabase) ensures every client's telemetry, historical analytics, and webhook configurations are completely isolated via unique `tenant_id` UUIDs.
+* **Stateless Backend:** Built to be instantly deployed to Render or Fly.io as an infinitely scalable microservice.
 
-### 2. Unsupervised Machine Learning (Detection)
+### 2. Zero-Latency SDK (Telemetry)
+* **Asynchronous Capture:** A tiny Python middleware (`sdk/middleware.py`) that hooks into any client API. It extracts traffic data (IP, latency, endpoints) and forwards it to the cloud collector using fire-and-forget background threads so the client API experiences absolutely **zero latency**.
+
+### 3. Unsupervised Machine Learning (Self-Learning AI)
 * **Isolation Forest Model:** Instead of relying on static rate-limit rules, an `IsolationForest` dynamically learns the "shape" of normal API traffic. 
-* **Real-time Feature Extraction:** Tracks failed authentications, endpoint entropy (scanning), and burst rates in real-time, outputting an Anomaly Risk Score from 0.0 to 10.0.
+* **Real-time Feature Extraction:** Tracks failed authentications, endpoint entropy, and burst rates in real-time. (Automatically casts `NumPy` datatypes to ensure native Postgres compatibility).
+* **On-Demand Self Learning:** Clients can trigger a background model re-training via the dashboard to adapt to new "normal" traffic patterns.
 
-### 3. Active Defense & Alerting (Response)
+### 4. Active Defense & Alerting (Response)
 * **Auto-Blocking / Rate Limiting:** Abusive IPs (>50 requests/min) are automatically intercepted and blocked (`429 Too Many Requests`) at the ingestion layer for 5 minutes.
-* **Proactive UI Warnings:** Warns the security operator in the dashboard via a yellow banner when an IP hits 30% of the threshold, allowing for a preemptive 1-click manual block.
-* **Automated Webhooks:** Any attack scoring a `HIGH` severity instantly triggers a background webhook to alert **Slack or Discord** security channels.
+* **Proactive UI Warnings:** Warns the security operator via a yellow banner when an IP hits a danger threshold, allowing for a preemptive 1-click manual block.
+* **Dynamic Webhooks:** Any attack scoring a `HIGH` severity instantly triggers a background webhook to alert the specific tenant's **Slack** channel configured in their Client Settings.
 
-### 4. GenAI Threat Analyst (Investigation)
-* **Autonomous Investigation:** Clicking "Investigate" on any alert feeds the exact 30 most recent chronological events of the attack into `gemini-3.6-flash`.
+### 5. GenAI Threat Analyst (Investigation)
+* **Autonomous Investigation:** Clicking "Investigate" on any alert feeds the exact 30 most recent chronological events of the attack from the Postgres DB into `gemini-3.6-flash`.
 * **Actionable Intelligence:** Generates a human-readable Threat Analysis, ML Interpretation, and Remediation Plan directly in a dashboard modal.
 * **One-Click PDF Export:** Instantly exports the AI Threat Report to a highly formatted PDF for executive review.
-### Dashboard Upgrades (New)
-* **Live IP Geolocation Map:** Uses Leaflet.js and OpenStreetMap to plot attacking IPs on a dark-themed world map in real-time. Automatically falls back to IP-API for real-world public IP geolocation.
-* **Attack Distribution Pie Chart:** Dynamic Chart.js doughnut chart showing the distribution of the last 200 attacks (Brute Force, Scan, Burst, ML Anomaly) to visualize active threat trends.
-* **True Database Telemetry:** Dashboard displays the actual total event count across the SQLite database and gracefully handles missing data without crashing.
-* **Optimized ML Pipeline:** Pandas DataFrame integration silences scikit-learn warnings during real-time feature extraction.
-* **PDF Export for Threat Reports:** Includes one-click PDF generation of GenAI threat investigations directly from the modal, formatted perfectly for executive reporting.
-* **Real-Time WebSocket Feed:** Replaced passive polling with a `Flask-SocketIO` WebSocket connection. New events and alerts are pushed instantly to the dashboard with smooth fade-in animations.
-* **IP Rate Limiting & Auto-Block:** In-memory sliding window rate limiter that intercepts requests at the `/ingest` layer. Abusive IPs (>50 requests/min) are automatically blocked (`429 Too Many Requests`) for 5 minutes.
-* **Proactive Threat Suggestions:** Warns the operator in the dashboard via a yellow banner when an IP hits 30% of the threshold, allowing for preemptive one-click manual blocking before the attack peaks.
 
-### 5. "Movie Hacker" Real-Time Dashboard (Observability)
+### 6. "Movie Hacker" Real-Time Dashboard
 * **WebSockets Integration:** Replaced passive polling with `Flask-SocketIO`. New events and alerts stream into the dashboard instantly.
-* **Smooth 1-FPS Charting:** The Attack Distribution Line Chart batches 1-second WebSockets updates into a fluid Bezier curve that slides continuously (like a hospital EKG), complete with a glowing plasma gradient.
-* **Interactive Time Windows:** Toggle between 30s, 1m, and 5m live chart views in real-time.
 * **Live Threat Map:** Plots attacking IPs dynamically on a dark-themed Leaflet.js world map.
-* **Historical Analytics Tab:** Stores historical data across multiple tenants/environments, complete with stacked bar charts and Top Attacker tables.
+* **Historical Analytics Tab:** Stores and graphs historical data across multiple tenants/environments.
 * **Animated Architecture Tab:** Includes an interactive, dark-mode `mermaid.js` sequence diagram to explain the traffic flow directly inside the app.
 
 ---
@@ -46,11 +41,11 @@ An end-to-end, zero-latency API observability and security platform. This projec
 ```text
 API-Security-Analytics-Dashboard/
 ├── backend/
-│   ├── db.py                 # SQLite schema (Multi-Tenant)
+│   ├── db.py                 # Postgres Connection Pooler & Schema
 │   ├── detection.py          # ML scoring & dynamic thresholding
 │   ├── investigator.py       # Gemini GenAI integration
-│   ├── server.py             # Main Flask/SocketIO API & Dashboard server
-│   ├── webhook.py            # Automated Slack/Discord integrations
+│   ├── server.py             # Flask/SocketIO REST API & Web Server
+│   ├── webhook.py            # Automated Slack alerting system
 │   └── train_model.py        # ML training script for Isolation Forest
 ├── sdk/
 │   └── middleware.py         # Zero-Latency App SDK
@@ -64,52 +59,57 @@ API-Security-Analytics-Dashboard/
 
 ---
 
-## 🚀 Setup & Installation
+## 🚀 Setup & Cloud Deployment (Render)
 
-**1. Clone & Activate Virtual Environment**
+This platform is ready for production. 
+
+### Local Testing Requirements:
+1. Python 3.9+
+2. Your Supabase PostgreSQL `DATABASE_URL` (using the Session Pooler)
+3. Your `GEMINI_API_KEY`
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
-
-**2. Add your Slack Webhook (Optional but Recommended)**
-To receive live alerts on your phone, create a free Slack Incoming Webhook and set it in your environment:
-```bash
-export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
-```
-
-**3. Add your Gemini API Key**
-You need a free Google AI Studio key for the GenAI Threat Investigation feature to work.
-```bash
 export GEMINI_API_KEY="your_google_api_key_here"
+# Note: DATABASE_URL is hardcoded in backend/db.py for the capstone demo.
+python backend/server.py
 ```
+
+### Production Deployment (Render):
+1. Push this repository to GitHub.
+2. Create a New Web Service on **Render.com**.
+3. Set the Start Command to: `gunicorn -w 1 -k eventlet -b 0.0.0.0:$PORT backend.server:app`
+4. Add your `DATABASE_URL` and `GEMINI_API_KEY` to Render's Environment Variables.
+5. Clients can now visit your public Render URL, login with Google, and monitor their APIs globally.
 
 ---
 
 ## 🎥 Running the Live Presentation Demo
 
-To demonstrate the platform, you will need **3 terminal windows**. Ensure your virtual environment is activated (`source venv/bin/activate`) in ALL three terminals!
+To demonstrate the platform to judges, you will need **3 terminal windows**. Ensure your virtual environment is activated (`source venv/bin/activate`) in ALL three terminals!
 
-### Terminal 1 — The Security Brain & Dashboard
-This runs the central collector, the Machine Learning engine, the SQLite database, and the WebSockets dashboard.
+### Terminal 1 — The SaaS Cloud Server
+This runs the central collector, the Machine Learning engine, the Postgres connection pool, and the WebSockets.
 ```bash
-export SLACK_WEBHOOK_URL="your_slack_url"
 export GEMINI_API_KEY="your_google_api_key"
 python backend/server.py
 ```
-> **Action:** Open your browser to `http://127.0.0.1:5001` to view the Live Dashboard.
+> **Action:** Open your browser to `http://127.0.0.1:5001`. Click "Sign in with Google". Go to the **Client Settings** tab to set your Slack webhook. Finally, **copy your SDK Token** from the top right corner.
 
-### Terminal 2 — The Victim Application
-This runs the mock e-commerce backend (the target). It has the SDK injected into it to silently forward traffic to Terminal 1.
+### Terminal 2 — The Client's Victim Application
+This simulates an external company's API. Pass your copied SDK Token into the environment so the SDK knows which dashboard to stream the telemetry to.
 ```bash
+export TENANT_TOKEN="paste_your_copied_sdk_token_here"
 python demo/sample_app.py
 ```
 
-### Terminal 3 — The Infinite Simulator
-This script mimics a real-world internet. It spawns 50 normal humans browsing safely, while randomly injecting hackers to perform Brute Force logins, Endpoint Scans, and Request Bursts from randomized IPs every 5 to 15 seconds.
+### Terminal 3 — The Hacker
+This script mimics real-world internet threats. It fires Brute Force logins, Endpoint Scans, and Request Bursts directly at the victim application in Terminal 2.
 ```bash
-python demo/generators.py continuous
+python demo/generators.py burst
 ```
+*(Or use `continuous` for infinite background traffic).*
 
-> **Watch the Magic:** Sit back and look at your browser at `http://127.0.0.1:5001`. You will see the blue line chart gliding smoothly with normal traffic, until a red spike triggers an ML anomaly, automatically blocking the IP, mapping the threat, and pinging your Slack channel!
+> **Watch the Magic:** Sit back and look at your browser. You will see the blue line chart spike, triggering an ML anomaly. The IP will be auto-blocked, plotted on the world map, and your Slack channel will ping with the High-Severity alert! Click **Investigate** to generate the AI report!
