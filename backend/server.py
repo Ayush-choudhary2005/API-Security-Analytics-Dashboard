@@ -24,7 +24,7 @@ import time
 import os
 import io
 import zipfile
-from flask import Flask, request, jsonify, send_from_directory, send_file, session, g
+from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for
 from flask_socketio import SocketIO, join_room, leave_room, emit
 
 import db
@@ -33,6 +33,8 @@ import detection
 import rate_limiter
 import auth
 from auth import login_required
+import google_auth
+import email_service
 
 DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "..", "dashboard")
 
@@ -40,7 +42,14 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'api-security-dashboard-secret-321')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = (os.environ.get('FLASK_ENV') == 'production') or (os.environ.get('SESSION_COOKIE_SECURE', '').lower() == 'true')
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 7  # 7 days session persistence
+
+# Initialize database schema and migrations
+db.init_db()
+
+# Initialize Google OAuth OpenID Connect client
+google_auth.init_google_oauth(app)
 
 # Initialize SocketIO with CORS allowed for dev
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -143,6 +152,12 @@ def handle_leave_project(data):
 # Static / Health Routes
 # ---------------------------------------------------------
 
+@app.route("/login", methods=["GET"])
+@app.route("/signup", methods=["GET"])
+@app.route("/forgot-password", methods=["GET"])
+@app.route("/reset-password", methods=["GET"])
+@app.route("/verify-email", methods=["GET"])
+@app.route("/account", methods=["GET"])
 @app.route("/", methods=["GET"])
 def dashboard():
     return send_from_directory(DASHBOARD_DIR, "index.html")
@@ -162,6 +177,7 @@ def health():
 def auth_register():
     data = request.get_json(silent=True) or {}
     email = data.get("email", "").strip()
+    name = data.get("name", "").strip()
     password = data.get("password", "")
     confirm_password = data.get("confirm_password") or data.get("password_confirm", "")
 
@@ -182,19 +198,25 @@ def auth_register():
 
     # Create user & initial project
     pw_hash = auth.hash_password(password)
-    user = db.create_user(email, pw_hash)
+    user = db.create_user(email, pw_hash, name=name, email_verified=0)
     default_proj = db.create_project(user["id"], name="Default Project", description="Primary security project")
     key_info = db.create_api_key(default_proj["id"], name="Primary SDK Key")
 
+    # Generate verification token & dispatch transactional email
+    v_token = db.create_email_verification_token(user["id"])
+    email_service.send_verification_email(email, v_token)
+
     # Establish persistent session
+    now = time.time()
     session.permanent = True
     session["user_id"] = user["id"]
+    session["auth_time"] = now
 
     return jsonify({
         "user": user,
         "default_project": default_proj,
         "api_key": key_info["raw_key"],
-        "message": "Account created successfully"
+        "message": "Account created successfully. A verification email has been sent."
     }), 201
 
 
@@ -218,11 +240,187 @@ def auth_login():
         return jsonify({"error": "Invalid email or password"}), 401
 
     rate_limiter.clear_failed_logins(client_ip)
+    db.record_user_login(user["id"])
+    now = time.time()
     session.permanent = True
     session["user_id"] = user["id"]
+    session["auth_time"] = now
+
+    # Safe account linking: if user had an unlinked Google OAuth attempt with matching email
+    linked_google = False
+    pending = session.pop("pending_google_link", None)
+    if pending and pending.get("email") == user["email"]:
+        try:
+            db.link_identity(user["id"], pending.get("provider", "google"), pending["sub"], pending["email"])
+            linked_google = True
+        except Exception:
+            pass
+
+    full_user = db.get_user_by_id(user["id"])
     return jsonify({
-        "user": {"id": user["id"], "email": user["email"], "created_at": user["created_at"]},
-        "message": "Login successful"
+        "user": full_user,
+        "message": "Login successful and Google account linked" if linked_google else "Login successful",
+        "linked_google": linked_google
+    }), 200
+
+
+@app.route("/api/auth/pending-link", methods=["GET"])
+def auth_pending_link():
+    """Check if there is a pending Google OAuth link in the current session."""
+    pending = session.get("pending_google_link")
+    if not pending:
+        return jsonify({"has_pending": False}), 200
+    return jsonify({
+        "has_pending": True,
+        "email": pending.get("email"),
+        "provider": pending.get("provider", "google")
+    }), 200
+
+
+@app.route("/api/auth/link-google", methods=["POST"])
+def auth_link_google():
+    """Explicitly link Google identity to existing account after verifying password."""
+    data = request.get_json(silent=True) or {}
+    password = data.get("password", "")
+    pending = session.get("pending_google_link")
+
+    if not pending:
+        return jsonify({"error": "No pending Google account link found"}), 400
+
+    email = pending.get("email")
+    user = db.get_user_by_email(email)
+    if not user or not auth.verify_password(user["password_hash"], password):
+        return jsonify({"error": "Invalid password"}), 401
+
+    try:
+        ident = db.link_identity(user["id"], pending.get("provider", "google"), pending["sub"], pending["email"])
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+
+    now = time.time()
+    session.pop("pending_google_link", None)
+    session.permanent = True
+    session["user_id"] = user["id"]
+    session["auth_time"] = now
+    db.record_user_login(user["id"])
+    return jsonify({
+        "success": True,
+        "user": db.get_user_by_id(user["id"]),
+        "message": "Google account successfully linked"
+    }), 200
+
+
+@app.route("/auth/google", methods=["GET"])
+@app.route("/api/auth/google", methods=["GET"])
+def auth_google():
+    """Initiate standard Google OAuth 2.0 / OpenID Connect authorization flow."""
+    if not google_auth.is_google_oauth_configured():
+        return redirect(url_for("dashboard", error="google_oauth_not_configured"))
+
+    redirect_uri = google_auth.get_redirect_uri()
+    return google_auth.oauth.google.authorize_redirect(redirect_uri)
+
+
+@app.route("/auth/google/callback", methods=["GET"])
+@app.route("/api/auth/google/callback", methods=["GET"])
+def auth_google_callback():
+    """
+    Handle Google OAuth callback:
+    - Validates state & authorization code.
+    - Extracts Google subject ID (sub) and verified email.
+    - Resolves or creates internal user identity without parallel accounts.
+    - Safely enforces password verification before linking to existing accounts.
+    """
+    # Handle user cancellation / error from Google
+    oauth_err = request.args.get("error")
+    if oauth_err:
+        return redirect(url_for("dashboard", error="google_cancelled"))
+
+    if not google_auth.is_google_oauth_configured():
+        return redirect(url_for("dashboard", error="google_oauth_not_configured"))
+
+    code = request.args.get("code")
+    if not code:
+        return redirect(url_for("dashboard", error="google_invalid_code"))
+
+    try:
+        # Token exchange and CSRF state validation handled by Authlib
+        token = google_auth.oauth.google.authorize_access_token()
+    except Exception:
+        return redirect(url_for("dashboard", error="invalid_oauth_state"))
+
+    if not token:
+        return redirect(url_for("dashboard", error="google_auth_failed"))
+
+    # Extract user profile information
+    userinfo = token.get("userinfo")
+    if not userinfo:
+        try:
+            userinfo = google_auth.oauth.google.userinfo(token=token)
+        except Exception:
+            userinfo = {}
+
+    sub = str(userinfo.get("sub", "")).strip()
+    email = str(userinfo.get("email", "")).strip().lower()
+
+    if not sub or not email:
+        return redirect(url_for("dashboard", error="google_missing_profile"))
+
+    # Case 1: Check if this Google identity (sub) is ALREADY linked to an internal user
+    existing_ident = db.get_identity_by_provider("google", sub)
+    if existing_ident:
+        user = db.get_user_by_id(existing_ident["user_id"])
+        if user:
+            now = time.time()
+            session.permanent = True
+            session["user_id"] = user["id"]
+            session["auth_time"] = now
+            session.pop("pending_google_link", None)
+            db.record_user_login(user["id"])
+            return redirect(url_for("dashboard"))
+        return redirect(url_for("dashboard", error="user_not_found"))
+
+    # Case 2: If an existing account with the same email exists -> Require password verification before linking
+    existing_user = db.get_user_by_email(email)
+    if existing_user:
+        # Store pending link in session
+        session["pending_google_link"] = {
+            "sub": sub,
+            "email": email,
+            "provider": "google",
+            "created_at": time.time()
+        }
+        return redirect(url_for("dashboard", link_required="1", email=email))
+
+    # Case 3: Brand new user via Google
+    new_user = db.create_user_with_identity(
+        email=email,
+        provider="google",
+        provider_user_id=sub,
+        provider_email=email
+    )
+    # Google verifies emails, so mark verified
+    with db._lock:
+        conn = db.get_conn()
+        conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (new_user["id"],))
+        conn.commit()
+        conn.close()
+
+    now = time.time()
+    session.permanent = True
+    session["user_id"] = new_user["id"]
+    session["auth_time"] = now
+    session.pop("pending_google_link", None)
+    db.record_user_login(new_user["id"])
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/api/auth/google/status", methods=["GET"])
+def auth_google_status():
+    """Return status of Google OAuth configuration for UI consumption."""
+    return jsonify({
+        "configured": google_auth.is_google_oauth_configured(),
+        "redirect_uri": google_auth.get_redirect_uri()
     }), 200
 
 
@@ -236,6 +434,164 @@ def auth_logout():
 @login_required
 def auth_me():
     return jsonify({"user": g.current_user}), 200
+
+
+@app.route("/api/auth/profile", methods=["GET", "PUT", "POST"])
+@login_required
+def auth_profile():
+    """Get or update current user profile."""
+    if request.method in ("PUT", "POST"):
+        data = request.get_json(silent=True) or {}
+        name = data.get("name")
+        if name is not None:
+            updated = db.update_user_profile(g.current_user["id"], name=name)
+            return jsonify({
+                "user": updated,
+                "message": "Profile updated successfully"
+            }), 200
+
+    return jsonify({"user": g.current_user}), 200
+
+
+@app.route("/api/auth/verify-email", methods=["POST"])
+def auth_verify_email():
+    """Verify email address with a single-use cryptographically random token."""
+    data = request.get_json(silent=True) or {}
+    token = data.get("token") or request.args.get("token")
+    if not token:
+        return jsonify({"error": "Verification token is required"}), 400
+
+    success, msg, user = db.verify_email_token(token)
+    if not success:
+        return jsonify({"error": msg}), 400
+
+    return jsonify({
+        "message": msg,
+        "user": user
+    }), 200
+
+
+@app.route("/api/auth/resend-verification", methods=["POST"])
+def auth_resend_verification():
+    """Resend email verification token for authenticated user or specified email."""
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip()
+
+    user = None
+    if session.get("user_id"):
+        user = db.get_user_by_id(session["user_id"])
+    elif email:
+        user = db.get_user_by_email(email)
+
+    if not user:
+        return jsonify({"error": "User account not found or email required"}), 404
+
+    if user.get("email_verified"):
+        return jsonify({"message": "Email is already verified", "already_verified": True}), 200
+
+    raw_token = db.create_email_verification_token(user["id"])
+    email_service.send_verification_email(user["email"], raw_token)
+
+    return jsonify({
+        "message": "Verification email has been sent. Please check your inbox."
+    }), 200
+
+
+@app.route("/api/auth/forgot-password", methods=["POST"])
+def auth_forgot_password():
+    """
+    Initiate password reset flow.
+    Sends single-use token valid for 1 hour. Never reveals whether email exists.
+    """
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip()
+
+    if not email or not auth.validate_email(email):
+        return jsonify({"error": "Valid email address is required"}), 400
+
+    user = db.get_user_by_email(email)
+    if user:
+        raw_token = db.create_password_reset_token(user["id"])
+        email_service.send_password_reset_email(user["email"], raw_token)
+
+    # Generic response to prevent user enumeration
+    return jsonify({
+        "message": "If an account with that email exists, password reset instructions have been sent."
+    }), 200
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def auth_reset_password():
+    """Apply password reset using single-use token. Invalidates all active sessions."""
+    data = request.get_json(silent=True) or {}
+    token = data.get("token") or request.args.get("token")
+    password = data.get("password", "")
+    confirm_password = data.get("confirm_password") or data.get("password_confirm", "")
+
+    if not token:
+        return jsonify({"error": "Reset token is required"}), 400
+
+    is_valid, err_msg = auth.validate_password(password)
+    if not is_valid:
+        return jsonify({"error": err_msg}), 400
+
+    if password != confirm_password:
+        return jsonify({"error": "Passwords do not match"}), 400
+
+    # Verify token before hashing
+    is_valid_token, token_err, token_row = db.verify_password_reset_token(token)
+    if not is_valid_token:
+        return jsonify({"error": token_err}), 400
+
+    new_hash = auth.hash_password(password)
+    success, msg = db.apply_password_reset(token, new_hash)
+    if not success:
+        return jsonify({"error": msg}), 400
+
+    return jsonify({
+        "message": "Password has been reset successfully. Please log in with your new password."
+    }), 200
+
+
+@app.route("/api/auth/change-password", methods=["POST"])
+@login_required
+def auth_change_password():
+    """
+    Change password for authenticated user.
+    Updates password_changed_at and refreshes current session auth_time.
+    """
+    data = request.get_json(silent=True) or {}
+    current_password = data.get("current_password", "")
+    new_password = data.get("new_password", "")
+    confirm_password = data.get("confirm_password") or data.get("password_confirm", "")
+
+    user_id = g.current_user["id"]
+    raw_user = db.get_user_by_email(g.current_user["email"])
+    stored_hash = raw_user.get("password_hash", "") if raw_user else ""
+    has_existing_pw = bool(stored_hash and not stored_hash.startswith("!oauth_"))
+
+    if has_existing_pw:
+        if not current_password or not auth.verify_password(stored_hash, current_password):
+            return jsonify({"error": "Current password is incorrect"}), 401
+
+    is_valid, err_msg = auth.validate_password(new_password)
+    if not is_valid:
+        return jsonify({"error": err_msg}), 400
+
+    if new_password != confirm_password:
+        return jsonify({"error": "New passwords do not match"}), 400
+
+    new_hash = auth.hash_password(new_password)
+    db.update_user_password(user_id, new_hash)
+
+    # Refresh current session auth_time so the current user stays logged in,
+    # while all other active sessions for this user are invalidated!
+    now = time.time()
+    session["auth_time"] = now
+
+    return jsonify({
+        "message": "Password changed successfully"
+    }), 200
 
 
 # ---------------------------------------------------------
@@ -336,6 +692,7 @@ def regenerate_project_key(project_id):
 
 
 @app.route("/api/projects/<project_id>/download-sdk", methods=["GET"])
+@app.route("/api/projects/<project_id>/sdk/download", methods=["GET"])
 @login_required
 def download_sdk(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):

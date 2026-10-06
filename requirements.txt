@@ -5,3 +5,4 @@ pandas
 joblib
 flask-socketio
 google-genai
+authlib>=1.3.0

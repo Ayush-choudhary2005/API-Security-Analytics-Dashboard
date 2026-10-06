@@ -56,22 +56,46 @@ flowchart TD
 
 The platform includes a complete, enterprise-grade authentication system designed to isolate user workspaces and enforce least privilege.
 
-* **User Registration (`/api/auth/register`):**
+* **User Registration & Email Verification (`/api/auth/register`, `/api/auth/verify-email`, `/api/auth/resend-verification`):**
   * Validates RFC 5322 email syntax and prevents duplicate account registration (`HTTP 409 Conflict`).
   * Enforces minimum password strength requirements (≥ 8 characters) and password confirmation matching (`HTTP 400 Bad Request`).
   * Automatically provisions a default project workspace and initial SDK credentials upon registration.
+  * Generates cryptographically secure, single-use email verification tokens (24-hour expiration) stored as SHA-256 hashes at rest.
+  * Dispatches transactional verification emails via SMTP or dev mailbox fallback.
+  * Google OAuth signups are automatically verified as email authenticity is verified by Google.
 * **Secure Login (`/api/auth/login`):**
   * Verifies credentials against salted cryptographic hashes.
   * Prevents email enumeration attacks by returning uniform, generic error messages (`"Invalid email or password"`) for both non-existent accounts and invalid passwords.
   * Implements in-memory sliding-window brute force protection: 10 failed login attempts within 300 seconds trigger `HTTP 429 Too Many Requests`.
-* **Session Management:**
-  * Establishes a server-side authenticated session stored in signed cookies.
+  * Records `last_login_at` timestamps upon successful authentication.
+* **Forgot Password & Password Reset (`/api/auth/forgot-password`, `/api/auth/reset-password`):**
+  * Initiates self-service password reset with uniform generic responses to defend against account enumeration.
+  * Generates single-use, cryptographically random tokens valid for 1 hour, stored as SHA-256 hashes in the database.
+  * Atomically validates token, updates password hash, marks token consumed, and touches `password_changed_at`.
+  * Immediately invalidates all existing active sessions across all devices upon password reset.
+* **Authenticated Password Change (`/api/auth/change-password`):**
+  * Allows authenticated users to change their account password after validating their existing password.
+  * Google-only accounts without an initial password can set an initial password without entering a current password.
+  * Refreshes the active session's `auth_time` while immediately invalidating all other concurrent sessions.
+* **Account Profile Management (`/api/auth/profile`):**
+  * Retrieves unified account profile details: user ID, email, name, verification status, linked authentication identities (Password, Google), last login time.
+  * Supports updating display name via `PUT /api/auth/profile`.
+* **Session Management & Invalidation:**
+  * Establishes server-side authenticated sessions stored in signed cookies.
   * Hardened with `HttpOnly` (mitigating XSS extraction), `SameSite=Lax` (mitigating CSRF), and a 7-day persistent lifespan.
+  * Active sessions enforce session invalidation checks against `password_changed_at`. Any session created before the most recent password update is terminated with `401 Unauthorized`.
+* **Google OAuth 2.0 / OpenID Connect (`/auth/google` & `/auth/google/callback`):**
+  * One internal user architecture: Google OAuth resolves to the same internal user identity as email/password accounts.
+  * Uses Google's stable OpenID subject identifier (`sub`) as `provider_user_id` in `auth_identities`, never the mutable email address.
+  * Safe account linking: If a user with an existing email/password account clicks "Continue with Google" using that same email, the system safely requires password verification before linking the Google identity, preventing account takeover.
+  * Once linked, the user can log in seamlessly using either method into the exact same workspace.
+  * New Google users automatically receive an internal user ID, initial default project, and primary SDK credentials.
 * **Logout (`/api/auth/logout`):**
-  * Destroys session state immediately on the server and clears the client session cookie.
+  * Destroys session state immediately on the server and clears client session cookies.
 * **Password Security:**
   * Passwords are securely hashed using Scrypt / PBKDF2 with unique salts via `werkzeug.security`.
   * Plaintext passwords and cryptographic hashes are never stored in plain text, logged, or exposed in API responses.
+  * Google OAuth accounts created without a password store an unmatchable marker (`!oauth_provider`) ensuring password authentication cannot be forged or bypassed.
 
 ---
 
@@ -230,11 +254,13 @@ API-Security-Analytics-Dashboard/
 │   ├── detection.py            # ML scoring & Isolation Forest dynamic thresholding
 │   ├── investigator.py         # Google Gemini GenAI threat investigation
 │   ├── rate_limiter.py         # Ingestion rate limiter & login brute-force defense
+│   ├── google_auth.py          # Google OAuth 2.0 / OpenID Connect client integration
 │   ├── server.py               # Main Flask & SocketIO application server
 │   ├── webhook.py              # Project-specific Slack/Discord notification dispatcher
 │   ├── train_model.py          # Isolation Forest model training script
 │   ├── test_auth_suite.py      # Comprehensive 260-test multi-tenant regression suite
-│   └── test_security_audit.py  # 86-test security audit verification suite
+│   ├── test_security_audit.py  # 86-test security audit verification suite
+│   └── test_google_oauth_suite.py # 14-scenario Google OAuth verification suite
 ├── sdk/
 │   └── middleware.py           # Zero-Latency asynchronous Python SDK
 ├── dashboard/
@@ -242,6 +268,7 @@ API-Security-Analytics-Dashboard/
 ├── demo/
 │   ├── sample_app.py           # Instrumented mock E-Commerce API (Port 5002)
 │   └── generators.py           # Realistic attack & normal traffic simulation suite
+├── .env.example                # Example environment configuration template
 └── requirements.txt            # Python dependencies
 ```
 
@@ -249,17 +276,59 @@ API-Security-Analytics-Dashboard/
 
 ## ⚙️ Environment Variables
 
-Configure the following variables in your environment or `.env` file:
+Configure the following variables in your environment or `.env` file (see `.env.example`):
 
 | Variable | Required | Default | Description |
 | :--- | :---: | :---: | :--- |
 | `GEMINI_API_KEY` | **Yes** (for AI) | None | Google AI Studio API key used for autonomous GenAI Threat Investigations. |
 | `SECRET_KEY` | Recommended | `api-security-dashboard-secret-321` | Cryptographic secret for signing Flask session cookies. |
 | `PORT` | Optional | `5001` | Port on which the central backend and dashboard listen. |
+| `GOOGLE_CLIENT_ID` | Optional* | None | Google Cloud OAuth 2.0 Web Client ID (*required for Google sign-in). |
+| `GOOGLE_CLIENT_SECRET` | Optional* | None | Google Cloud OAuth 2.0 Web Client Secret (*required for Google sign-in). |
+| `GOOGLE_REDIRECT_URI` | Optional | `http://127.0.0.1:5001/auth/google/callback` | Authorized redirect URI for Google OAuth callback. |
 | `SLACK_WEBHOOK_URL` | Optional | None | Optional global fallback webhook (projects configure their own webhooks in the UI). |
 
 > [!NOTE]
 > Do not commit real API keys or secrets to version control. Set them locally in your environment or export them in your terminal session.
+
+---
+
+## 🌐 Google Cloud OAuth 2.0 Configuration
+
+To enable "Continue with Google" sign-in:
+
+### 1. Create a Google Cloud Project & Configure Consent Screen
+1. Navigate to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a new project (e.g. `ml-o11y-security-platform`) or select an existing one.
+3. Go to **APIs & Services > OAuth consent screen**.
+4. Choose **External** user type and click **Create**.
+5. Fill in the required fields:
+   * **App name:** `API Security Analytics Platform`
+   * **User support email:** Your email address
+   * **Developer contact information:** Your email address
+6. In **Scopes**, click **Add or Remove Scopes** and select:
+   * `.../auth/userinfo.email`
+   * `.../auth/userinfo.profile`
+   * `openid`
+7. Complete the consent screen configuration.
+
+### 2. Create OAuth 2.0 Credentials
+1. Go to **APIs & Services > Credentials**.
+2. Click **+ Create Credentials** and select **OAuth client ID**.
+3. Set **Application type** to **Web application**.
+4. Name: `ML-O11Y Web Client`.
+5. Under **Authorized redirect URIs**, add:
+   * **Local Development:** `http://127.0.0.1:5001/auth/google/callback`
+   * **Production:** `https://your-production-domain.com/auth/google/callback`
+6. Click **Create**. A modal will display your **Client ID** and **Client Secret**.
+
+### 3. Configure the Application
+Add the credentials to your environment or `.env` file:
+```bash
+export GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+export GOOGLE_CLIENT_SECRET="your-client-secret"
+export GOOGLE_REDIRECT_URI="http://127.0.0.1:5001/auth/google/callback"
+```
 
 ---
 
@@ -339,6 +408,16 @@ python backend/test_auth_suite.py
 ### Complete Security Audit Suite (86 Checks)
 ```bash
 python backend/test_security_audit.py
+```
+
+### Google OAuth 2.0 / OpenID Connect Suite (14 Scenarios)
+```bash
+python backend/test_google_oauth_suite.py
+```
+
+### Production SaaS Authentication Suite (12 Scenarios)
+```bash
+python backend/test_saas_auth_suite.py
 ```
 
 All suites execute cleanly with zero external mock services required.

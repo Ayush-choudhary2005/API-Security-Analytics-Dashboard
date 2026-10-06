@@ -38,11 +38,78 @@ def init_db():
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at REAL NOT NULL
+                created_at REAL NOT NULL,
+                updated_at REAL
             )
             """
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+
+        # Ensure SaaS authentication columns exist in users table
+        cursor_u = conn.execute("PRAGMA table_info(users)")
+        u_cols = [row["name"] for row in cursor_u.fetchall()]
+        if "updated_at" not in u_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN updated_at REAL DEFAULT NULL")
+        if "email_verified" not in u_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0")
+        if "name" not in u_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''")
+        if "password_changed_at" not in u_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN password_changed_at REAL DEFAULT NULL")
+        if "last_login_at" not in u_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN last_login_at REAL DEFAULT NULL")
+
+        # 1.1 Auth Identities table (Federated OAuth providers e.g. Google)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS auth_identities (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                provider_user_id TEXT NOT NULL,
+                provider_email TEXT,
+                created_at REAL NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(provider, provider_user_id)
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_identities_provider ON auth_identities(provider, provider_user_id)")
+
+        # 1.2 Email Verification Tokens (Single-use, hashed at rest)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS email_verification_tokens (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL,
+                created_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                used_at REAL DEFAULT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_evt_hash ON email_verification_tokens(token_hash)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_evt_user ON email_verification_tokens(user_id)")
+
+        # 1.3 Password Reset Tokens (Single-use, hashed at rest)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL,
+                created_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                used_at REAL DEFAULT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_prt_hash ON password_reset_tokens(token_hash)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id)")
 
         # 2. Projects table
         conn.execute(
@@ -144,11 +211,12 @@ def _seed_default_demo_account(conn):
         user_id = "usr_demo_default"
         now = time.time()
         conn.execute(
-            "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO users (id, email, password_hash, created_at, email_verified, name) VALUES (?, ?, ?, ?, 1, 'Demo Operator')",
             (user_id, "demo@mlo11y.local", generate_password_hash("demopassword123"), now)
         )
     else:
         user_id = user_row["id"]
+        conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
 
     # Check if demo project exists
     proj_row = conn.execute("SELECT id FROM projects WHERE id = 'phase1-demo-token' OR id = 'proj_demo_default'").fetchone()
@@ -188,19 +256,253 @@ def _seed_default_demo_account(conn):
 # User Operations
 # ---------------------------------------------------------
 
-def create_user(email: str, password_hash: str) -> dict:
-    """Create a new user."""
+def create_user(email: str, password_hash: str = None, name: str = "", email_verified: int = 0) -> dict:
+    """Create a new user. If no password is provided (OAuth), stores safe unmatchable marker."""
     user_id = f"usr_{uuid.uuid4().hex[:12]}"
+    now = time.time()
+    pw_hash = password_hash if password_hash else "!oauth_provider"
+    with _lock:
+        conn = get_conn()
+        cursor = conn.execute("PRAGMA table_info(users)")
+        cols = [r["name"] for r in cursor.fetchall()]
+        
+        insert_cols = ["id", "email", "password_hash", "created_at"]
+        params = [user_id, email.strip().lower(), pw_hash, now]
+        if "updated_at" in cols:
+            insert_cols.append("updated_at")
+            params.append(now)
+        if "name" in cols:
+            insert_cols.append("name")
+            params.append(name.strip())
+        if "email_verified" in cols:
+            insert_cols.append("email_verified")
+            params.append(int(email_verified))
+
+        placeholders = ", ".join(["?"] * len(params))
+        col_names = ", ".join(insert_cols)
+        conn.execute(f"INSERT INTO users ({col_names}) VALUES ({placeholders})", params)
+        conn.commit()
+        conn.close()
+    return {
+        "id": user_id,
+        "email": email.strip().lower(),
+        "name": name.strip(),
+        "email_verified": int(email_verified),
+        "created_at": now,
+        "updated_at": now
+    }
+
+
+def record_user_login(user_id: str):
+    """Record timestamp of successful user login."""
+    if not user_id:
+        return
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        try:
+            conn.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (now, user_id))
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+
+def update_user_profile(user_id: str, name: str = None) -> dict:
+    """Update profile attributes such as display name."""
+    if not user_id:
+        return None
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        if name is not None:
+            conn.execute("UPDATE users SET name = ?, updated_at = ? WHERE id = ?", (name.strip(), now, user_id))
+        conn.commit()
+        conn.close()
+    return get_user_by_id(user_id)
+
+
+def update_user_password(user_id: str, new_password_hash: str) -> bool:
+    """Update user password hash and touch password_changed_at for session invalidation."""
+    if not user_id or not new_password_hash:
+        return False
     now = time.time()
     with _lock:
         conn = get_conn()
         conn.execute(
-            "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-            (user_id, email.strip().lower(), password_hash, now),
+            "UPDATE users SET password_hash = ?, password_changed_at = ?, updated_at = ? WHERE id = ?",
+            (new_password_hash, now, now, user_id)
         )
         conn.commit()
         conn.close()
-    return {"id": user_id, "email": email.strip().lower(), "created_at": now}
+    return True
+
+
+# ---------------------------------------------------------
+# Email Verification & Password Reset Tokens
+# ---------------------------------------------------------
+
+def create_email_verification_token(user_id: str, expires_in_seconds: int = 86400) -> str:
+    """
+    Generate cryptographically random token for email verification.
+    Stores only SHA-256 hash in database. Returns raw token for email delivery.
+    """
+    if not user_id:
+        return None
+    token_id = f"evt_{uuid.uuid4().hex[:12]}"
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    now = time.time()
+    expires_at = now + expires_in_seconds
+
+    with _lock:
+        conn = get_conn()
+        # Invalidate existing unused verification tokens for this user
+        conn.execute("UPDATE email_verification_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL", (now, user_id))
+        conn.execute(
+            "INSERT INTO email_verification_tokens (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+            (token_id, user_id, token_hash, now, expires_at)
+        )
+        conn.commit()
+        conn.close()
+    return raw_token
+
+
+def verify_email_token(raw_token: str) -> tuple[bool, str, dict]:
+    """
+    Validate email verification token and mark user email as verified.
+    Returns (success, message, user_dict).
+    """
+    if not raw_token or not isinstance(raw_token, str):
+        return False, "Token is required", None
+
+    token_hash = hashlib.sha256(raw_token.strip().encode("utf-8")).hexdigest()
+    now = time.time()
+
+    with _lock:
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT * FROM email_verification_tokens WHERE token_hash = ?", (token_hash,)
+        ).fetchone()
+
+        if not row:
+            conn.close()
+            return False, "Invalid or unrecognized verification token", None
+
+        if row["used_at"] is not None:
+            conn.close()
+            return False, "Verification token has already been used", None
+
+        if now > row["expires_at"]:
+            conn.close()
+            return False, "Verification token has expired. Please request a new one.", None
+
+        # Mark token used
+        conn.execute("UPDATE email_verification_tokens SET used_at = ? WHERE id = ?", (now, row["id"]))
+        # Update user email_verified flag
+        conn.execute("UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?", (now, row["user_id"]))
+        conn.commit()
+        conn.close()
+
+    user = get_user_by_id(row["user_id"])
+    return True, "Email successfully verified", user
+
+
+def create_password_reset_token(user_id: str, expires_in_seconds: int = 3600) -> str:
+    """
+    Generate single-use cryptographically random token for password reset.
+    Stores only SHA-256 hash in database. Returns raw token.
+    """
+    if not user_id:
+        return None
+    token_id = f"prt_{uuid.uuid4().hex[:12]}"
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    now = time.time()
+    expires_at = now + expires_in_seconds
+
+    with _lock:
+        conn = get_conn()
+        # Invalidate any prior unused reset tokens for this user
+        conn.execute("UPDATE password_reset_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL", (now, user_id))
+        conn.execute(
+            "INSERT INTO password_reset_tokens (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+            (token_id, user_id, token_hash, now, expires_at)
+        )
+        conn.commit()
+        conn.close()
+    return raw_token
+
+
+def verify_password_reset_token(raw_token: str) -> tuple[bool, str, dict]:
+    """
+    Verify whether a password reset token is valid and not yet used or expired.
+    Does NOT mark the token as used yet.
+    """
+    if not raw_token or not isinstance(raw_token, str):
+        return False, "Token is required", None
+
+    token_hash = hashlib.sha256(raw_token.strip().encode("utf-8")).hexdigest()
+    now = time.time()
+
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM password_reset_tokens WHERE token_hash = ?", (token_hash,)
+    ).fetchone()
+    conn.close()
+
+    if not row:
+        return False, "Invalid or unrecognized reset token", None
+
+    if row["used_at"] is not None:
+        return False, "Reset token has already been used", None
+
+    if now > row["expires_at"]:
+        return False, "Reset token has expired. Please request a new password reset.", None
+
+    return True, "Valid reset token", dict(row)
+
+
+def apply_password_reset(raw_token: str, new_password_hash: str) -> tuple[bool, str]:
+    """
+    Atomically apply password reset: validates token, marks it used, and updates user password.
+    Touches password_changed_at to invalidate concurrent sessions.
+    """
+    if not raw_token or not new_password_hash:
+        return False, "Token and new password are required"
+
+    token_hash = hashlib.sha256(raw_token.strip().encode("utf-8")).hexdigest()
+    now = time.time()
+
+    with _lock:
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT * FROM password_reset_tokens WHERE token_hash = ?", (token_hash,)
+        ).fetchone()
+
+        if not row:
+            conn.close()
+            return False, "Invalid or unrecognized reset token"
+
+        if row["used_at"] is not None:
+            conn.close()
+            return False, "Reset token has already been used"
+
+        if now > row["expires_at"]:
+            conn.close()
+            return False, "Reset token has expired"
+
+        # Atomically consume token and update password
+        conn.execute("UPDATE password_reset_tokens SET used_at = ? WHERE id = ?", (now, row["id"]))
+        conn.execute(
+            "UPDATE users SET password_hash = ?, password_changed_at = ?, updated_at = ? WHERE id = ?",
+            (new_password_hash, now, now, row["user_id"])
+        )
+        conn.commit()
+        conn.close()
+
+    return True, "Password reset successfully"
 
 
 def get_user_by_email(email: str) -> dict:
@@ -216,15 +518,127 @@ def get_user_by_email(email: str) -> dict:
 
 
 def get_user_by_id(user_id: str) -> dict:
-    """Fetch user by ID (excluding password hash by default)."""
+    """Fetch user by ID (excluding password hash by default) with linked identity providers."""
     if not user_id:
         return None
     conn = get_conn()
     row = conn.execute(
-        "SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)
+        "SELECT * FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    user_data = dict(row)
+    pw_hash = user_data.pop("password_hash", "")
+    user_data["has_password"] = bool(pw_hash and not pw_hash.startswith("!oauth_"))
+    user_data["email_verified"] = bool(user_data.get("email_verified", 0))
+
+    ident_rows = conn.execute(
+        "SELECT provider, provider_user_id, provider_email, created_at FROM auth_identities WHERE user_id = ?",
+        (user_id,)
+    ).fetchall()
+    conn.close()
+    user_data["identities"] = [dict(r) for r in ident_rows]
+    return user_data
+
+
+# ---------------------------------------------------------
+# Federated Identity (OAuth) Operations
+# ---------------------------------------------------------
+
+def get_identity_by_provider(provider: str, provider_user_id: str) -> dict:
+    """Fetch an identity by OAuth provider and stable subject ID (sub)."""
+    if not provider or not provider_user_id:
+        return None
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM auth_identities WHERE provider = ? AND provider_user_id = ?",
+        (provider.strip().lower(), str(provider_user_id).strip())
     ).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def get_identities_by_user(user_id: str) -> list:
+    """List all linked OAuth identities for an internal user."""
+    if not user_id:
+        return []
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id, provider, provider_user_id, provider_email, created_at FROM auth_identities WHERE user_id = ?",
+        (user_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def link_identity(user_id: str, provider: str, provider_user_id: str, provider_email: str = None) -> dict:
+    """
+    Link a federated identity (e.g. Google sub) to an existing internal user.
+    Enforces UNIQUE(provider, provider_user_id).
+    """
+    if not user_id or not provider or not provider_user_id:
+        raise ValueError("user_id, provider, and provider_user_id are required")
+    
+    prov = provider.strip().lower()
+    sub = str(provider_user_id).strip()
+    norm_email = provider_email.strip().lower() if provider_email else None
+
+    # Check if this provider_user_id is already linked
+    existing = get_identity_by_provider(prov, sub)
+    if existing:
+        if existing["user_id"] == user_id:
+            return existing  # Already linked to this user
+        raise ValueError(f"This {prov} identity is already linked to another user account")
+
+    identity_id = f"ident_{uuid.uuid4().hex[:12]}"
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            "INSERT INTO auth_identities (id, user_id, provider, provider_user_id, provider_email, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (identity_id, user_id, prov, sub, norm_email, now)
+        )
+        # Also update user updated_at if column exists
+        try:
+            conn.execute("UPDATE users SET updated_at = ? WHERE id = ?", (now, user_id))
+        except Exception:
+            pass
+        conn.commit()
+        conn.close()
+
+    return {
+        "id": identity_id,
+        "user_id": user_id,
+        "provider": prov,
+        "provider_user_id": sub,
+        "provider_email": norm_email,
+        "created_at": now
+    }
+
+
+def create_user_with_identity(email: str, provider: str, provider_user_id: str, provider_email: str = None) -> dict:
+    """
+    Create a new internal user directly linked to an OAuth identity (e.g. Google signup).
+    Also provisions a default project and primary SDK key.
+    """
+    norm_email = email.strip().lower()
+    user = create_user(norm_email, password_hash=None)
+    identity = link_identity(user["id"], provider, provider_user_id, provider_email or norm_email)
+    
+    # Auto-provision default project and API key
+    default_proj = create_project(user["id"], name="Default Project", description="Primary security project")
+    key_info = create_api_key(default_proj["id"], name="Primary SDK Key")
+    
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "created_at": user["created_at"],
+        "updated_at": user.get("updated_at"),
+        "default_project": default_proj,
+        "api_key": key_info["raw_key"],
+        "identity": identity
+    }
 
 
 # ---------------------------------------------------------

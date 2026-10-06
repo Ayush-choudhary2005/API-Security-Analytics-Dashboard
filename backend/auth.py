@@ -16,9 +16,12 @@ def hash_password(password: str) -> str:
 
 def verify_password(password_hash: str, password: str) -> bool:
     """Verify password against stored hash."""
-    if not password_hash or not password:
+    if not password_hash or not password or password_hash.startswith("!oauth_"):
         return False
-    return check_password_hash(password_hash, password)
+    try:
+        return check_password_hash(password_hash, password)
+    except Exception:
+        return False
 
 
 def validate_email(email: str) -> bool:
@@ -50,6 +53,13 @@ def login_required(f):
         if not user:
             session.clear()
             return jsonify({"error": "unauthenticated"}), 401
+
+        # Session invalidation check: verify if password was changed after this session was authorized
+        pwd_changed = user.get("password_changed_at")
+        auth_time = session.get("auth_time", 0)
+        if pwd_changed and (not auth_time or auth_time < pwd_changed):
+            session.clear()
+            return jsonify({"error": "Session invalidated due to password change. Please log in again."}), 401
 
         g.current_user = user
         return f(*args, **kwargs)
