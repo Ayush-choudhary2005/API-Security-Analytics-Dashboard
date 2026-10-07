@@ -18,7 +18,7 @@ export const AuthLayout = ({ children, title, subtitle }) => {
             </div>
             <div>
               <span className="text-xl font-bold tracking-tight text-white group-hover:text-cyan-400 transition-colors">
-                SentinAPI
+                api-security-analytics-dashboard
               </span>
               <p className="text-xs text-slate-400">API Security Analytics & Active Defense</p>
             </div>
@@ -28,10 +28,6 @@ export const AuthLayout = ({ children, title, subtitle }) => {
         {/* Middle Feature Highlights */}
         <div className="relative z-10 my-auto py-12 space-y-8 max-w-lg">
           <div>
-            <span className="inline-flex items-center space-x-2 text-xs font-mono tracking-wider uppercase text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-3 py-1 rounded-full mb-4">
-              <Activity className="w-3.5 h-3.5" />
-              <span>Production Developer Platform</span>
-            </span>
             <h2 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
               Real-Time Telemetry & Autonomous Active Defense
             </h2>
@@ -76,7 +72,6 @@ export const AuthLayout = ({ children, title, subtitle }) => {
         {/* Bottom Platform Guarantee */}
         <div className="relative z-10 text-xs text-slate-500 flex items-center justify-between border-t border-slate-800/80 pt-6">
           <span>Enterprise-Grade Security Architecture</span>
-          <span className="font-mono">v2.0 PRODUCTION READY</span>
         </div>
       </div>
 
@@ -89,7 +84,7 @@ export const AuthLayout = ({ children, title, subtitle }) => {
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-lg font-bold text-white">SentinAPI</span>
+              <span className="text-lg font-bold text-white">api-security-analytics-dashboard</span>
               <p className="text-xs text-slate-400">API Security Platform</p>
             </div>
           </div>

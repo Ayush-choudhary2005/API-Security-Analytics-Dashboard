@@ -60,7 +60,7 @@ export const SignupPage = () => {
 
   return (
     <AuthLayout
-      title="Create SentinAPI Account"
+      title="Create api-security-analytics-dashboard Account"
       subtitle="Start defending your APIs with ML anomaly detection and live telemetry."
     >
       {error && (

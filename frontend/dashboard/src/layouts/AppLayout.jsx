@@ -136,7 +136,7 @@ export const AppLayout = ({ children }) => {
               <Shield className="w-4 h-4" />
             </div>
             <span className="hidden sm:inline-block text-base font-bold tracking-tight text-white group-hover:text-cyan-400 transition-colors">
-              SentinAPI
+              api-security-analytics-dashboard
             </span>
           </NavLink>
 
@@ -420,7 +420,7 @@ export const AppLayout = ({ children }) => {
               <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
                 <div className="flex items-center space-x-2">
                   <Shield className="w-5 h-5 text-cyan-400" />
-                  <span className="font-bold text-sm text-white">SentinAPI</span>
+                  <span className="font-bold text-sm text-white">api-security-analytics-dashboard</span>
                 </div>
                 <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 p-1">
                   <X className="w-5 h-5" />

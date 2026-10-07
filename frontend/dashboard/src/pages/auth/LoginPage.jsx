@@ -65,7 +65,7 @@ export const LoginPage = () => {
 
   return (
     <AuthLayout
-      title="Sign in to SentinAPI"
+      title="Sign in to api-security-analytics-dashboard"
       subtitle="Access your API security analytics console and active defense monitors."
     >
       {linkingNotice && (

@@ -112,7 +112,7 @@ app.listen(3000);`
           {/* Badge */}
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-700/80 text-xs font-mono text-cyan-400 mb-8 shadow-sm">
             <Radio className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
-            <span>Autonomous API Defense & Telemetry v2.0</span>
+            <span>Autonomous API Defense & Telemetry</span>
           </div>
 
           {/* Heading */}
@@ -179,10 +179,10 @@ app.listen(3000);`
               Threat Vectors Mitigated
             </span>
             <h2 className="text-3xl font-extrabold text-white mt-4 tracking-tight">
-              What Problem Does SentinAPI Solve?
+              What Problem Does api-security-analytics-dashboard Solve?
             </h2>
             <p className="text-sm text-slate-400 mt-3">
-              Standard firewalls and cloud CDNs miss behavioral API anomalies. SentinAPI provides deep semantic observability and active defense against automated attacks.
+              Standard firewalls and cloud CDNs miss behavioral API anomalies. api-security-analytics-dashboard provides deep semantic observability and active defense against automated attacks.
             </p>
           </div>
 
@@ -258,7 +258,7 @@ app.listen(3000);`
               End-to-End Pipeline
             </span>
             <h2 className="text-3xl font-extrabold text-white mt-4 tracking-tight">
-              How SentinAPI Works
+              How api-security-analytics-dashboard Works
             </h2>
             <p className="text-sm text-slate-400 mt-3">
               From host API execution to machine learning scoring and automated incident resolution.
@@ -531,7 +531,7 @@ app.listen(3000);`
             <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
               <h4 className="text-sm font-bold text-white mb-2">Fail-Open Architecture</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                If the SentinAPI telemetry collector becomes unreachable or experiences high latency, SDK middleware fails open immediately. Host API endpoints serve customer requests at full speed without crashing.
+                If the api-security-analytics-dashboard telemetry collector becomes unreachable or experiences high latency, SDK middleware fails open immediately. Host API endpoints serve customer requests at full speed without crashing.
               </p>
             </div>
 
