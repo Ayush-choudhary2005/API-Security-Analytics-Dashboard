@@ -58,66 +58,66 @@ export const SettingsPage = () => {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Account & Security Settings</h1>
-        <p className="text-xs text-slate-400 mt-1">
+        <h1 className="text-lg font-semibold text-white tracking-tight">Account & Security Settings</h1>
+        <p className="text-xs text-slate-400 mt-0.5">
           Manage your operator profile, credentials, and organization context.
         </p>
       </div>
 
       {/* Operator Profile */}
-      <div className="p-6 rounded-xl bg-slate-900 border border-slate-800 shadow-xl">
-        <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-slate-800">
-          <div className="w-10 h-10 rounded-full bg-cyan-950 border border-cyan-500/50 text-cyan-400 flex items-center justify-center font-bold text-sm uppercase">
+      <div className="p-5 rounded-md bg-[#0e1420] border border-slate-800">
+        <div className="flex items-center space-x-3 mb-5 pb-4 border-b border-slate-800">
+          <div className="w-9 h-9 rounded bg-slate-800 border border-slate-700 text-sky-400 flex items-center justify-center font-semibold text-xs font-mono uppercase">
             {user?.email?.charAt(0) || 'U'}
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white">{user?.full_name || 'Operator'}</h3>
+            <h3 className="text-sm font-semibold text-white">{user?.full_name || 'Operator'}</h3>
             <p className="text-xs text-slate-400 font-mono">{user?.email}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="p-3 rounded bg-[#070a10] border border-slate-800">
             <span className="text-[10px] text-slate-500 uppercase font-mono">Internal Operator ID</span>
-            <p className="font-mono text-cyan-300 mt-0.5">{user?.id || 'usr_unknown'}</p>
+            <p className="font-mono text-sky-300 mt-0.5">{user?.id || 'usr_unknown'}</p>
           </div>
 
-          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+          <div className="p-3 rounded bg-[#070a10] border border-slate-800">
             <span className="text-[10px] text-slate-500 uppercase font-mono">Email Verification Status</span>
-            <p className="flex items-center space-x-1.5 text-emerald-400 font-semibold mt-0.5">
+            <p className="flex items-center space-x-1.5 text-emerald-400 font-medium mt-0.5">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Verified Account</span>
             </p>
           </div>
 
-          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+          <div className="p-3 rounded bg-[#070a10] border border-slate-800">
             <span className="text-[10px] text-slate-500 uppercase font-mono">Active Workspace</span>
             <p className="text-white font-medium mt-0.5">{currentOrg?.name || 'Default'}</p>
           </div>
 
-          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+          <div className="p-3 rounded bg-[#070a10] border border-slate-800">
             <span className="text-[10px] text-slate-500 uppercase font-mono">Workspace Role</span>
-            <p className="font-mono text-cyan-400 uppercase mt-0.5">{currentOrg?.role || 'owner'}</p>
+            <p className="font-mono text-sky-400 uppercase mt-0.5">{currentOrg?.role || 'owner'}</p>
           </div>
         </div>
       </div>
 
       {/* Change Password */}
-      <div className="p-6 rounded-xl bg-slate-900 border border-slate-800 shadow-xl">
-        <div className="flex items-center space-x-2 text-white font-bold text-sm mb-4">
-          <Key className="w-4 h-4 text-cyan-400" />
+      <div className="p-5 rounded-md bg-[#0e1420] border border-slate-800">
+        <div className="flex items-center space-x-2 text-white font-semibold text-sm mb-4">
+          <Key className="w-4 h-4 text-sky-400" />
           <span>Change Password</span>
         </div>
 
         {pwdSuccess && (
-          <div className="mb-4 p-3 rounded-lg bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-xs flex items-center space-x-2">
+          <div className="mb-4 p-3 rounded bg-emerald-950/50 border border-emerald-800/60 text-emerald-300 text-xs flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             <span>{pwdSuccess}</span>
           </div>
         )}
 
         {pwdError && (
-          <div className="mb-4 p-3 rounded-lg bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center space-x-2">
+          <div className="mb-4 p-3 rounded bg-rose-950/50 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{pwdError}</span>
           </div>
@@ -132,7 +132,7 @@ export const SettingsPage = () => {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="••••••••••••"
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-[#070a10] border border-slate-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
             />
           </div>
 
@@ -144,7 +144,7 @@ export const SettingsPage = () => {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="••••••••••••"
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-[#070a10] border border-slate-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
             />
           </div>
 
@@ -156,14 +156,14 @@ export const SettingsPage = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••••••"
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-[#070a10] border border-slate-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
             />
           </div>
 
           <button
             type="submit"
             disabled={pwdLoading}
-            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-xs font-medium text-white transition-all shadow-md shadow-cyan-600/20"
+            className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-xs font-medium text-white transition-colors shadow-sm"
           >
             {pwdLoading ? 'Updating Password...' : 'Update Password'}
           </button>

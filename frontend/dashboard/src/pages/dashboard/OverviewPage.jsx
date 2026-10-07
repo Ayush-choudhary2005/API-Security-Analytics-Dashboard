@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Shield,
   Activity,
   AlertTriangle,
   Lock,
@@ -10,8 +9,6 @@ import {
   ArrowUpRight,
   RefreshCw,
   ExternalLink,
-  Search,
-  Filter,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -21,8 +18,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
@@ -35,7 +30,7 @@ import { ThreatMap } from '../../components/ThreatMap';
 
 const SEVERITY_COLORS = {
   critical: '#f43f5e',
-  high: '#fb7185',
+  high: '#f87171',
   medium: '#fbbf24',
   low: '#38bdf8',
 };
@@ -104,7 +99,6 @@ export const OverviewPage = () => {
 
     const onNewAlert = (alt) => {
       setAlerts((prev) => [alt, ...prev.slice(0, 14)]);
-      // Refresh stats
       telemetryService.getAlertStats(currentProject.id).then((res) => setStats(res.data)).catch(() => {});
     };
 
@@ -139,19 +133,10 @@ export const OverviewPage = () => {
     }
   };
 
-  // Prepare chart metrics
   const attackDistribution = stats?.attack_distribution
     ? Object.entries(stats.attack_distribution).map(([type, count]) => ({
         name: type.replace('_', ' ').toUpperCase(),
         value: count,
-      }))
-    : [];
-
-  const severityDistribution = stats?.severity_breakdown
-    ? Object.entries(stats.severity_breakdown).map(([sev, count]) => ({
-        severity: sev.toUpperCase(),
-        count,
-        color: SEVERITY_COLORS[sev] || '#94a3b8',
       }))
     : [];
 
@@ -171,15 +156,15 @@ export const OverviewPage = () => {
 
   if (!currentProject) {
     return (
-      <div className="py-16 text-center space-y-4">
-        <Server className="w-12 h-12 mx-auto text-slate-600" />
-        <h2 className="text-lg font-bold text-white">No Project Selected</h2>
+      <div className="py-16 text-center space-y-3">
+        <Server className="w-10 h-10 mx-auto text-slate-500" />
+        <h2 className="text-base font-semibold text-white">No Project Selected</h2>
         <p className="text-xs text-slate-400 max-w-sm mx-auto">
           Create or select a project from the top navigation to view security telemetry.
         </p>
         <Link
           to="/app/projects"
-          className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs text-white font-medium"
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-xs text-white font-medium transition-colors"
         >
           <span>Go to Projects</span>
         </Link>
@@ -188,33 +173,33 @@ export const OverviewPage = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-bold text-white tracking-tight">{currentProject.name}</h1>
-            <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded">
+            <h1 className="text-lg font-bold text-white tracking-tight">{currentProject.name}</h1>
+            <span className="text-[10px] font-mono text-slate-400 bg-[#0e1420] border border-slate-800 px-1.5 py-0.5 rounded">
               {currentProject.id}
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-400 mt-0.5">
             Real-time API anomaly scoring and active defense telemetry stream.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
           <button
             onClick={fetchData}
             disabled={loading}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition-colors"
+            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-[#0e1420] hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </button>
           <Link
             to="/app/sdk"
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs text-white font-medium shadow-sm transition-colors"
+            className="inline-flex items-center space-x-1 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-xs text-white font-medium transition-colors"
           >
             <span>SDK Setup</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -222,100 +207,74 @@ export const OverviewPage = () => {
         </div>
       </div>
 
-      {/* TOP STATISTICS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Requests */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Total Requests</span>
-            <Activity className="w-4 h-4 text-cyan-400" />
-          </div>
-          <p className="text-2xl font-bold text-white font-mono">{stats?.total_events ?? events.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Ingested via SDK</p>
+      {/* TOP UNIFIED METRICS STRIP */}
+      <div className="bg-[#0e1420] border border-slate-800 rounded-md grid grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-800">
+        <div className="p-3.5 sm:p-4">
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">Total Requests</span>
+          <p className="text-xl font-bold text-white font-mono">{stats?.total_events ?? events.length}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Ingested via SDK</p>
         </div>
 
-        {/* Threats Detected */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Threats Detected</span>
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
-          </div>
-          <p className="text-2xl font-bold text-rose-400 font-mono">{stats?.total_alerts ?? alerts.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Flagged by ML & Rules</p>
+        <div className="p-3.5 sm:p-4">
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">Threats Detected</span>
+          <p className="text-xl font-bold text-rose-400 font-mono">{stats?.total_alerts ?? alerts.length}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Flagged by ML & Rules</p>
         </div>
 
-        {/* Active Projects */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Active Projects</span>
-            <Server className="w-4 h-4 text-indigo-400" />
-          </div>
-          <p className="text-2xl font-bold text-white font-mono">{projects.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">In organization</p>
+        <div className="p-3.5 sm:p-4">
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">Active Projects</span>
+          <p className="text-xl font-bold text-white font-mono">{projects.length}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">In organization</p>
         </div>
 
-        {/* Risk Score */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Risk Score</span>
-            <Zap className="w-4 h-4 text-amber-400" />
-          </div>
-          <p className="text-2xl font-bold text-amber-400 font-mono">
+        <div className="p-3.5 sm:p-4">
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">Risk Score</span>
+          <p className="text-xl font-bold text-amber-400 font-mono">
             {stats?.max_anomaly_score ? Number(stats.max_anomaly_score).toFixed(2) : '1.00'}
           </p>
-          <p className="text-[10px] text-slate-500 mt-1">Isolation Forest baseline</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Isolation Forest max</p>
         </div>
 
-        {/* Blocked IPs */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 col-span-2 lg:col-span-1">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium">Blocked IPs</span>
-            <Lock className="w-4 h-4 text-purple-400" />
-          </div>
-          <p className="text-2xl font-bold text-purple-400 font-mono">{blockedIPs.length}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Automated rate limiter</p>
+        <div className="p-3.5 sm:p-4 col-span-2 lg:col-span-1">
+          <span className="text-[11px] font-medium text-slate-400 block mb-1">Blocked IPs</span>
+          <p className="text-xl font-bold text-purple-400 font-mono">{blockedIPs.length}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Active firewall rules</p>
         </div>
       </div>
 
       {/* CHARTS ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Traffic Over Time */}
-        <div className="lg:col-span-2 p-5 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
+        <div className="lg:col-span-2 p-4 rounded-md bg-[#0e1420] border border-slate-800">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Traffic & Latency Over Time</h3>
-              <p className="text-[10px] text-slate-400">Request throughput vs latency percentiles</p>
+              <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Traffic & Latency</h3>
+              <p className="text-[11px] text-slate-400">Request throughput vs latency percentiles</p>
             </div>
           </div>
-          <div className="h-64">
+          <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trafficChartData}>
-                <defs>
-                  <linearGradient id="reqGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="time" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} />
+                <CartesianGrid strokeDasharray="2 2" stroke="#1e293b" />
+                <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
+                <YAxis stroke="#475569" fontSize={10} tickLine={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '6px', fontSize: '11px' }}
+                  contentStyle={{ backgroundColor: '#0e1420', borderColor: '#1e293b', borderRadius: '4px', fontSize: '11px' }}
                 />
-                <Area type="monotone" dataKey="requests" stroke="#06b6d4" fillOpacity={1} fill="url(#reqGradient)" name="Requests" />
-                <Area type="monotone" dataKey="anomalies" stroke="#f43f5e" fill="#f43f5e" fillOpacity={0.2} name="Anomalies" />
+                <Area type="monotone" dataKey="requests" stroke="#38bdf8" strokeWidth={1.5} fill="#38bdf8" fillOpacity={0.05} name="Requests" />
+                <Area type="monotone" dataKey="anomalies" stroke="#f43f5e" strokeWidth={1.5} fill="#f43f5e" fillOpacity={0.15} name="Anomalies" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Attack Distribution */}
-        <div className="p-5 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="mb-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Attack Distribution</h3>
-            <p className="text-[10px] text-slate-400">Classified by detection heuristic</p>
+        <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Attack Distribution</h3>
+            <p className="text-[11px] text-slate-400">Classified by detection heuristic</p>
           </div>
-          <div className="h-64 flex items-center justify-center">
+          <div className="h-60 flex items-center justify-center">
             {attackDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -323,9 +282,9 @@ export const OverviewPage = () => {
                     data={attackDistribution}
                     cx="50%"
                     cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={4}
+                    innerRadius={46}
+                    outerRadius={74}
+                    paddingAngle={3}
                     dataKey="value"
                   >
                     {attackDistribution.map((entry, index) => (
@@ -333,24 +292,24 @@ export const OverviewPage = () => {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '6px', fontSize: '11px' }}
+                    contentStyle={{ backgroundColor: '#0e1420', borderColor: '#1e293b', borderRadius: '4px', fontSize: '11px' }}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-center text-xs text-slate-500 py-12">No attack signatures recorded</div>
+              <div className="text-center text-xs text-slate-400 py-12">No attack signatures recorded</div>
             )}
           </div>
         </div>
       </div>
 
       {/* THREAT GEOLOCATION MAP */}
-      <div className="p-5 rounded-xl bg-slate-900 border border-slate-800">
-        <div className="flex items-center justify-between mb-4">
+      <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Threat Geolocation Map</h3>
-            <p className="text-[10px] text-slate-400">Live plotting of incoming hostile request origins</p>
+            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Threat Geolocation Map</h3>
+            <p className="text-[11px] text-slate-400">Live plotting of incoming hostile request origins</p>
           </div>
           <span className="text-[10px] font-mono text-slate-400">Leaflet v1.9 / OpenStreetMap</span>
         </div>
@@ -358,15 +317,15 @@ export const OverviewPage = () => {
       </div>
 
       {/* LIVE TABLES ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Live Event Feed Table */}
-        <div className="p-5 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Live Telemetry Feed</h3>
+              <span className="w-2 h-2 rounded-full bg-sky-400"></span>
+              <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Live Telemetry Feed</h3>
             </div>
-            <Link to="/app/live" className="text-xs text-cyan-400 hover:underline inline-flex items-center space-x-1">
+            <Link to="/app/live" className="text-xs text-sky-400 hover:underline inline-flex items-center space-x-1">
               <span>View full log</span>
               <ExternalLink className="w-3 h-3" />
             </Link>
@@ -374,40 +333,40 @@ export const OverviewPage = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/60 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
+              <thead className="bg-[#090d16] text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
                 <tr>
-                  <th className="py-2 px-3">Method</th>
-                  <th className="py-2 px-3">Endpoint</th>
-                  <th className="py-2 px-3">Status</th>
-                  <th className="py-2 px-3">Latency</th>
-                  <th className="py-2 px-3">IP</th>
+                  <th className="py-1.5 px-2.5">Method</th>
+                  <th className="py-1.5 px-2.5">Endpoint</th>
+                  <th className="py-1.5 px-2.5">Status</th>
+                  <th className="py-1.5 px-2.5">Latency</th>
+                  <th className="py-1.5 px-2.5">IP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
                 {events.slice(0, 8).map((ev, i) => (
                   <tr key={ev.id || i} className="hover:bg-slate-800/40">
-                    <td className="py-2 px-3 font-bold text-cyan-400">{ev.method}</td>
-                    <td className="py-2 px-3 text-slate-300 truncate max-w-[120px]">{ev.endpoint}</td>
-                    <td className="py-2 px-3">
+                    <td className="py-1.5 px-2.5 font-bold text-sky-400">{ev.method}</td>
+                    <td className="py-1.5 px-2.5 text-slate-300 truncate max-w-[120px]">{ev.endpoint}</td>
+                    <td className="py-1.5 px-2.5">
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] ${
+                        className={`px-1 py-0.5 rounded text-[10px] ${
                           ev.status_code >= 500
-                            ? 'bg-rose-950 text-rose-400'
+                            ? 'bg-rose-950/60 text-rose-400'
                             : ev.status_code >= 400
-                            ? 'bg-amber-950 text-amber-400'
-                            : 'bg-emerald-950 text-emerald-400'
+                            ? 'bg-amber-950/60 text-amber-400'
+                            : 'bg-emerald-950/60 text-emerald-400'
                         }`}
                       >
                         {ev.status_code}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-slate-400">{Math.round(ev.latency_ms || 10)}ms</td>
-                    <td className="py-2 px-3 text-slate-500">{ev.ip || '127.0.0.1'}</td>
+                    <td className="py-1.5 px-2.5 text-slate-400">{Math.round(ev.latency_ms || 10)}ms</td>
+                    <td className="py-1.5 px-2.5 text-slate-400">{ev.ip || '127.0.0.1'}</td>
                   </tr>
                 ))}
                 {events.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="py-8 text-center text-slate-500 font-sans">
+                    <td colSpan="5" className="py-6 text-center text-slate-400 font-sans">
                       Waiting for incoming telemetry events...
                     </td>
                   </tr>
@@ -418,13 +377,13 @@ export const OverviewPage = () => {
         </div>
 
         {/* Recent Alerts & Threats Table */}
-        <div className="p-5 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
-              <Shield className="w-4 h-4 text-rose-400" />
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Active Security Alerts</h3>
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Active Security Alerts</h3>
             </div>
-            <Link to="/app/threats" className="text-xs text-cyan-400 hover:underline inline-flex items-center space-x-1">
+            <Link to="/app/threats" className="text-xs text-sky-400 hover:underline inline-flex items-center space-x-1">
               <span>View all</span>
               <ExternalLink className="w-3 h-3" />
             </Link>
@@ -432,40 +391,40 @@ export const OverviewPage = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/60 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
+              <thead className="bg-[#090d16] text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
                 <tr>
-                  <th className="py-2 px-3">Severity</th>
-                  <th className="py-2 px-3">Attack Type</th>
-                  <th className="py-2 px-3">Score</th>
-                  <th className="py-2 px-3">Source IP</th>
-                  <th className="py-2 px-3 text-right">Action</th>
+                  <th className="py-1.5 px-2.5">Severity</th>
+                  <th className="py-1.5 px-2.5">Attack Type</th>
+                  <th className="py-1.5 px-2.5">Score</th>
+                  <th className="py-1.5 px-2.5">Source IP</th>
+                  <th className="py-1.5 px-2.5 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {alerts.slice(0, 8).map((alt) => (
                   <tr key={alt.id} className="hover:bg-slate-800/40">
-                    <td className="py-2 px-3">
+                    <td className="py-1.5 px-2.5">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase font-mono ${
                           alt.severity === 'critical' || alt.severity === 'high'
-                            ? 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
-                            : 'bg-amber-950/80 text-amber-400 border border-amber-800/60'
+                            ? 'bg-rose-950/60 text-rose-400 border border-rose-800/50'
+                            : 'bg-amber-950/60 text-amber-400 border border-amber-800/50'
                         }`}
                       >
                         {alt.severity || 'high'}
                       </span>
                     </td>
-                    <td className="py-2 px-3 font-medium text-slate-200">
+                    <td className="py-1.5 px-2.5 font-medium text-slate-200">
                       {(alt.attack_type || 'Anomaly').replace('_', ' ')}
                     </td>
-                    <td className="py-2 px-3 font-mono text-cyan-400">
+                    <td className="py-1.5 px-2.5 font-mono text-sky-400">
                       {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(2) : alt.anomaly_score}
                     </td>
-                    <td className="py-2 px-3 font-mono text-slate-400">{alt.ip || alt.source_ip || '-'}</td>
-                    <td className="py-2 px-3 text-right">
+                    <td className="py-1.5 px-2.5 font-mono text-slate-400">{alt.ip || alt.source_ip || '-'}</td>
+                    <td className="py-1.5 px-2.5 text-right">
                       <button
                         onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
-                        className="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium hover:underline"
+                        className="text-[11px] text-sky-400 hover:text-sky-300 font-medium hover:underline"
                       >
                         Investigate
                       </button>
@@ -474,7 +433,7 @@ export const OverviewPage = () => {
                 ))}
                 {alerts.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="py-8 text-center text-slate-500 font-sans">
+                    <td colSpan="5" className="py-6 text-center text-slate-400 font-sans">
                       No security anomalies detected. System operating normally.
                     </td>
                   </tr>
@@ -487,24 +446,24 @@ export const OverviewPage = () => {
 
       {/* BLOCKED IPS MANAGEMENT */}
       {blockedIPs.length > 0 && (
-        <div className="p-5 rounded-xl bg-slate-900 border border-slate-800">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Actively Blocked IP Addresses</h3>
+        <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+          <div className="flex items-center justify-between mb-2.5">
+            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Actively Blocked IP Addresses</h3>
             <span className="text-[10px] font-mono text-purple-400">{blockedIPs.length} addresses</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
             {blockedIPs.map((b) => (
               <div
                 key={b.ip}
-                className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-xs"
+                className="p-2.5 rounded bg-[#090d16] border border-slate-800 flex items-center justify-between text-xs"
               >
                 <div>
-                  <p className="font-mono text-white">{b.ip}</p>
-                  <p className="text-[10px] text-slate-500 truncate">{b.reason || 'Rate limit threshold'}</p>
+                  <p className="font-mono text-white text-[11px]">{b.ip}</p>
+                  <p className="text-[10px] text-slate-400 truncate max-w-[120px]">{b.reason || 'Rate limit threshold'}</p>
                 </div>
                 <button
                   onClick={() => handleUnblock(b.ip)}
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-400 text-[10px] font-medium transition-colors"
+                  className="px-2 py-0.5 rounded bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-400 text-[10px] font-medium transition-colors"
                 >
                   Unblock
                 </button>

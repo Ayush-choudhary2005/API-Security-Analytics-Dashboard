@@ -151,34 +151,34 @@ export const ProjectsPage = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Project & Credential Management</h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <h1 className="text-lg font-semibold text-white tracking-tight">Project & Credential Management</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
             Manage SDK API keys, organization projects, and team access for {currentOrg?.name}.
           </p>
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 p-1 rounded-lg">
+        <div className="inline-flex items-center space-x-1 bg-[#070a10] border border-slate-800 p-0.5 rounded-md self-start sm:self-auto">
           <button
             onClick={() => setActiveTab('keys')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              activeTab === 'keys' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              activeTab === 'keys' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             SDK API Keys
           </button>
           <button
             onClick={() => setActiveTab('projects')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              activeTab === 'projects' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              activeTab === 'projects' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Projects ({projects.length})
           </button>
           <button
             onClick={() => setActiveTab('members')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              activeTab === 'members' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              activeTab === 'members' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Organization Members ({members.length})
@@ -189,13 +189,13 @@ export const ProjectsPage = () => {
       {/* TAB 1: SDK KEYS */}
       {activeTab === 'keys' && (
         <div className="space-y-6">
-          <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 shadow-xl">
+          <div className="rounded-md bg-[#0e1420] border border-slate-800 p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Active SDK Credentials — {currentProject?.name}
+                <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
+                  Active SDK Credentials: {currentProject?.name}
                 </h3>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[11px] text-slate-400 mt-0.5">
                   CSPRNG 128-bit secret keys. Hashed using SHA-256 in persistence layer.
                 </p>
               </div>
@@ -204,7 +204,7 @@ export const ProjectsPage = () => {
                 <button
                   onClick={handleRegenerateKey}
                   disabled={loading}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 border border-amber-800/80 text-amber-300 text-xs font-medium transition-colors"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-medium transition-colors"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Rotate Key</span>
@@ -214,7 +214,7 @@ export const ProjectsPage = () => {
                     setNewKeyRaw(null);
                     setShowNewKeyModal(true);
                   }}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition-colors"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium transition-colors shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Create New Key</span>
@@ -222,9 +222,9 @@ export const ProjectsPage = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded border border-slate-800">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-slate-950/80 text-slate-400 text-[10px] uppercase border-b border-slate-800">
+                <thead className="bg-[#0a0e17] text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-800">
                   <tr>
                     <th className="py-2.5 px-4">Key Name</th>
                     <th className="py-2.5 px-4">Prefix</th>
@@ -233,11 +233,11 @@ export const ProjectsPage = () => {
                     <th className="py-2.5 px-4 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/50">
+                <tbody className="divide-y divide-slate-800/60 bg-[#0e1420]">
                   {projectKeys.map((k) => (
-                    <tr key={k.id} className="hover:bg-slate-800/40">
+                    <tr key={k.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="py-2.5 px-4 text-white font-sans font-medium">{k.name}</td>
-                      <td className="py-2.5 px-4 text-cyan-400">
+                      <td className="py-2.5 px-4 text-sky-400">
                         {k.key_prefix}...
                         <button
                           onClick={() => copyToClipboard(k.key_prefix, k.id)}
@@ -249,10 +249,10 @@ export const ProjectsPage = () => {
                       </td>
                       <td className="py-2.5 px-4">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase ${
                             k.status === 'active'
-                              ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
-                              : 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
+                              ? 'bg-emerald-950/70 text-emerald-400 border border-emerald-800/50'
+                              : 'bg-rose-950/70 text-rose-400 border border-rose-800/50'
                           }`}
                         >
                           {k.status}
@@ -293,29 +293,29 @@ export const ProjectsPage = () => {
           {projects.map((proj) => (
             <div
               key={proj.id}
-              className={`p-5 rounded-xl bg-slate-900 border transition-all ${
+              className={`p-5 rounded-md bg-[#0e1420] border transition-colors ${
                 currentProject?.id === proj.id
-                  ? 'border-cyan-500/60 shadow-lg shadow-cyan-950/30'
+                  ? 'border-sky-500/60 shadow-sm'
                   : 'border-slate-800 hover:border-slate-700'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono text-sky-400 bg-sky-950/50 border border-sky-800/40 px-1.5 py-0.5 rounded">
                   {proj.id.slice(0, 12)}
                 </span>
                 {currentProject?.id === proj.id && (
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Active</span>
+                  <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider">Active</span>
                 )}
               </div>
-              <h3 className="text-sm font-bold text-white mb-1">{proj.name}</h3>
+              <h3 className="text-sm font-semibold text-white mb-1">{proj.name}</h3>
               <p className="text-xs text-slate-400 mb-4 line-clamp-2">{proj.description || 'No description provided'}</p>
 
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-800/70 flex items-center justify-between">
                 <button
                   onClick={() => selectProject(proj)}
                   className={`text-xs font-medium px-3 py-1 rounded transition-colors ${
                     currentProject?.id === proj.id
-                      ? 'bg-cyan-600 text-white'
+                      ? 'bg-sky-600 text-white'
                       : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                   }`}
                 >
@@ -329,24 +329,24 @@ export const ProjectsPage = () => {
 
       {/* TAB 3: MEMBERS */}
       {activeTab === 'members' && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 shadow-xl">
+        <div className="rounded-md bg-[#0e1420] border border-slate-800 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Organization Members</h3>
-              <p className="text-[10px] text-slate-400">Team members with workspace access</p>
+              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Organization Members</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">Team members with workspace access</p>
             </div>
             <button
               onClick={() => setShowMemberModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium transition-colors shadow-sm"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Invite Member</span>
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded border border-slate-800">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800">
+              <thead className="bg-[#0a0e17] text-slate-400 font-mono text-[10px] uppercase tracking-wider border-b border-slate-800">
                 <tr>
                   <th className="py-2.5 px-4">User</th>
                   <th className="py-2.5 px-4">Email</th>
@@ -355,13 +355,13 @@ export const ProjectsPage = () => {
                   <th className="py-2.5 px-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/50">
+              <tbody className="divide-y divide-slate-800/60 bg-[#0e1420]">
                 {members.map((m) => (
-                  <tr key={m.id || m.user_id} className="hover:bg-slate-800/40">
+                  <tr key={m.id || m.user_id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="py-2.5 px-4 font-semibold text-white">{m.full_name || 'Team Member'}</td>
                     <td className="py-2.5 px-4 font-mono text-slate-300">{m.email}</td>
                     <td className="py-2.5 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-800 text-cyan-400">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-800 text-sky-400">
                         {m.role || 'member'}
                       </span>
                     </td>
@@ -388,9 +388,9 @@ export const ProjectsPage = () => {
 
       {/* Modal: New Key Created (Raw Key Display - Shown Once) */}
       {showNewKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex items-center space-x-2 text-emerald-400 font-bold mb-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="bg-[#0e1420] border border-slate-800 rounded-md p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center space-x-2 text-emerald-400 font-semibold mb-2">
               <Key className="w-5 h-5" />
               <span>{newKeyRaw ? 'API Key Generated' : 'Create API Key'}</span>
             </div>
@@ -399,9 +399,9 @@ export const ProjectsPage = () => {
               <div className="space-y-4">
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Please copy this key now. For your security,{' '}
-                  <span className="text-amber-400 font-semibold">it will never be displayed again</span>.
+                  <span className="text-amber-400 font-medium">it will never be displayed again</span>.
                 </p>
-                <div className="p-3 rounded-lg bg-slate-950 border border-cyan-800/60 font-mono text-xs text-cyan-300 break-all select-all flex items-center justify-between">
+                <div className="p-3 rounded bg-[#070a10] border border-sky-800/50 font-mono text-xs text-sky-300 break-all select-all flex items-center justify-between">
                   <span>{newKeyRaw}</span>
                   <button
                     onClick={() => copyToClipboard(newKeyRaw, 'modal_key')}
@@ -416,7 +416,7 @@ export const ProjectsPage = () => {
                       setShowNewKeyModal(false);
                       setNewKeyRaw(null);
                     }}
-                    className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white"
+                    className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 text-xs font-medium text-white shadow-sm"
                   >
                     I Have Saved This Key
                   </button>
@@ -432,7 +432,7 @@ export const ProjectsPage = () => {
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
                     placeholder="e.g. Production Ingestion Key"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-[#070a10] border border-slate-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-2">
@@ -446,7 +446,7 @@ export const ProjectsPage = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-lg"
+                    className="px-4 py-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium rounded shadow-sm"
                   >
                     {loading ? 'Generating...' : 'Generate Key'}
                   </button>
@@ -459,11 +459,11 @@ export const ProjectsPage = () => {
 
       {/* Modal: Invite Member */}
       {showMemberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-base font-bold text-white mb-2">Invite Organization Member</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="bg-[#0e1420] border border-slate-800 rounded-md p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-sm font-semibold text-white mb-1">Invite Organization Member</h3>
             <p className="text-xs text-slate-400 mb-4">
-              Add a teammate to <span className="text-cyan-400 font-semibold">{currentOrg?.name}</span>.
+              Add a teammate to <span className="text-sky-400 font-medium">{currentOrg?.name}</span>.
             </p>
             <form onSubmit={handleInviteMember} className="space-y-4">
               <div>
@@ -474,7 +474,7 @@ export const ProjectsPage = () => {
                   placeholder="colleague@company.com"
                   value={memberEmail}
                   onChange={(e) => setMemberEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-[#070a10] border border-slate-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div>
@@ -482,7 +482,7 @@ export const ProjectsPage = () => {
                 <select
                   value={memberRole}
                   onChange={(e) => setMemberRole(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-[#070a10] border border-slate-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 >
                   <option value="member">Member (View & Investigate)</option>
                   <option value="admin">Admin (Manage Keys & Webhooks)</option>
@@ -500,7 +500,7 @@ export const ProjectsPage = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-lg"
+                  className="px-4 py-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium rounded shadow-sm"
                 >
                   Send Invitation
                 </button>

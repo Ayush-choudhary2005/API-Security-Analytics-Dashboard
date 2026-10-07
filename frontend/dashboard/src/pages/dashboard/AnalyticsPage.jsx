@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  BarChart3,
-  TrendingUp,
-  Activity,
-  AlertTriangle,
-  Calendar,
-  Filter,
   RefreshCw,
 } from 'lucide-react';
 import {
@@ -79,11 +73,11 @@ export const AnalyticsPage = () => {
       ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Security & Performance Analytics</h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <h1 className="text-lg font-bold text-white tracking-tight">Security and Performance Analytics</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
             Historical request velocity, anomaly occurrences, and latency trends for {currentProject?.name}.
           </p>
         </div>
@@ -91,7 +85,7 @@ export const AnalyticsPage = () => {
         <button
           onClick={fetchAnalytics}
           disabled={loading}
-          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition-colors"
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#0e1420] hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition-colors"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Data</span>
@@ -99,78 +93,68 @@ export const AnalyticsPage = () => {
       </div>
 
       {/* Latency & Requests Trends */}
-      <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
+      <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Request Velocity vs Anomalies</h3>
-            <p className="text-[10px] text-slate-400">Total volume matched against machine learning anomaly detections</p>
+            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Request Velocity vs Anomalies</h3>
+            <p className="text-[11px] text-slate-400">Total volume matched against machine learning anomaly detections</p>
           </div>
         </div>
-        <div className="h-72">
+        <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="anomGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="reqGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="time" stroke="#64748b" fontSize={10} />
-              <YAxis stroke="#64748b" fontSize={10} />
+              <CartesianGrid strokeDasharray="2 2" stroke="#1e293b" />
+              <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
+              <YAxis stroke="#475569" fontSize={10} tickLine={false} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '6px', fontSize: '11px' }}
+                contentStyle={{ backgroundColor: '#0e1420', borderColor: '#1e293b', borderRadius: '4px', fontSize: '11px' }}
               />
-              <Legend wrapperStyle={{ fontSize: '10px' }} />
-              <Area type="monotone" dataKey="requests" stroke="#06b6d4" fill="url(#reqGrad)" name="Total Requests" />
-              <Area type="monotone" dataKey="anomalies" stroke="#f43f5e" fill="url(#anomGrad)" name="Anomalies Flagged" />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              <Area type="monotone" dataKey="requests" stroke="#38bdf8" strokeWidth={1.5} fill="#38bdf8" fillOpacity={0.04} name="Total Requests" />
+              <Area type="monotone" dataKey="anomalies" stroke="#f43f5e" strokeWidth={1.5} fill="#f43f5e" fillOpacity={0.12} name="Anomalies Flagged" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Latency Percentiles */}
-        <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 shadow-xl">
-          <div className="mb-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Average Latency Profile</h3>
-            <p className="text-[10px] text-slate-400">Response latency in milliseconds across observation windows</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Latency Profile */}
+        <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Average Latency Profile</h3>
+            <p className="text-[11px] text-slate-400">Response latency in milliseconds across observation windows</p>
           </div>
-          <div className="h-64">
+          <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="time" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} unit="ms" />
+                <CartesianGrid strokeDasharray="2 2" stroke="#1e293b" />
+                <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
+                <YAxis stroke="#475569" fontSize={10} unit="ms" tickLine={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '6px', fontSize: '11px' }}
+                  contentStyle={{ backgroundColor: '#0e1420', borderColor: '#1e293b', borderRadius: '4px', fontSize: '11px' }}
                 />
-                <Line type="monotone" dataKey="avgLatency" stroke="#a78bfa" strokeWidth={2} dot={false} name="Avg Latency (ms)" />
+                <Line type="monotone" dataKey="avgLatency" stroke="#818cf8" strokeWidth={1.5} dot={false} name="Avg Latency (ms)" />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Attack Type Frequency */}
-        <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 shadow-xl">
-          <div className="mb-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Attack Category Breakdown</h3>
-            <p className="text-[10px] text-slate-400">Cumulative count of flagged signatures</p>
+        <div className="p-4 rounded-md bg-[#0e1420] border border-slate-800">
+          <div className="mb-3">
+            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider">Attack Category Breakdown</h3>
+            <p className="text-[11px] text-slate-400">Cumulative count of flagged signatures</p>
           </div>
-          <div className="h-64">
+          <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={attackTypes} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis type="number" stroke="#64748b" fontSize={10} />
-                <YAxis dataKey="type" type="category" stroke="#64748b" fontSize={9} width={100} />
+                <CartesianGrid strokeDasharray="2 2" stroke="#1e293b" />
+                <XAxis type="number" stroke="#475569" fontSize={10} tickLine={false} />
+                <YAxis dataKey="type" type="category" stroke="#475569" fontSize={9} width={90} tickLine={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '6px', fontSize: '11px' }}
+                  contentStyle={{ backgroundColor: '#0e1420', borderColor: '#1e293b', borderRadius: '4px', fontSize: '11px' }}
                 />
-                <Bar dataKey="count" fill="#06b6d4" radius={[0, 4, 4, 0]} name="Occurrences" />
+                <Bar dataKey="count" fill="#38bdf8" radius={[0, 2, 2, 0]} name="Occurrences" />
               </BarChart>
             </ResponsiveContainer>
           </div>

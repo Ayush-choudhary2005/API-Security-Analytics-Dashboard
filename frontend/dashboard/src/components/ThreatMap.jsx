@@ -18,7 +18,7 @@ export const ThreatMap = ({ threats = [] }) => {
   const center = [25.0, 10.0];
 
   return (
-    <div className="w-full h-80 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative">
+    <div className="w-full h-80 rounded-md overflow-hidden border border-slate-800 bg-[#070a10] relative">
       <MapContainer
         center={center}
         zoom={2}
@@ -34,7 +34,7 @@ export const ThreatMap = ({ threats = [] }) => {
         {threats.map((threat, idx) => {
           const coords = getCoordinatesForIP(threat.ip || threat.source_ip, threat.metadata);
           const isCritical = threat.severity === 'critical' || threat.severity === 'high';
-          const color = isCritical ? '#f43f5e' : '#06b6d4';
+          const color = isCritical ? '#f43f5e' : '#38bdf8';
 
           return (
             <CircleMarker
@@ -51,7 +51,7 @@ export const ThreatMap = ({ threats = [] }) => {
               <Popup>
                 <div className="text-xs space-y-1">
                   <p className="font-bold text-white uppercase tracking-wider">{threat.attack_type || 'Threat Anomaly'}</p>
-                  <p className="font-mono text-cyan-400">IP: {threat.ip || threat.source_ip || 'Unknown'}</p>
+                  <p className="font-mono text-sky-400">IP: {threat.ip || threat.source_ip || 'Unknown'}</p>
                   <p className="text-slate-300">Endpoint: {threat.endpoint || '/api'}</p>
                   <p className="text-slate-400">Score: {threat.anomaly_score?.toFixed ? threat.anomaly_score.toFixed(2) : threat.anomaly_score}</p>
                 </div>
@@ -60,13 +60,13 @@ export const ThreatMap = ({ threats = [] }) => {
           );
         })}
       </MapContainer>
-      <div className="absolute bottom-2 left-2 z-[400] bg-slate-900/90 border border-slate-700/80 rounded px-2.5 py-1 text-[10px] font-mono text-slate-300 flex items-center space-x-3">
+      <div className="absolute bottom-2 left-2 z-[400] bg-[#0e1420]/95 border border-slate-800 rounded px-2.5 py-1 text-[10px] font-mono text-slate-300 flex items-center space-x-3 shadow">
         <span className="flex items-center space-x-1">
           <span className="w-2 h-2 rounded-full bg-rose-500"></span>
           <span>High / Critical</span>
         </span>
         <span className="flex items-center space-x-1">
-          <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+          <span className="w-2 h-2 rounded-full bg-sky-400"></span>
           <span>Anomaly</span>
         </span>
       </div>

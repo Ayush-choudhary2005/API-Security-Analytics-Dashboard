@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Shield, Info } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Info } from 'lucide-react';
 import { AuthLayout } from '../../layouts/AuthLayout';
 import { useAuth } from '../../context/AuthContext';
 
@@ -69,14 +69,14 @@ export const LoginPage = () => {
       subtitle="Access your API security analytics console and active defense monitors."
     >
       {linkingNotice && (
-        <div className="mb-4 p-3 rounded-lg bg-cyan-950/60 border border-cyan-800/80 text-cyan-200 text-xs flex items-center space-x-2">
+        <div className="mb-4 p-2.5 rounded bg-sky-950/40 border border-sky-800/60 text-sky-200 text-xs flex items-center space-x-2">
           <Info className="w-4 h-4 flex-shrink-0" />
           <span>{linkingNotice}</span>
         </div>
       )}
 
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center space-x-2">
+        <div className="mb-4 p-2.5 rounded bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
@@ -86,9 +86,9 @@ export const LoginPage = () => {
       <button
         type="button"
         onClick={handleGoogleLogin}
-        className="w-full flex items-center justify-center space-x-2.5 py-2.5 px-4 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-xs font-medium text-slate-200 transition-colors shadow-sm mb-5"
+        className="w-full flex items-center justify-center space-x-2 py-2 px-3 rounded bg-[#090d16] hover:bg-slate-800/60 border border-slate-800 text-xs font-medium text-slate-200 transition-colors mb-4"
       >
-        <svg className="w-4 h-4" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
           <path
             fill="#4285F4"
             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -109,27 +109,27 @@ export const LoginPage = () => {
         <span>Continue with Google</span>
       </button>
 
-      <div className="relative my-5">
+      <div className="relative my-4">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-slate-800" />
         </div>
-        <div className="relative flex justify-center text-xs">
-          <span className="bg-slate-900 px-3 text-slate-500 font-mono">OR EMAIL</span>
+        <div className="relative flex justify-center text-[10px]">
+          <span className="bg-[#0e1420] px-2 text-slate-500 font-mono uppercase">OR EMAIL</span>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         <div>
           <label className="block text-xs font-medium text-slate-300 mb-1">Work Email</label>
           <div className="relative">
-            <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <Mail className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="jane@company.com"
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="w-full bg-[#090d16] border border-slate-800 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
             />
           </div>
         </div>
@@ -137,26 +137,26 @@ export const LoginPage = () => {
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-medium text-slate-300">Password</label>
-            <Link to="/forgot-password" className="text-xs text-cyan-400 hover:underline">
+            <Link to="/forgot-password" className="text-xs text-sky-400 hover:underline">
               Forgot password?
             </Link>
           </div>
           <div className="relative">
-            <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <Lock className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
             <input
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-9 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              placeholder="Enter password"
+              className="w-full bg-[#090d16] border border-slate-800 rounded pl-8 pr-9 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+              className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
             >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
@@ -164,17 +164,17 @@ export const LoginPage = () => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-2 flex items-center justify-center space-x-2 py-2.5 px-4 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-xs font-medium text-white transition-all shadow-md shadow-cyan-600/20"
+          className="w-full mt-2 flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-xs font-medium text-white transition-colors"
         >
           <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </form>
 
-      <div className="mt-6 pt-5 border-t border-slate-800 text-center">
+      <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
         <p className="text-xs text-slate-400">
           Don't have an account?{' '}
-          <Link to="/signup" className="text-cyan-400 font-medium hover:underline">
+          <Link to="/signup" className="text-sky-400 font-medium hover:underline">
             Create account
           </Link>
         </p>
