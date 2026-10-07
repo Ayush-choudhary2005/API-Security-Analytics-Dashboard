@@ -73,9 +73,9 @@ class SensitiveDataRedactor(logging.Filter):
         
         if record.args:
             if isinstance(record.args, dict):
-                record.args = {k: redact_secrets(str(v)) for k, v in record.args.items()}
+                record.args = {k: (redact_secrets(v) if isinstance(v, str) else v) for k, v in record.args.items()}
             elif isinstance(record.args, (list, tuple)):
-                record.args = tuple(redact_secrets(str(arg)) for arg in record.args)
+                record.args = tuple((redact_secrets(arg) if isinstance(arg, str) else arg) for arg in record.args)
         return True
 
 
@@ -101,8 +101,8 @@ class DevelopmentFormatter(logging.Formatter):
     """Readable colored log formatter for local development."""
 
     def format(self, record: logging.LogRecord) -> str:
-        record.msg = redact_secrets(str(record.msg))
-        return super().format(record)
+        formatted = super().format(record)
+        return redact_secrets(formatted)
 
 
 def configure_logging(app=None, env: str = None) -> logging.Logger:

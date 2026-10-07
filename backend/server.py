@@ -41,7 +41,7 @@ from integrations.service import notification_service
 from config import get_config
 import logging_config
 
-DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "..", "dashboard")
+DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend", "dashboard", "dist")
 
 # Initialize app from environment profile
 app_cfg = get_config()
@@ -168,14 +168,25 @@ def handle_leave_project(data):
 # Static / Health Routes
 # ---------------------------------------------------------
 
+@app.route("/assets/<path:path>", methods=["GET"])
+def static_assets(path):
+    assets_dir = os.path.join(DASHBOARD_DIR, "assets")
+    if os.path.exists(assets_dir):
+        return send_from_directory(assets_dir, path)
+    return jsonify({"error": "Asset not found"}), 404
+
+
+@app.route("/dashboard", methods=["GET"])
 @app.route("/login", methods=["GET"])
 @app.route("/signup", methods=["GET"])
 @app.route("/forgot-password", methods=["GET"])
 @app.route("/reset-password", methods=["GET"])
 @app.route("/verify-email", methods=["GET"])
 @app.route("/account", methods=["GET"])
+@app.route("/app", methods=["GET"])
+@app.route("/app/<path:path>", methods=["GET"])
 @app.route("/", methods=["GET"])
-def dashboard():
+def dashboard(path=None):
     return send_from_directory(DASHBOARD_DIR, "index.html")
 
 

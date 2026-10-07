@@ -14,6 +14,14 @@ def hash_password(password: str) -> str:
     return generate_password_hash(password)
 
 
+def hash_token(token: str) -> str:
+    """Hash single-use verification/reset tokens using SHA-256."""
+    import hashlib
+    if not token or not isinstance(token, str):
+        return ""
+    return hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+
+
 def verify_password(password_hash: str, password: str) -> bool:
     """Verify password against stored hash."""
     if not password_hash or not password or password_hash.startswith("!oauth_"):

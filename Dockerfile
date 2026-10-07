@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application directories
 COPY backend/ ./backend/
-COPY dashboard/ ./dashboard/
+COPY frontend/dashboard/dist/ ./frontend/dashboard/dist/
 COPY sdk/ ./sdk/
 COPY gunicorn_config.py .
 

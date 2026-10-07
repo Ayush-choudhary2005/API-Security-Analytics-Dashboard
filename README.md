@@ -610,8 +610,8 @@ API-Security-Analytics-Dashboard/
 │   └── test_google_oauth_suite.py # 14-scenario Google OAuth verification suite
 ├── sdk/
 │   └── middleware.py           # Zero-Latency asynchronous Python SDK
-├── dashboard/
-│   └── index.html              # Real-time cyberpunk dashboard & authentication UI
+├── frontend/
+│   └── dashboard/              # Production React + Vite SaaS Frontend Application
 ├── demo/
 │   ├── sample_app.py           # Instrumented mock E-Commerce API (Port 5002)
 │   └── generators.py           # Realistic attack & normal traffic simulation suite
