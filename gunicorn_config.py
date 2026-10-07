@@ -9,12 +9,11 @@ import multiprocessing
 bind = f"0.0.0.0:{os.environ.get('PORT', '5001')}"
 
 # Worker processes & threading
-# Flask-SocketIO REQUIRES eventlet or gevent worker for WebSocket support.
-# With eventlet, workers MUST be 1 — eventlet handles concurrency internally.
-# Multiple workers would break WebSocket room routing and session state.
+# Flask-SocketIO with simple-websocket uses standard gthread worker.
+# workers is kept at 1 to preserve WebSocket room state without Redis.
 workers = 1
-worker_class = os.environ.get("GUNICORN_WORKER_CLASS", "eventlet")
-threads = 1
+worker_class = os.environ.get("GUNICORN_WORKER_CLASS", "gthread")
+threads = int(os.environ.get("GUNICORN_THREADS", 8))
 worker_connections = 1000
 
 # Timeouts & Request Lifetime
