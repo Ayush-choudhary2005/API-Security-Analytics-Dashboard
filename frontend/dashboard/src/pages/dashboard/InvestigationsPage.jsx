@@ -30,7 +30,8 @@ export const InvestigationsPage = () => {
   useEffect(() => {
     if (!currentProject?.id) return;
     telemetryService.getAlerts(currentProject.id, 20).then((res) => {
-      const list = res.data?.alerts || [];
+      const raw = res.data;
+      const list = Array.isArray(raw) ? raw : (raw?.alerts || []);
       setAlerts(list);
       if (!selectedAlertId && list.length > 0) {
         setSelectedAlertId(list[0].id);

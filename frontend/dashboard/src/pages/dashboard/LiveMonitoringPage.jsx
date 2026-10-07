@@ -29,7 +29,9 @@ export const LiveMonitoringPage = () => {
     telemetryService
       .getRecentEvents(currentProject.id, 50)
       .then((res) => {
-        setEvents(res.data?.events || []);
+        const raw = res.data;
+        const list = Array.isArray(raw) ? raw : (raw?.events || []);
+        setEvents(list);
       })
       .catch((err) => console.error('Failed to load initial events:', err));
   }, [currentProject?.id]);

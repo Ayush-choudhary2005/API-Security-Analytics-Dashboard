@@ -66,10 +66,22 @@ export const OverviewPage = () => {
       ]);
 
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
-      if (eventsRes.status === 'fulfilled') setEvents(eventsRes.value.data?.events || []);
-      if (alertsRes.status === 'fulfilled') setAlerts(alertsRes.value.data?.alerts || []);
-      if (blockedRes.status === 'fulfilled') setBlockedIPs(blockedRes.value.data?.blocked_ips || []);
-      if (histRes.status === 'fulfilled') setHistoryData(histRes.value.data?.history || []);
+      if (eventsRes.status === 'fulfilled') {
+        const val = eventsRes.value.data;
+        setEvents(Array.isArray(val) ? val : (val?.events || []));
+      }
+      if (alertsRes.status === 'fulfilled') {
+        const val = alertsRes.value.data;
+        setAlerts(Array.isArray(val) ? val : (val?.alerts || []));
+      }
+      if (blockedRes.status === 'fulfilled') {
+        const val = blockedRes.value.data;
+        setBlockedIPs(Array.isArray(val) ? val : (val?.blocked_ips || []));
+      }
+      if (histRes.status === 'fulfilled') {
+        const val = histRes.value.data;
+        setHistoryData(Array.isArray(val) ? val : (val?.timeline || val?.history || []));
+      }
     } catch (err) {
       console.error('Error loading dashboard overview:', err);
     } finally {

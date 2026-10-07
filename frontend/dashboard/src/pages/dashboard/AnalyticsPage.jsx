@@ -39,7 +39,8 @@ export const AnalyticsPage = () => {
         telemetryService.getHistory(currentProject.id),
         telemetryService.getAlertStats(currentProject.id),
       ]);
-      setHistory(histRes.data?.history || []);
+      const hist = histRes.data;
+      setHistory(Array.isArray(hist) ? hist : (hist?.timeline || hist?.history || []));
       setStats(statsRes.data || null);
     } catch (err) {
       console.error('Error loading analytics:', err);
@@ -54,9 +55,9 @@ export const AnalyticsPage = () => {
 
   const chartData = history.length > 0
     ? history.map((item, i) => ({
-        time: item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `Bin ${i + 1}`,
-        requests: item.total_requests || (item.count || 1),
-        anomalies: item.anomalies_detected || 0,
+        time: item.minute || (item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `Bin ${i + 1}`),
+        requests: item.total || item.total_requests || (item.count || 1),
+        anomalies: item.attacks !== undefined ? item.attacks : (item.anomalies_detected || 0),
         avgLatency: Math.round(item.avg_latency || 12),
       }))
     : Array.from({ length: 15 }, (_, i) => ({

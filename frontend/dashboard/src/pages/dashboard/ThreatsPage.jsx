@@ -40,8 +40,10 @@ export const ThreatsPage = () => {
         telemetryService.getAlerts(currentProject.id, 50),
         telemetryService.getBlockedIPs(currentProject.id),
       ]);
-      setAlerts(alertsRes.data?.alerts || []);
-      setBlockedIPs(blockedRes.data?.blocked_ips || []);
+      const rawAlerts = alertsRes.data;
+      setAlerts(Array.isArray(rawAlerts) ? rawAlerts : (rawAlerts?.alerts || []));
+      const rawBlocked = blockedRes.data;
+      setBlockedIPs(Array.isArray(rawBlocked) ? rawBlocked : (rawBlocked?.blocked_ips || []));
     } catch (err) {
       console.error('Error fetching threats:', err);
     } finally {

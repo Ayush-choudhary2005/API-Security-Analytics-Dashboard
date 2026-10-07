@@ -52,12 +52,12 @@ export const projectService = {
 
 export const telemetryService = {
   getRecentEvents: (projectId, limit = 50) => api.get(`/events/recent?project_id=${projectId}&limit=${limit}`),
-  getAlerts: (projectId, limit = 50) => api.get(`/alerts?project_id=${projectId}&limit=${limit}`),
+  getAlerts: (projectId, limit = 50) => api.get(`/alerts/recent?project_id=${projectId}&limit=${limit}`),
   getAlertStats: (projectId) => api.get(`/alerts/stats?project_id=${projectId}`),
   getHistory: (projectId) => api.get(`/history?project_id=${projectId}`),
-  getBlockedIPs: (projectId) => api.get(`/blocked?project_id=${projectId}`),
-  blockIP: (data) => api.post('/blocked', data),
-  unblockIP: (data) => api.post('/unblock', data),
+  getBlockedIPs: (projectId) => api.get(`/blocked-ips?project_id=${projectId}`),
+  blockIP: (data) => api.post('/block-ip', data),
+  unblockIP: (data) => api.post('/unblock-ip', data),
 };
 
 export const onboardingService = {
