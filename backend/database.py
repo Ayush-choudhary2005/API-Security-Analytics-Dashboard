@@ -113,7 +113,7 @@ class CursorWrapper:
                 match = re.search(r'INSERT\s+INTO\s+([a-zA-Z0-9_]+)', translated_sql, flags=re.IGNORECASE)
                 if match:
                     table_name = match.group(1).lower()
-                    if table_name in ("events", "api_keys", "webhook_configs", "schema_migrations"):
+                    if table_name in ("events", "api_keys", "webhook_configs"):
                         translated_sql = f"{translated_sql} RETURNING id"
                         has_returning = True
 
