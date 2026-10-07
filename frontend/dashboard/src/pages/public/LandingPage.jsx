@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Shield,
   ArrowRight,
@@ -23,8 +23,18 @@ import {
 import { PublicLayout } from '../../layouts/PublicLayout';
 
 export const LandingPage = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [activeFramework, setActiveFramework] = useState('flask');
+
+  useEffect(() => {
+    const oauthError = searchParams.get('error');
+    const linkRequired = searchParams.get('link_required');
+    if (oauthError || linkRequired) {
+      navigate(`/login?${searchParams.toString()}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const copyCode = (code) => {
     navigator.clipboard.writeText(code);
