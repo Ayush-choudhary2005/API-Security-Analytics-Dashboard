@@ -12,204 +12,35 @@ import time
 import uuid
 import secrets
 import hashlib
+import re
 from threading import Lock
 from werkzeug.security import generate_password_hash
 
+import database
+import migrations
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "events.db")
 _lock = Lock()
+transaction = database.transaction
 
 
 def get_conn():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.row_factory = sqlite3.Row
-    return conn
+    return database.get_connection()
 
 
 def init_db():
-    """Create all required tables if they don't exist. Safe to call on startup."""
+    """Create all required tables, columns, and indexes via migrations engine. Safe on startup."""
     with _lock:
-        conn = get_conn()
-        
-        # 1. Users table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                updated_at REAL
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
-
-        # Ensure SaaS authentication columns exist in users table
-        cursor_u = conn.execute("PRAGMA table_info(users)")
-        u_cols = [row["name"] for row in cursor_u.fetchall()]
-        if "updated_at" not in u_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN updated_at REAL DEFAULT NULL")
-        if "email_verified" not in u_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0")
-        if "name" not in u_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''")
-        if "password_changed_at" not in u_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN password_changed_at REAL DEFAULT NULL")
-        if "last_login_at" not in u_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN last_login_at REAL DEFAULT NULL")
-
-        # 1.1 Auth Identities table (Federated OAuth providers e.g. Google)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS auth_identities (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                provider_user_id TEXT NOT NULL,
-                provider_email TEXT,
-                created_at REAL NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-                UNIQUE(provider, provider_user_id)
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities(user_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_identities_provider ON auth_identities(provider, provider_user_id)")
-
-        # 1.2 Email Verification Tokens (Single-use, hashed at rest)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS email_verification_tokens (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                token_hash TEXT UNIQUE NOT NULL,
-                created_at REAL NOT NULL,
-                expires_at REAL NOT NULL,
-                used_at REAL DEFAULT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_evt_hash ON email_verification_tokens(token_hash)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_evt_user ON email_verification_tokens(user_id)")
-
-        # 1.3 Password Reset Tokens (Single-use, hashed at rest)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                token_hash TEXT UNIQUE NOT NULL,
-                created_at REAL NOT NULL,
-                expires_at REAL NOT NULL,
-                used_at REAL DEFAULT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_prt_hash ON password_reset_tokens(token_hash)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_prt_user ON password_reset_tokens(user_id)")
-
-        # 2. Projects table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS projects (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                description TEXT DEFAULT '',
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id)")
-
-        # 3. API Keys table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS api_keys (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id TEXT NOT NULL,
-                name TEXT NOT NULL DEFAULT 'Default Key',
-                key_prefix TEXT NOT NULL,
-                key_hash TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                revoked_at REAL,
-                last_used_at REAL,
-                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_api_keys_project ON api_keys(project_id)")
-
-        # 4. Webhook Configurations table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS webhook_configs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id TEXT NOT NULL,
-                provider TEXT NOT NULL DEFAULT 'slack',
-                webhook_url TEXT NOT NULL,
-                enabled INTEGER DEFAULT 1,
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL,
-                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_webhook_project ON webhook_configs(project_id)")
-
-        # 5. Events table (Existing telemetry and alerts store)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp REAL NOT NULL,
-                endpoint TEXT NOT NULL,
-                method TEXT NOT NULL,
-                status_code INTEGER NOT NULL,
-                latency_ms REAL NOT NULL,
-                ip TEXT NOT NULL,
-                user_id TEXT,
-                payload_size INTEGER NOT NULL,
-                rule_flags TEXT,
-                anomaly_score REAL,
-                severity TEXT,
-                tenant_id TEXT DEFAULT 'default'
-            )
-            """
-        )
-        
-        # Backward-compatible column migration: add project_id if missing
-        cursor = conn.execute("PRAGMA table_info(events)")
-        columns = [row["name"] for row in cursor.fetchall()]
-        if "project_id" not in columns:
-            conn.execute("ALTER TABLE events ADD COLUMN project_id TEXT DEFAULT 'default'")
-            conn.execute("UPDATE events SET project_id = tenant_id WHERE project_id = 'default'")
-
-        # Create indexes for fast project & IP queries
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_project ON events(project_id, timestamp)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tenant ON events(tenant_id, timestamp)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ip ON events(ip, timestamp)")
-
-        # 6. Automatic Seed for Default Demo Project & Compatibility
-        _seed_default_demo_account(conn)
-
-        conn.commit()
-        conn.close()
+        migrations.run_migrations()
 
 
 def _seed_default_demo_account(conn):
-    """Seed demo user, project, and API key for seamless backwards compatibility."""
-    # Check if demo user exists
+    """Seed demo user, organization, project, and API key for seamless backwards compatibility."""
+    now = time.time()
+    # 1. Check if demo user exists
     user_row = conn.execute("SELECT id FROM users WHERE email = 'demo@mlo11y.local'").fetchone()
     if not user_row:
         user_id = "usr_demo_default"
-        now = time.time()
         conn.execute(
             "INSERT INTO users (id, email, password_hash, created_at, email_verified, name) VALUES (?, ?, ?, ?, 1, 'Demo Operator')",
             (user_id, "demo@mlo11y.local", generate_password_hash("demopassword123"), now)
@@ -218,34 +49,48 @@ def _seed_default_demo_account(conn):
         user_id = user_row["id"]
         conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
 
-    # Check if demo project exists
+    # 2. Check if demo organization exists
+    org_id = "org_demo_default"
+    org_row = conn.execute("SELECT id FROM organizations WHERE id = ?", (org_id,)).fetchone()
+    if not org_row:
+        conn.execute(
+            "INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (org_id, "Acme Corporation", "acme-corp", now, now)
+        )
+    # Ensure demo user is owner member in demo organization
+    mem_row = conn.execute("SELECT id FROM organization_members WHERE organization_id = ? AND user_id = ?", (org_id, user_id)).fetchone()
+    if not mem_row:
+        conn.execute(
+            "INSERT INTO organization_members (id, organization_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', ?)",
+            (f"mem_{uuid.uuid4().hex[:12]}", org_id, user_id, now)
+        )
+
+    # 3. Check if demo project exists
     proj_row = conn.execute("SELECT id FROM projects WHERE id = 'phase1-demo-token' OR id = 'proj_demo_default'").fetchone()
     if not proj_row:
         proj_id = "proj_demo_default"
-        now = time.time()
         conn.execute(
-            "INSERT INTO projects (id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (proj_id, user_id, "Demo E-Commerce Project", "Pre-configured demo application", now, now)
+            "INSERT INTO projects (id, organization_id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (proj_id, org_id, user_id, "Demo E-Commerce Project", "Pre-configured demo application", now, now)
         )
     else:
         proj_id = proj_row["id"]
+        conn.execute("UPDATE projects SET organization_id = ? WHERE id = ? AND (organization_id IS NULL OR organization_id = '')", (org_id, proj_id))
 
-    # Check if phase1-demo-token API key exists
+    # 4. Check if phase1-demo-token API key exists
     demo_key_hash = hashlib.sha256(b"phase1-demo-token").hexdigest()
     key_row = conn.execute("SELECT id FROM api_keys WHERE key_hash = ?", (demo_key_hash,)).fetchone()
     if not key_row:
-        now = time.time()
         conn.execute(
             "INSERT INTO api_keys (project_id, name, key_prefix, key_hash, created_at) VALUES (?, ?, ?, ?, ?)",
             (proj_id, "Demo Ingest Key", "phase1", demo_key_hash, now)
         )
 
-    # Optional: seed global SLACK_WEBHOOK_URL into demo project if set in environment
+    # 5. Optional: seed global SLACK_WEBHOOK_URL into demo project if set in environment
     env_slack = os.environ.get("SLACK_WEBHOOK_URL", "")
     if env_slack:
         hook_row = conn.execute("SELECT id FROM webhook_configs WHERE project_id = ?", (proj_id,)).fetchone()
         if not hook_row:
-            now = time.time()
             conn.execute(
                 "INSERT INTO webhook_configs (project_id, provider, webhook_url, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (proj_id, "slack", env_slack, 1, now, now)
@@ -620,14 +465,17 @@ def link_identity(user_id: str, provider: str, provider_user_id: str, provider_e
 def create_user_with_identity(email: str, provider: str, provider_user_id: str, provider_email: str = None) -> dict:
     """
     Create a new internal user directly linked to an OAuth identity (e.g. Google signup).
-    Also provisions a default project and primary SDK key.
+    Also provisions a default organization, default project, and primary SDK key.
     """
     norm_email = email.strip().lower()
     user = create_user(norm_email, password_hash=None)
     identity = link_identity(user["id"], provider, provider_user_id, provider_email or norm_email)
     
-    # Auto-provision default project and API key
-    default_proj = create_project(user["id"], name="Default Project", description="Primary security project")
+    # Auto-provision default organization
+    default_org = create_organization(user["id"], name="Default Workspace")
+
+    # Auto-provision default project in that organization
+    default_proj = create_project(user["id"], name="Default Project", description="Primary security project", organization_id=default_org["id"])
     key_info = create_api_key(default_proj["id"], name="Primary SDK Key")
     
     return {
@@ -635,6 +483,7 @@ def create_user_with_identity(email: str, provider: str, provider_user_id: str, 
         "email": user["email"],
         "created_at": user["created_at"],
         "updated_at": user.get("updated_at"),
+        "default_organization": default_org,
         "default_project": default_proj,
         "api_key": key_info["raw_key"],
         "identity": identity
@@ -642,23 +491,248 @@ def create_user_with_identity(email: str, provider: str, provider_user_id: str, 
 
 
 # ---------------------------------------------------------
+# Organization / Workspace Operations
+# ---------------------------------------------------------
+
+def create_organization(user_id: str, name: str, slug: str = None) -> dict:
+    """Create a new organization workspace and set the user as its owner."""
+    if not user_id or not name:
+        raise ValueError("user_id and organization name are required")
+
+    org_id = f"org_{uuid.uuid4().hex[:12]}"
+    clean_name = name.strip()
+    if not slug:
+        clean_slug = re.sub(r'[^a-zA-Z0-9]', '-', clean_name.lower()).strip('-') or "org"
+        slug = f"{clean_slug}-{org_id[-4:]}"
+    else:
+        slug = slug.strip().lower()
+
+    now = time.time()
+    member_id = f"mem_{uuid.uuid4().hex[:12]}"
+
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            "INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (org_id, clean_name, slug, now, now)
+        )
+        conn.execute(
+            "INSERT INTO organization_members (id, organization_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', ?)",
+            (member_id, org_id, user_id, now)
+        )
+        conn.commit()
+        conn.close()
+
+    return {
+        "id": org_id,
+        "name": clean_name,
+        "slug": slug,
+        "role": "owner",
+        "created_at": now,
+        "updated_at": now
+    }
+
+
+def get_organizations_by_user(user_id: str) -> list:
+    """List all organizations/workspaces the user belongs to with member and project counts."""
+    if not user_id:
+        return []
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT o.id, o.name, o.slug, o.created_at, o.updated_at, om.role,
+               (SELECT COUNT(*) FROM projects p WHERE p.organization_id = o.id) as project_count,
+               (SELECT COUNT(*) FROM organization_members m WHERE m.organization_id = o.id) as member_count
+        FROM organizations o
+        JOIN organization_members om ON o.id = om.organization_id
+        WHERE om.user_id = ?
+        ORDER BY o.created_at ASC
+        """,
+        (user_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_organization_by_id(organization_id: str) -> dict:
+    """Fetch details of an organization."""
+    if not organization_id:
+        return None
+    conn = get_conn()
+    row = conn.execute(
+        """
+        SELECT o.id, o.name, o.slug, o.created_at, o.updated_at,
+               (SELECT COUNT(*) FROM projects p WHERE p.organization_id = o.id) as project_count,
+               (SELECT COUNT(*) FROM organization_members m WHERE m.organization_id = o.id) as member_count
+        FROM organizations o
+        WHERE o.id = ?
+        """,
+        (organization_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def user_in_organization(user_id: str, organization_id: str) -> bool:
+    """Check if a user is a member of the given organization."""
+    if not user_id or not organization_id:
+        return False
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT 1 FROM organization_members WHERE user_id = ? AND organization_id = ?",
+        (user_id, organization_id)
+    ).fetchone()
+    conn.close()
+    return bool(row)
+
+
+def get_user_role_in_organization(user_id: str, organization_id: str) -> str:
+    """Return user's role in organization or None."""
+    if not user_id or not organization_id:
+        return None
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT role FROM organization_members WHERE user_id = ? AND organization_id = ?",
+        (user_id, organization_id)
+    ).fetchone()
+    conn.close()
+    return row["role"] if row else None
+
+
+def add_organization_member(organization_id: str, user_id: str, role: str = "member") -> dict:
+    """Add a user as a member of an organization."""
+    if not organization_id or not user_id:
+        raise ValueError("organization_id and user_id are required")
+    now = time.time()
+    member_id = f"mem_{uuid.uuid4().hex[:12]}"
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            """
+            INSERT INTO organization_members (id, organization_id, user_id, role, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(organization_id, user_id) DO UPDATE SET role = excluded.role
+            """,
+            (member_id, organization_id, user_id, role, now)
+        )
+        conn.commit()
+        conn.close()
+    return {
+        "id": member_id,
+        "organization_id": organization_id,
+        "user_id": user_id,
+        "role": role,
+        "created_at": now
+    }
+
+
+def remove_organization_member(organization_id: str, user_id: str) -> bool:
+    """Remove a user from an organization."""
+    with _lock:
+        conn = get_conn()
+        cur = conn.execute(
+            "DELETE FROM organization_members WHERE organization_id = ? AND user_id = ?",
+            (organization_id, user_id)
+        )
+        conn.commit()
+        affected = cur.rowcount
+        conn.close()
+    return affected > 0
+
+
+def get_organization_members(organization_id: str) -> list:
+    """List all members of an organization with user profile details."""
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT om.id, om.organization_id, om.user_id, om.role, om.created_at,
+               u.email, u.name, u.email_verified
+        FROM organization_members om
+        JOIN users u ON om.user_id = u.id
+        WHERE om.organization_id = ?
+        ORDER BY om.created_at ASC
+        """,
+        (organization_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_organization(user_id: str, organization_id: str) -> tuple:
+    """
+    Delete an organization if owned by user. Cascades to members, projects, keys, webhooks, events.
+    """
+    if get_user_role_in_organization(user_id, organization_id) != "owner":
+        return False, "Forbidden: only organization owners can delete an organization"
+
+    # Fetch all project IDs in this org
+    conn = get_conn()
+    proj_rows = conn.execute("SELECT id FROM projects WHERE organization_id = ?", (organization_id,)).fetchall()
+    proj_ids = [r["id"] for r in proj_rows]
+    conn.close()
+
+    with _lock:
+        conn = get_conn()
+        for pid in proj_ids:
+            conn.execute("DELETE FROM api_keys WHERE project_id = ?", (pid,))
+            conn.execute("DELETE FROM webhook_configs WHERE project_id = ?", (pid,))
+            conn.execute("DELETE FROM events WHERE project_id = ? OR tenant_id = ?", (pid, pid))
+            conn.execute("DELETE FROM projects WHERE id = ?", (pid,))
+
+        conn.execute("DELETE FROM organization_members WHERE organization_id = ?", (organization_id,))
+        conn.execute("DELETE FROM organizations WHERE id = ?", (organization_id,))
+        conn.commit()
+        conn.close()
+
+    return True, "Organization deleted successfully"
+
+
+# ---------------------------------------------------------
 # Project Operations
 # ---------------------------------------------------------
 
-def create_project(user_id: str, name: str, description: str = "", project_id: str = None) -> dict:
-    """Create a new project for a user."""
+def create_project(user_id: str, name: str, description: str = "", project_id: str = None, organization_id: str = None) -> dict:
+    """
+    Create a new project scoped to an organization.
+    Authorizes via organization membership.
+    """
+    if not user_id or not name:
+        raise ValueError("user_id and project name are required")
+
+    # If organization_id is provided, verify user is a member of that organization
+    if organization_id:
+        if not user_in_organization(user_id, organization_id):
+            raise PermissionError("Forbidden: user is not a member of this organization")
+        org_id = organization_id
+    else:
+        # Resolve to user's first organization or auto-provision one
+        user_orgs = get_organizations_by_user(user_id)
+        if user_orgs:
+            org_id = user_orgs[0]["id"]
+        else:
+            new_org = create_organization(user_id, name="Default Organization")
+            org_id = new_org["id"]
+
     pid = project_id or f"proj_{uuid.uuid4().hex[:12]}"
     now = time.time()
     with _lock:
         conn = get_conn()
         conn.execute(
-            "INSERT INTO projects (id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (pid, user_id, name.strip(), description.strip(), now, now),
+            "INSERT INTO projects (id, organization_id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (pid, org_id, user_id, name.strip(), description.strip(), now, now),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO project_onboarding (project_id, framework, current_step, completed_steps, status, created_at, updated_at) VALUES (?, 'flask', 1, '[]', 'in_progress', ?, ?)",
+            (pid, now, now)
         )
         conn.commit()
         conn.close()
+
+    org = get_organization_by_id(org_id)
     return {
         "id": pid,
+        "organization_id": org_id,
+        "organization_name": org["name"] if org else "",
         "user_id": user_id,
         "name": name.strip(),
         "description": description.strip(),
@@ -667,52 +741,122 @@ def create_project(user_id: str, name: str, description: str = "", project_id: s
     }
 
 
-def get_projects_by_user(user_id: str) -> list:
-    """List all projects owned by a user."""
+def get_projects_by_user(user_id: str, organization_id: str = None) -> list:
+    """
+    List all projects accessible to the user through organization membership or ownership.
+    Optionally filter by organization_id.
+    """
+    if not user_id:
+        return []
+
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM projects WHERE user_id = ? ORDER BY created_at ASC", (user_id,)
-    ).fetchall()
+    if organization_id:
+        if not user_in_organization(user_id, organization_id):
+            conn.close()
+            return []
+        rows = conn.execute(
+            """
+            SELECT p.*, o.name as organization_name 
+            FROM projects p
+            LEFT JOIN organizations o ON p.organization_id = o.id
+            WHERE p.organization_id = ?
+            ORDER BY p.created_at ASC
+            """,
+            (organization_id,)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT p.*, o.name as organization_name 
+            FROM projects p
+            LEFT JOIN organizations o ON p.organization_id = o.id
+            LEFT JOIN organization_members om ON p.organization_id = om.organization_id
+            WHERE om.user_id = ? OR p.user_id = ?
+            ORDER BY p.created_at ASC
+            """,
+            (user_id, user_id)
+        ).fetchall()
+
     conn.close()
     return [dict(r) for r in rows]
 
 
 def get_project_by_id(project_id: str) -> dict:
-    """Fetch project details by project ID."""
+    """Fetch project details including organization info."""
     if not project_id:
         return None
+    effective_pid = "proj_demo_default" if project_id in ("phase1-demo-token", "default") else project_id
     conn = get_conn()
-    row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+    row = conn.execute(
+        """
+        SELECT p.*, o.name as organization_name 
+        FROM projects p
+        LEFT JOIN organizations o ON p.organization_id = o.id
+        WHERE p.id = ?
+        """,
+        (effective_pid,)
+    ).fetchone()
     conn.close()
     return dict(row) if row else None
 
 
-def user_owns_project(user_id: str, project_id: str) -> bool:
-    """Strict ownership check: does user_id own project_id?"""
+def user_has_project_access(user_id: str, project_id: str) -> bool:
+    """
+    Strict server-side multi-tenant authorization check:
+    authenticated user -> organization membership -> project.
+    Never trusts organization_id or project_id supplied by frontend.
+    """
     if not user_id or not project_id:
         return False
+
+    effective_pid = "proj_demo_default" if project_id in ("phase1-demo-token", "default") else project_id
     conn = get_conn()
-    # Check directly or allow demo compatibility
-    row = conn.execute(
-        "SELECT 1 FROM projects WHERE (id = ? OR id = ?) AND user_id = ?",
-        (project_id, "proj_demo_default" if project_id in ("phase1-demo-token", "default") else project_id, user_id)
+
+    # Primary Check: User is in the organization that owns this project
+    row_org = conn.execute(
+        """
+        SELECT 1 
+        FROM projects p
+        JOIN organization_members om ON p.organization_id = om.organization_id
+        WHERE p.id = ? AND om.user_id = ?
+        """,
+        (effective_pid, user_id)
+    ).fetchone()
+
+    if row_org:
+        conn.close()
+        return True
+
+    # Secondary Check: Direct user_id match on project
+    row_user = conn.execute(
+        "SELECT 1 FROM projects WHERE id = ? AND user_id = ?",
+        (effective_pid, user_id)
     ).fetchone()
     conn.close()
-    return bool(row)
+    return bool(row_user)
+
+
+def user_owns_project(user_id: str, project_id: str) -> bool:
+    """Alias for user_has_project_access to enforce multi-tenant authorization everywhere."""
+    return user_has_project_access(user_id, project_id)
 
 
 def delete_project(user_id: str, project_id: str) -> tuple:
     """
-    Delete a project and its associated data if owned by the user.
-    Safety checks:
-    - Verifies ownership.
-    - Prevents deleting if it is the user's only project.
+    Delete a project if the user has authorized access in that organization.
+    Checks:
+    - User has project access
+    - User cannot delete if it is their only project in that organization
     """
-    if not user_owns_project(user_id, project_id):
-        return False, "Forbidden: you do not own this project"
+    if not user_has_project_access(user_id, project_id):
+        return False, "Forbidden: you do not have access to this project"
 
-    user_projects = get_projects_by_user(user_id)
-    if len(user_projects) <= 1:
+    proj = get_project_by_id(project_id)
+    org_id = proj.get("organization_id") if proj else None
+
+    # Check remaining projects in this organization
+    org_projects = get_projects_by_user(user_id, organization_id=org_id)
+    if len(org_projects) <= 1:
         return False, "Cannot delete your only project. You must have at least one active project."
 
     with _lock:
@@ -720,7 +864,7 @@ def delete_project(user_id: str, project_id: str) -> tuple:
         conn.execute("DELETE FROM api_keys WHERE project_id = ?", (project_id,))
         conn.execute("DELETE FROM webhook_configs WHERE project_id = ?", (project_id,))
         conn.execute("DELETE FROM events WHERE project_id = ? OR tenant_id = ?", (project_id, project_id))
-        conn.execute("DELETE FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id))
+        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
         conn.commit()
         conn.close()
 
@@ -887,14 +1031,18 @@ def mask_webhook_url(url: str) -> str:
         return "****"
 
 
-def get_webhook_config(project_id: str, raw: bool = False, active_only: bool = False) -> dict:
-    """Retrieve webhook config for a project, with URL masked unless raw=True."""
+def get_webhook_config(project_id: str, provider: str = None, raw: bool = False, active_only: bool = False) -> dict:
+    """Retrieve webhook config for a project, optionally filtered by provider, with URL masked unless raw=True."""
     conn = get_conn()
+    params = [project_id]
     query = "SELECT * FROM webhook_configs WHERE project_id = ?"
+    if provider:
+        query += " AND provider = ?"
+        params.append(provider.strip().lower())
     if active_only:
         query += " AND enabled = 1"
-    query += " LIMIT 1"
-    row = conn.execute(query, (project_id,)).fetchone()
+    query += " ORDER BY id ASC LIMIT 1"
+    row = conn.execute(query, tuple(params)).fetchone()
     conn.close()
     if not row:
         return None
@@ -906,17 +1054,42 @@ def get_webhook_config(project_id: str, raw: bool = False, active_only: bool = F
     return d
 
 
+def list_webhook_configs(project_id: str, raw: bool = False, active_only: bool = False) -> list:
+    """List all webhook configs (Slack, Discord, etc.) for a project."""
+    conn = get_conn()
+    query = "SELECT * FROM webhook_configs WHERE project_id = ?"
+    if active_only:
+        query += " AND enabled = 1"
+    query += " ORDER BY id ASC"
+    rows = conn.execute(query, (project_id,)).fetchall()
+    conn.close()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["enabled"] = bool(d.get("enabled", 1))
+        if not raw:
+            d["masked_url"] = mask_webhook_url(d.get("webhook_url", ""))
+            d.pop("webhook_url", None)
+        result.append(d)
+    return result
+
+
 def set_webhook_config(project_id: str, webhook_url: str = None, provider: str = "slack", enabled: int = 1) -> dict:
-    """Save or update webhook configuration for a project. Returns masked config."""
+    """Save or update webhook configuration for a project and provider. Returns masked config."""
     now = time.time()
+    clean_provider = (provider or "slack").strip().lower()
     with _lock:
         conn = get_conn()
-        existing = conn.execute("SELECT id, webhook_url FROM webhook_configs WHERE project_id = ?", (project_id,)).fetchone()
+        existing = conn.execute(
+            "SELECT id, webhook_url FROM webhook_configs WHERE project_id = ? AND provider = ?",
+            (project_id, clean_provider)
+        ).fetchone()
+
         if existing:
             target_url = webhook_url.strip() if webhook_url and "****" not in webhook_url else existing["webhook_url"]
             conn.execute(
-                "UPDATE webhook_configs SET webhook_url = ?, provider = ?, enabled = ?, updated_at = ? WHERE project_id = ?",
-                (target_url, provider, 1 if enabled else 0, now, project_id),
+                "UPDATE webhook_configs SET webhook_url = ?, enabled = ?, updated_at = ? WHERE id = ?",
+                (target_url, 1 if enabled else 0, now, existing["id"]),
             )
         else:
             if not webhook_url:
@@ -924,56 +1097,101 @@ def set_webhook_config(project_id: str, webhook_url: str = None, provider: str =
                 return None
             conn.execute(
                 "INSERT INTO webhook_configs (project_id, provider, webhook_url, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (project_id, provider, webhook_url.strip(), 1 if enabled else 0, now, now),
+                (project_id, clean_provider, webhook_url.strip(), 1 if enabled else 0, now, now),
             )
         conn.commit()
         conn.close()
-    return get_webhook_config(project_id, raw=False)
+    return get_webhook_config(project_id, provider=clean_provider, raw=False)
 
 
-def toggle_webhook_enabled(project_id: str, enabled: bool) -> dict:
-    """Enable or disable webhook notifications for a project."""
+def toggle_webhook_enabled(project_id: str, enabled: bool, provider: str = None) -> dict:
+    """Enable or disable webhook notifications for a project (optionally scoped to provider)."""
     now = time.time()
     with _lock:
         conn = get_conn()
-        conn.execute(
-            "UPDATE webhook_configs SET enabled = ?, updated_at = ? WHERE project_id = ?",
-            (1 if enabled else 0, now, project_id),
-        )
+        if provider:
+            conn.execute(
+                "UPDATE webhook_configs SET enabled = ?, updated_at = ? WHERE project_id = ? AND provider = ?",
+                (1 if enabled else 0, now, project_id, provider.strip().lower()),
+            )
+        else:
+            conn.execute(
+                "UPDATE webhook_configs SET enabled = ?, updated_at = ? WHERE project_id = ?",
+                (1 if enabled else 0, now, project_id),
+            )
         conn.commit()
         conn.close()
-    return get_webhook_config(project_id, raw=False)
+    return get_webhook_config(project_id, provider=provider, raw=False)
 
 
-def delete_webhook_config(project_id: str) -> bool:
-    """Permanently delete a project's webhook configuration."""
+def delete_webhook_config(project_id: str, provider: str = None) -> bool:
+    """Permanently delete a project's webhook configuration (optionally scoped to provider)."""
     with _lock:
         conn = get_conn()
-        cur = conn.execute("DELETE FROM webhook_configs WHERE project_id = ?", (project_id,))
+        if provider:
+            cur = conn.execute(
+                "DELETE FROM webhook_configs WHERE project_id = ? AND provider = ?",
+                (project_id, provider.strip().lower())
+            )
+        else:
+            cur = conn.execute("DELETE FROM webhook_configs WHERE project_id = ?", (project_id,))
         conn.commit()
         affected = cur.rowcount
         conn.close()
     return affected > 0
 
 
-# ---------------------------------------------------------
-# Telemetry Events & Detection Queries
-# ---------------------------------------------------------
+_org_cache = {}
+
+
+def get_organization_id_for_project(project_id: str) -> str:
+    """Resolve organization_id for a project with in-memory caching."""
+    if not project_id or project_id in ("default", "phase1-demo-token"):
+        return "org_demo_default"
+    if project_id in _org_cache:
+        return _org_cache[project_id]
+
+    conn = get_conn()
+    row = conn.execute("SELECT organization_id FROM projects WHERE id = ?", (project_id,)).fetchone()
+    conn.close()
+    if row and row["organization_id"]:
+        _org_cache[project_id] = row["organization_id"]
+        return row["organization_id"]
+    return None
+
 
 def insert_event(event: dict) -> int:
     """Insert a fully-scored event into the database."""
     project_id = event.get("project_id") or event.get("tenant_id") or "default"
+    meta_val = event.get("metadata", {})
+    if isinstance(meta_val, dict):
+        meta_str = json.dumps(meta_val)
+    else:
+        meta_str = str(meta_val or "{}")
+
+    # Resolve organization_id if not explicitly provided
+    org_id = event.get("organization_id")
+    if not org_id:
+        org_id = get_organization_id_for_project(project_id)
+
+    confidence = float(event.get("confidence", 0.0))
+    attack_type = str(event.get("attack_type", "normal"))
+    risk_score = float(event.get("risk_score", 0.0))
+
+    now = time.time()
     with _lock:
         conn = get_conn()
         cur = conn.execute(
             """
             INSERT INTO events
                 (timestamp, endpoint, method, status_code, latency_ms,
-                 ip, user_id, payload_size, rule_flags, anomaly_score, severity, tenant_id, project_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ip, user_id, payload_size, rule_flags, anomaly_score, severity, tenant_id, project_id,
+                 ingested_at, event_id, event_type, user_agent, metadata,
+                 organization_id, confidence, attack_type, risk_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                event["timestamp"],
+                event.get("timestamp", now),
                 event["endpoint"],
                 event["method"],
                 event["status_code"],
@@ -986,10 +1204,45 @@ def insert_event(event: dict) -> int:
                 event.get("severity", "low"),
                 project_id,
                 project_id,
+                event.get("ingested_at", now),
+                event.get("event_id"),
+                event.get("event_type", "http_request"),
+                event.get("user_agent"),
+                meta_str,
+                org_id,
+                confidence,
+                attack_type,
+                risk_score,
             ),
         )
         conn.commit()
         event_id = cur.lastrowid
+
+        # Auto-update project onboarding if telemetry is received for a project
+        if project_id and project_id not in ("default", "phase1-demo-token"):
+            try:
+                row_ob = conn.execute("SELECT first_telemetry_at, completed_steps FROM project_onboarding WHERE project_id = ?", (project_id,)).fetchone()
+                if row_ob:
+                    raw_steps = row_ob["completed_steps"] or "[]"
+                    steps = json.loads(raw_steps) if isinstance(raw_steps, str) else list(raw_steps)
+                    needs_update = False
+                    first_t = row_ob["first_telemetry_at"]
+                    if not first_t:
+                        first_t = time.time()
+                        needs_update = True
+                    for s in (6, 7):
+                        if s not in steps:
+                            steps.append(s)
+                            needs_update = True
+                    if needs_update:
+                        conn.execute(
+                            "UPDATE project_onboarding SET first_telemetry_at = ?, completed_steps = ?, current_step = 7, status = 'completed', updated_at = ? WHERE project_id = ?",
+                            (first_t, json.dumps(sorted(list(set(steps)))), time.time(), project_id)
+                        )
+                        conn.commit()
+            except Exception:
+                pass
+
         conn.close()
         return event_id
 
@@ -1004,8 +1257,9 @@ def get_event_by_id(event_id: int) -> dict:
     return None
 
 
-def get_recent_events(limit: int = 50, tenant_id: str = "default"):
+def get_recent_events(limit: int = 50, tenant_id: str = "default", project_id: str = None):
     """Fetch recent telemetry events scoped by project/tenant."""
+    target_id = project_id or tenant_id
     conn = get_conn()
     rows = conn.execute(
         """
@@ -1013,14 +1267,15 @@ def get_recent_events(limit: int = 50, tenant_id: str = "default"):
         WHERE project_id = ? OR tenant_id = ? 
         ORDER BY id DESC LIMIT ?
         """,
-        (tenant_id, tenant_id, limit),
+        (target_id, target_id, limit),
     ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
 
 
-def get_recent_alerts(limit: int = 50, tenant_id: str = "default"):
+def get_recent_alerts(limit: int = 50, tenant_id: str = "default", project_id: str = None):
     """Fetch recent alerts (medium/high severity) scoped by project/tenant."""
+    target_id = project_id or tenant_id
     conn = get_conn()
     rows = conn.execute(
         """
@@ -1028,7 +1283,7 @@ def get_recent_alerts(limit: int = 50, tenant_id: str = "default"):
         WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
         ORDER BY id DESC LIMIT ?
         """,
-        (tenant_id, tenant_id, limit),
+        (target_id, target_id, limit),
     ).fetchall()
     conn.close()
     return [_row_to_dict(r) for r in rows]
@@ -1166,7 +1421,144 @@ def _row_to_dict(row):
             d["rule_flags"] = []
     else:
         d["rule_flags"] = []
+
+    if "metadata" in d and d["metadata"]:
+        try:
+            d["metadata"] = json.loads(d["metadata"])
+        except Exception:
+            d["metadata"] = {}
+    elif "metadata" in d:
+        d["metadata"] = {}
+
+    # Canonical aliases for consistent detection event retention
+    if "project_id" in d and "affected_project" not in d:
+        d["affected_project"] = d["project_id"]
+    if "endpoint" in d and "affected_endpoint" not in d:
+        d["affected_endpoint"] = d["endpoint"]
+    if "ip" in d and "source_ip" not in d:
+        d["source_ip"] = d["ip"]
+    if "timestamp" in d and "detection_timestamp" not in d:
+        d["detection_timestamp"] = d["timestamp"]
+
     return d
+
+
+# ---------------------------------------------------------
+# Guided Developer Onboarding Operations
+# ---------------------------------------------------------
+
+def get_or_create_onboarding(project_id: str) -> dict:
+    """Retrieve onboarding progress for a project, creating initial state if not found."""
+    if not project_id:
+        return None
+    now = time.time()
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM project_onboarding WHERE project_id = ?", (project_id,)).fetchone()
+    if not row:
+        with _lock:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO project_onboarding 
+                    (project_id, framework, current_step, completed_steps, status, created_at, updated_at) 
+                VALUES (?, 'flask', 1, '[]', 'in_progress', ?, ?)
+                """,
+                (project_id, now, now)
+            )
+            conn.commit()
+        row = conn.execute("SELECT * FROM project_onboarding WHERE project_id = ?", (project_id,)).fetchone()
+    conn.close()
+
+    if not row:
+        return {
+            "project_id": project_id,
+            "framework": "flask",
+            "current_step": 1,
+            "completed_steps": [],
+            "status": "in_progress",
+            "first_telemetry_at": None,
+            "created_at": now,
+            "updated_at": now
+        }
+
+    d = dict(row)
+    raw_steps = d.get("completed_steps") or "[]"
+    try:
+        d["completed_steps"] = json.loads(raw_steps) if isinstance(raw_steps, str) else list(raw_steps)
+    except Exception:
+        d["completed_steps"] = []
+    return d
+
+
+def update_onboarding_progress(project_id: str, current_step: int = None, completed_step: int = None, framework: str = None, status: str = None) -> dict:
+    """Update active onboarding step, mark steps as completed, or switch framework."""
+    rec = get_or_create_onboarding(project_id)
+    steps = set(rec.get("completed_steps", []))
+    if completed_step is not None:
+        try:
+            steps.add(int(completed_step))
+        except (ValueError, TypeError):
+            pass
+
+    new_step = int(current_step) if current_step is not None else rec.get("current_step", 1)
+    new_framework = framework.strip().lower() if framework else rec.get("framework", "flask")
+    new_status = status.strip().lower() if status else rec.get("status", "in_progress")
+    now = time.time()
+
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            """
+            UPDATE project_onboarding
+            SET current_step = ?, completed_steps = ?, framework = ?, status = ?, updated_at = ?
+            WHERE project_id = ?
+            """,
+            (new_step, json.dumps(sorted(list(steps))), new_framework, new_status, now, project_id)
+        )
+        conn.commit()
+        conn.close()
+
+    return get_or_create_onboarding(project_id)
+
+
+def record_first_telemetry_onboarding(project_id: str) -> bool:
+    """Record first telemetry event for project, marking steps 6 & 7 complete."""
+    if not project_id:
+        return False
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        row = conn.execute("SELECT * FROM project_onboarding WHERE project_id = ?", (project_id,)).fetchone()
+        if not row:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO project_onboarding 
+                    (project_id, framework, current_step, completed_steps, status, first_telemetry_at, created_at, updated_at) 
+                VALUES (?, 'flask', 7, '[1,2,3,4,5,6,7]', 'completed', ?, ?, ?)
+                """,
+                (project_id, now, now, now)
+            )
+            conn.commit()
+            conn.close()
+            return True
+
+        first_t = row["first_telemetry_at"] or now
+        raw_steps = row["completed_steps"] or "[]"
+        try:
+            steps = set(json.loads(raw_steps) if isinstance(raw_steps, str) else list(raw_steps))
+        except Exception:
+            steps = set()
+        steps.update([6, 7])
+        conn.execute(
+            """
+            UPDATE project_onboarding
+            SET first_telemetry_at = ?, completed_steps = ?, current_step = 7, status = 'completed', updated_at = ?
+            WHERE project_id = ?
+            """,
+            (first_t, json.dumps(sorted(list(steps))), now, project_id)
+        )
+        conn.commit()
+        conn.close()
+    return True
 
 
 if __name__ == "__main__":

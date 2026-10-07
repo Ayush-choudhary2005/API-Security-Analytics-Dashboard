@@ -23,6 +23,7 @@ Run with:  python3 server.py
 import time
 import os
 import io
+import uuid
 import zipfile
 from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for
 from flask_socketio import SocketIO, join_room, leave_room, emit
@@ -35,15 +36,20 @@ import auth
 from auth import login_required
 import google_auth
 import email_service
+import ingestion
+from integrations.service import notification_service
+from config import get_config
+import logging_config
 
 DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "..", "dashboard")
 
+# Initialize app from environment profile
+app_cfg = get_config()
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'api-security-dashboard-secret-321')
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = (os.environ.get('FLASK_ENV') == 'production') or (os.environ.get('SESSION_COOKIE_SECURE', '').lower() == 'true')
-app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 7  # 7 days session persistence
+app.config.from_object(app_cfg)
+
+# Initialize structured logging with secret redaction filters
+logger = logging_config.configure_logging(app, env=app_cfg.ENV)
 
 # Initialize database schema and migrations
 db.init_db()
@@ -51,8 +57,12 @@ db.init_db()
 # Initialize Google OAuth OpenID Connect client
 google_auth.init_google_oauth(app)
 
-# Initialize SocketIO with CORS allowed for dev
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Initialize SocketIO with configurable CORS
+socketio = SocketIO(
+    app,
+    cors_allowed_origins=app_cfg.CORS_ALLOWED_ORIGINS if (app_cfg.ENV != "production" or app_cfg.CORS_ALLOWED_ORIGINS != "*") else "*",
+    max_http_buffer_size=app_cfg.MAX_CONTENT_LENGTH
+)
 
 API_TOKEN = "phase1-demo-token"
 REQUIRED_FIELDS = ["endpoint", "method", "status_code", "latency_ms", "ip"]
@@ -78,10 +88,16 @@ def _get_project_from_auth():
 
 def _resolve_and_verify_project(user_id):
     """
-    Helper to extract target project_id from query/params and verify ownership.
+    Helper to extract target project_id from query/params or JSON body and verify ownership.
     Returns (project_id, None) on success or (None, error_response) on failure.
     """
-    project_id = request.args.get("project_id") or request.args.get("tenant_id")
+    body_data = request.get_json(silent=True) or {} if request.is_json else {}
+    project_id = (
+        request.args.get("project_id") or
+        request.args.get("tenant_id") or
+        body_data.get("project_id") or
+        body_data.get("tenant_id")
+    )
     if not project_id:
         user_projects = db.get_projects_by_user(user_id)
         if user_projects:
@@ -164,9 +180,100 @@ def dashboard():
 
 
 @app.route("/health", methods=["GET"])
+@app.route("/healthz", methods=["GET"])
 def health():
-    tenant_id = request.args.get("tenant_id") or request.args.get("project_id", "default")
-    return jsonify({"status": "ok", "event_count": db.get_all_events_count(tenant_id)})
+    """Liveness probe: verifies process is alive and responsive."""
+    data = ingestion.check_liveness()
+    tenant_id = request.args.get("tenant_id") or request.args.get("project_id")
+    if tenant_id:
+        data["event_count"] = db.get_all_events_count(tenant_id)
+    return jsonify(data), 200
+
+
+@app.route("/ready", methods=["GET"])
+@app.route("/readyz", methods=["GET"])
+def ready():
+    """Readiness probe: validates database and detection engine dependencies."""
+    is_ready, details = ingestion.check_readiness(db, detection)
+    status_code = 200 if is_ready else 503
+    return jsonify(details), status_code
+
+
+# ---------------------------------------------------------
+# Security Hardening: Headers & Error Handlers
+# ---------------------------------------------------------
+
+@app.after_request
+def apply_security_headers(response):
+    """Enforce defense-in-depth secure HTTP headers across all responses."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    if app.config.get("SESSION_COOKIE_SECURE"):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # CSP protecting against untrusted script injection while allowing local assets & CDNs
+    if "Content-Security-Policy" not in response.headers and not response.mimetype.startswith("image/"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+            "font-src 'self' https://fonts.gstatic.com data:; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self' ws: wss:;"
+        )
+    return response
+
+
+@app.errorhandler(400)
+def handle_bad_request(e):
+    msg = getattr(e, "description", "Bad Request")
+    return jsonify({"error": "Bad Request", "message": msg}), 400
+
+
+@app.errorhandler(401)
+def handle_unauthorized(e):
+    return jsonify({"error": "Unauthorized", "message": "Authentication required"}), 401
+
+
+@app.errorhandler(403)
+def handle_forbidden(e):
+    msg = getattr(e, "description", "Forbidden: access denied")
+    return jsonify({"error": "Forbidden", "message": msg}), 403
+
+
+@app.errorhandler(404)
+def handle_not_found(e):
+    if request.path.startswith("/api/") or request.path in ("/ingest", "/events/recent", "/alerts/recent", "/alerts/stats", "/history"):
+        return jsonify({"error": "Not Found", "message": "The requested endpoint does not exist"}), 404
+    return e
+
+
+@app.errorhandler(405)
+def handle_method_not_allowed(e):
+    return jsonify({"error": "Method Not Allowed", "message": "HTTP method not allowed for this route"}), 405
+
+
+@app.errorhandler(413)
+def handle_payload_too_large(e):
+    return jsonify({"error": "Payload Too Large", "message": "Request payload exceeds size limit (5MB)"}), 413
+
+
+@app.errorhandler(429)
+def handle_too_many_requests(e):
+    msg = getattr(e, "description", "Too Many Requests")
+    return jsonify({"error": "Too Many Requests", "message": msg}), 429
+
+
+@app.errorhandler(500)
+def handle_internal_server_error(e):
+    logger.error(f"Internal server error: {e}", exc_info=True)
+    return jsonify({
+        "error": "Internal Server Error",
+        "message": "An unexpected error occurred. Incident has been recorded."
+    }), 500
 
 
 # ---------------------------------------------------------
@@ -196,10 +303,12 @@ def auth_register():
     if db.get_user_by_email(email):
         return jsonify({"error": "An account with this email already exists"}), 409
 
-    # Create user & initial project
+    # Create user, workspace organization & initial project
     pw_hash = auth.hash_password(password)
     user = db.create_user(email, pw_hash, name=name, email_verified=0)
-    default_proj = db.create_project(user["id"], name="Default Project", description="Primary security project")
+    org_name = f"{name}'s Workspace" if name else f"{email.split('@')[0].capitalize()}'s Workspace"
+    default_org = db.create_organization(user["id"], name=org_name)
+    default_proj = db.create_project(user["id"], name="Default Project", description="Primary security project", organization_id=default_org["id"])
     key_info = db.create_api_key(default_proj["id"], name="Primary SDK Key")
 
     # Generate verification token & dispatch transactional email
@@ -214,6 +323,7 @@ def auth_register():
 
     return jsonify({
         "user": user,
+        "organization": default_org,
         "default_project": default_proj,
         "api_key": key_info["raw_key"],
         "message": "Account created successfully. A verification email has been sent."
@@ -595,13 +705,152 @@ def auth_change_password():
 
 
 # ---------------------------------------------------------
+# Organization / Workspace Management Routes
+# ---------------------------------------------------------
+
+@app.route("/api/organizations", methods=["GET"])
+@login_required
+def list_organizations():
+    """List all organizations/workspaces the authenticated user belongs to."""
+    orgs = db.get_organizations_by_user(g.current_user["id"])
+    return jsonify({"organizations": orgs}), 200
+
+
+@app.route("/api/organizations", methods=["POST"])
+@login_required
+def create_organization_route():
+    """Create a new organization workspace and set current user as owner."""
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    slug = data.get("slug", "").strip() or None
+    if not name:
+        return jsonify({"error": "Organization name is required"}), 400
+
+    try:
+        org = db.create_organization(g.current_user["id"], name=name, slug=slug)
+        # Create an initial default project for this new workspace
+        initial_proj = db.create_project(
+            g.current_user["id"],
+            name="Main API",
+            description=f"Primary API for {name}",
+            organization_id=org["id"]
+        )
+        key_info = db.create_api_key(initial_proj["id"], name="Primary SDK Key")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({
+        "organization": org,
+        "default_project": initial_proj,
+        "api_key": key_info["raw_key"]
+    }), 201
+
+
+@app.route("/api/organizations/<org_id>", methods=["GET"])
+@login_required
+def get_organization_route(org_id):
+    """Fetch details, members, and projects of an organization."""
+    if not db.user_in_organization(g.current_user["id"], org_id):
+        return jsonify({"error": "Forbidden: access denied to this organization"}), 403
+
+    org = db.get_organization_by_id(org_id)
+    if not org:
+        return jsonify({"error": "Organization not found"}), 404
+
+    members = db.get_organization_members(org_id)
+    projects = db.get_projects_by_user(g.current_user["id"], organization_id=org_id)
+    caller_role = db.get_user_role_in_organization(g.current_user["id"], org_id)
+
+    return jsonify({
+        "organization": org,
+        "members": members,
+        "projects": projects,
+        "current_user_role": caller_role
+    }), 200
+
+
+@app.route("/api/organizations/<org_id>/members", methods=["GET"])
+@login_required
+def list_organization_members(org_id):
+    if not db.user_in_organization(g.current_user["id"], org_id):
+        return jsonify({"error": "Forbidden: access denied to this organization"}), 403
+
+    members = db.get_organization_members(org_id)
+    return jsonify({"members": members}), 200
+
+
+@app.route("/api/organizations/<org_id>/members", methods=["POST"])
+@login_required
+def add_organization_member_route(org_id):
+    """Add a member to the organization by email or user ID. Requires owner or admin role."""
+    caller_role = db.get_user_role_in_organization(g.current_user["id"], org_id)
+    if caller_role not in ("owner", "admin"):
+        return jsonify({"error": "Forbidden: only organization owners and admins can invite members"}), 403
+
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip()
+    user_id = data.get("user_id", "").strip()
+    role = data.get("role", "member").strip().lower()
+
+    if role not in ("owner", "admin", "member", "viewer"):
+        role = "member"
+
+    target_user = None
+    if user_id:
+        target_user = db.get_user_by_id(user_id)
+    elif email:
+        target_user = db.get_user_by_email(email)
+
+    if not target_user:
+        return jsonify({"error": "User with specified email or user_id not found"}), 404
+
+    member = db.add_organization_member(org_id, target_user["id"], role=role)
+    return jsonify({
+        "message": f"User {target_user['email']} added to organization as {role}",
+        "member": {
+            **member,
+            "email": target_user["email"],
+            "name": target_user.get("name")
+        }
+    }), 201
+
+
+@app.route("/api/organizations/<org_id>/members/<member_user_id>", methods=["DELETE"])
+@login_required
+def remove_organization_member_route(org_id, member_user_id):
+    """Remove a member from the organization."""
+    caller_role = db.get_user_role_in_organization(g.current_user["id"], org_id)
+    is_self = (g.current_user["id"] == member_user_id)
+
+    if not is_self and caller_role not in ("owner", "admin"):
+        return jsonify({"error": "Forbidden: insufficient permissions to remove member"}), 403
+
+    target_role = db.get_user_role_in_organization(member_user_id, org_id)
+    if not target_role:
+        return jsonify({"error": "Member not found in organization"}), 404
+
+    # Prevent removing the last owner
+    if target_role == "owner":
+        members = db.get_organization_members(org_id)
+        owners = [m for m in members if m["role"] == "owner"]
+        if len(owners) <= 1:
+            return jsonify({"error": "Cannot remove the only owner of this organization"}), 400
+
+    ok = db.remove_organization_member(org_id, member_user_id)
+    return jsonify({"success": ok, "message": "Member removed from organization"}), 200
+
+
+# ---------------------------------------------------------
 # Project Management Routes
 # ---------------------------------------------------------
 
 @app.route("/api/projects", methods=["GET"])
 @login_required
 def list_projects():
-    projects = db.get_projects_by_user(g.current_user["id"])
+    org_id = request.args.get("organization_id")
+    if org_id and not db.user_in_organization(g.current_user["id"], org_id):
+        return jsonify({"error": "Forbidden: access denied to this organization"}), 403
+    projects = db.get_projects_by_user(g.current_user["id"], organization_id=org_id)
     return jsonify({"projects": projects}), 200
 
 
@@ -614,9 +863,20 @@ def create_project_route():
         return jsonify({"error": "Project name is required"}), 400
 
     description = data.get("description", "").strip()
-    proj = db.create_project(g.current_user["id"], name=name, description=description)
-    key_info = db.create_api_key(proj["id"], name="Default SDK Key")
+    organization_id = data.get("organization_id")
+    try:
+        proj = db.create_project(
+            g.current_user["id"],
+            name=name,
+            description=description,
+            organization_id=organization_id
+        )
+    except PermissionError as pe:
+        return jsonify({"error": str(pe)}), 403
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
 
+    key_info = db.create_api_key(proj["id"], name="Default SDK Key")
     return jsonify({"project": proj, "api_key": key_info["raw_key"]}), 201
 
 
@@ -653,6 +913,7 @@ def delete_project_route(project_id):
 
 
 @app.route("/api/projects/<project_id>/keys", methods=["GET"])
+@app.route("/api/projects/<project_id>/credentials", methods=["GET"])
 @login_required
 def get_project_keys(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
@@ -720,10 +981,7 @@ def download_sdk(project_id):
             key_info = db.create_api_key(project_id, name="SDK Download Key")
             raw_key = key_info["raw_key"]
 
-    sdk_file_path = os.path.join(os.path.dirname(__file__), "..", "sdk", "middleware.py")
-    with open(sdk_file_path, "r", encoding="utf-8") as f:
-        middleware_code = f.read()
-
+    sdk_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk"))
     collector_url = request.host_url.rstrip("/")
 
     config_code = f"""# ML-O11Y Security SDK Configuration
@@ -737,7 +995,10 @@ SDK_KEY = "{raw_key}"
 Sample integration of ML-O11Y Security SDK into your Flask application.
 \"\"\"
 from flask import Flask, jsonify
-from middleware import SecurityMiddleware, observe
+try:
+    from security_sdk import SecurityMiddleware
+except ImportError:
+    from middleware import SecurityMiddleware
 import config
 
 app = Flask(__name__)
@@ -746,7 +1007,8 @@ app = Flask(__name__)
 SecurityMiddleware(
     app,
     collector_url=config.COLLECTOR_URL,
-    api_key=config.SDK_KEY
+    api_key=config.SDK_KEY,
+    app_name="{proj['name']}"
 )
 
 @app.route("/")
@@ -768,27 +1030,57 @@ Preconfigured SDK for project: **{proj['name']}** (`{proj['id']}`)
 
 ## Quickstart
 
-1. Place `middleware.py` and `config.py` in your Flask project directory.
-2. Install dependencies:
-   ```bash
-   pip install requests
-   ```
-3. Attach the middleware in your Flask entrypoint:
-   ```python
-   from flask import Flask
-   from middleware import SecurityMiddleware
-   import config
+### Option A: Install Package via pip (Recommended)
+```bash
+pip install .
+```
+Then in your Flask application:
+```python
+from flask import Flask
+from security_sdk import SecurityMiddleware
+import config
 
-   app = Flask(__name__)
-   SecurityMiddleware(app, collector_url=config.COLLECTOR_URL, api_key=config.SDK_KEY)
-   ```
+app = Flask(__name__)
+SecurityMiddleware(app, collector_url=config.COLLECTOR_URL, api_key=config.SDK_KEY)
+```
 
-Your application telemetry is now observed asynchronously with zero added response latency!
+### Option B: Standalone Drop-in
+Keep `middleware.py` and `config.py` in your application folder:
+```python
+from flask import Flask
+from middleware import SecurityMiddleware
+import config
+
+app = Flask(__name__)
+SecurityMiddleware(app, collector_url=config.COLLECTOR_URL, api_key=config.SDK_KEY)
+```
+
+### Option C: Zero-Hardcoding via Environment Variables
+```bash
+export SECURITY_SDK_API_KEY="{raw_key}"
+export SECURITY_SDK_COLLECTOR_URL="{collector_url}"
+```
+Then simply:
+```python
+from security_sdk import SecurityMiddleware
+
+app = Flask(__name__)
+SecurityMiddleware(app)
+```
 """
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("middleware.py", middleware_code)
+        if os.path.exists(sdk_dir):
+            for root, dirs, files in os.walk(sdk_dir):
+                if any(x in root for x in ("__pycache__", ".egg-info", "build", "dist")):
+                    continue
+                for f in files:
+                    full_p = os.path.join(root, f)
+                    rel_p = os.path.relpath(full_p, sdk_dir)
+                    if f not in ("sample_app.py", "config.py", "README.md"):
+                        z.write(full_p, arcname=rel_p)
+
         z.writestr("config.py", config_code)
         z.writestr("sample_app.py", example_code)
         z.writestr("README.md", readme_code)
@@ -803,6 +1095,123 @@ Your application telemetry is now observed asynchronously with zero added respon
     )
 
 
+# ---------------------------------------------------------
+# Guided Developer Onboarding Routes
+# ---------------------------------------------------------
+
+@app.route("/api/projects/<project_id>/onboarding", methods=["GET"])
+@login_required
+def get_project_onboarding(project_id):
+    """Fetch current onboarding state, active credentials summary, and telemetry status."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    proj = db.get_project_by_id(project_id)
+    if not proj:
+        return jsonify({"error": "Project not found"}), 404
+
+    onboarding = db.get_or_create_onboarding(project_id)
+    event_count = db.get_all_events_count(project_id)
+
+    # Auto-complete step 7 if telemetry already exists
+    if event_count > 0 and not onboarding.get("first_telemetry_at"):
+        db.record_first_telemetry_onboarding(project_id)
+        onboarding = db.get_or_create_onboarding(project_id)
+
+    # Fetch active key prefix
+    keys = db.list_api_keys_for_project(project_id)
+    active_key_prefix = keys[0]["key_prefix"] if keys else None
+
+    # Host collector URL
+    collector_url = request.host_url.rstrip("/") + "/ingest"
+
+    return jsonify({
+        "project": {
+            "id": proj["id"],
+            "name": proj["name"],
+        },
+        "onboarding": onboarding,
+        "event_count": event_count,
+        "telemetry_received": (event_count > 0) or (onboarding.get("first_telemetry_at") is not None),
+        "first_telemetry_at": onboarding.get("first_telemetry_at"),
+        "key_prefix": active_key_prefix,
+        "collector_url": collector_url,
+    }), 200
+
+
+@app.route("/api/projects/<project_id>/onboarding", methods=["POST"])
+@login_required
+def update_project_onboarding(project_id):
+    """Update onboarding step, framework, or completion status."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    data = request.get_json(silent=True) or {}
+    current_step = data.get("current_step")
+    completed_step = data.get("completed_step")
+    framework = data.get("framework")
+    status = data.get("status")
+
+    updated = db.update_onboarding_progress(
+        project_id,
+        current_step=current_step,
+        completed_step=completed_step,
+        framework=framework,
+        status=status
+    )
+    return jsonify({"onboarding": updated}), 200
+
+
+@app.route("/api/projects/<project_id>/onboarding/test-event", methods=["POST"])
+@login_required
+def send_onboarding_test_event(project_id):
+    """
+    Emits a synthetic live verification event for the onboarding wizard,
+    immediately proving that the telemetry ingestion and socket pipeline works.
+    """
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    proj = db.get_project_by_id(project_id)
+    if not proj:
+        return jsonify({"error": "Project not found"}), 404
+
+    test_event = {
+        "timestamp": time.time(),
+        "endpoint": "/api/v1/health",
+        "method": "GET",
+        "status_code": 200,
+        "latency_ms": 14.5,
+        "ip": request.remote_addr or "127.0.0.1",
+        "user_id": f"dev_test_{uuid.uuid4().hex[:6]}",
+        "payload_size": 128,
+        "project_id": project_id,
+        "tenant_id": project_id,
+    }
+
+    scored_event = detection.score_event(test_event)
+    event_id = db.insert_event(scored_event)
+    scored_event["id"] = event_id
+
+    # Record first telemetry in onboarding
+    db.record_first_telemetry_onboarding(project_id)
+
+    # Broadcast via WebSocket
+    room_name = f"project_{project_id}"
+    socketio.emit(f"new_event_{project_id}", scored_event, room=room_name)
+    socketio.emit("new_event", scored_event, room=room_name)
+    socketio.emit(f"onboarding_telemetry_{project_id}", {
+        "status": "received",
+        "project_id": project_id,
+        "event": scored_event
+    }, room=room_name)
+
+    return jsonify({
+        "success": True,
+        "message": "Live test telemetry event processed successfully",
+        "event": scored_event
+    }), 201
+
 
 @app.route("/api/projects/<project_id>/webhooks", methods=["GET", "POST", "DELETE"])
 @login_required
@@ -810,24 +1219,28 @@ def project_webhooks(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
 
+    provider = request.args.get("provider")
+
     if request.method == "DELETE":
-        ok = db.delete_webhook_config(project_id)
+        ok = db.delete_webhook_config(project_id, provider=provider)
         return jsonify({"success": ok, "message": "Webhook removed successfully"}), 200
 
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
         webhook_url = data.get("webhook_url", "").strip()
-        provider = data.get("provider", "slack").strip().lower()
+        prov = (data.get("provider") or provider or "slack").strip().lower()
         enabled = data.get("enabled", True)
 
-        if webhook_url and not (webhook_url.startswith("http://") or webhook_url.startswith("https://")):
-            return jsonify({"error": "Invalid webhook URL format. Must start with http:// or https://"}), 400
+        adapter = notification_service.get_provider(prov)
+        is_valid, err_msg = adapter.validate_url(webhook_url)
+        if not is_valid:
+            return jsonify({"error": err_msg or "Invalid webhook URL format. Must start with http:// or https://"}), 400
 
-        cfg = db.set_webhook_config(project_id, webhook_url=webhook_url, provider=provider, enabled=enabled)
-        return jsonify({"webhook": cfg, "message": "Webhook configuration saved successfully"}), 200
+        cfg = db.set_webhook_config(project_id, webhook_url=webhook_url, provider=adapter.provider_id, enabled=enabled)
+        return jsonify({"webhook": cfg, "message": f"{adapter.display_name} configuration saved successfully"}), 200
 
     # GET returns masked config — never leaks raw secret
-    return jsonify({"webhook": db.get_webhook_config(project_id, raw=False)}), 200
+    return jsonify({"webhook": db.get_webhook_config(project_id, provider=provider, raw=False)}), 200
 
 
 @app.route("/api/projects/<project_id>/webhooks/toggle", methods=["POST"])
@@ -838,7 +1251,8 @@ def toggle_project_webhook(project_id):
 
     data = request.get_json(silent=True) or {}
     enabled = bool(data.get("enabled", True))
-    cfg = db.toggle_webhook_enabled(project_id, enabled)
+    provider = data.get("provider") or request.args.get("provider")
+    cfg = db.toggle_webhook_enabled(project_id, enabled, provider=provider)
     return jsonify({"webhook": cfg, "message": f"Webhook {'enabled' if enabled else 'disabled'}"}), 200
 
 
@@ -849,15 +1263,121 @@ def test_project_webhook(project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
 
     proj = db.get_project_by_id(project_id)
-    raw_cfg = db.get_webhook_config(project_id, raw=True)
-    if not raw_cfg or not raw_cfg.get("webhook_url"):
-        return jsonify({"error": "No webhook configured for this project"}), 400
+    data = request.get_json(silent=True) or {}
+    provider = data.get("provider") or request.args.get("provider")
+    url_to_test = data.get("webhook_url", "").strip()
 
-    success, msg = webhook.test_webhook(raw_cfg["webhook_url"], project_name=proj.get("name", "Project"))
+    if not url_to_test:
+        raw_cfg = db.get_webhook_config(project_id, provider=provider, raw=True)
+        if not raw_cfg or not raw_cfg.get("webhook_url"):
+            return jsonify({"error": "No webhook configured for this project"}), 400
+        url_to_test = raw_cfg["webhook_url"]
+        provider = raw_cfg.get("provider", provider or "slack")
+
+    success, msg = notification_service.test_connection(url_to_test, project_name=proj.get("name", "Project"), provider_id=provider)
     if success:
         return jsonify({"success": True, "message": msg}), 200
     else:
         return jsonify({"success": False, "error": msg}), 400
+
+
+# ---------------------------------------------------------
+# Integration Service & Status Endpoints
+# ---------------------------------------------------------
+
+@app.route("/api/projects/<project_id>/integrations/status", methods=["GET"])
+@login_required
+def get_project_integrations_status(project_id):
+    """Return health/status indicators for Slack, Discord, Gemini, and SDK without leaking secrets."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    status = notification_service.get_project_integration_status(project_id)
+    return jsonify(status), 200
+
+
+@app.route("/api/projects/<project_id>/integrations", methods=["GET"])
+@login_required
+def list_project_integrations(project_id):
+    """List all configured integrations for a project with masked URLs."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    configs = db.list_webhook_configs(project_id, raw=False)
+    return jsonify({"integrations": configs}), 200
+
+
+@app.route("/api/projects/<project_id>/integrations/<provider>", methods=["POST"])
+@login_required
+def configure_provider_integration(project_id, provider):
+    """Connect or update integration configuration for a specific provider."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    data = request.get_json(silent=True) or {}
+    webhook_url = data.get("webhook_url", "").strip()
+    enabled = data.get("enabled", True)
+
+    adapter = notification_service.get_provider(provider)
+    is_valid, err_msg = adapter.validate_url(webhook_url)
+    if not is_valid:
+        return jsonify({"error": err_msg or "Invalid webhook URL format"}), 400
+
+    cfg = db.set_webhook_config(project_id, webhook_url=webhook_url, provider=adapter.provider_id, enabled=enabled)
+    return jsonify({
+        "integration": cfg,
+        "message": f"{adapter.display_name} integration connected successfully"
+    }), 200
+
+
+@app.route("/api/projects/<project_id>/integrations/<provider>/test", methods=["POST"])
+@login_required
+def test_provider_integration_route(project_id, provider):
+    """Send test notification payload to verify connection."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    proj = db.get_project_by_id(project_id)
+    data = request.get_json(silent=True) or {}
+    url_to_test = data.get("webhook_url", "").strip()
+
+    if not url_to_test:
+        raw_cfg = db.get_webhook_config(project_id, provider=provider, raw=True)
+        if not raw_cfg or not raw_cfg.get("webhook_url"):
+            return jsonify({"error": f"No {provider} webhook configured for this project"}), 400
+        url_to_test = raw_cfg["webhook_url"]
+
+    success, msg = notification_service.test_connection(url_to_test, project_name=proj.get("name", "Project"), provider_id=provider)
+    if success:
+        return jsonify({"success": True, "message": msg}), 200
+    return jsonify({"success": False, "error": msg}), 400
+
+
+@app.route("/api/projects/<project_id>/integrations/<provider>/toggle", methods=["POST"])
+@login_required
+def toggle_provider_integration_route(project_id, provider):
+    """Toggle enabled/disabled status for an integration."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    data = request.get_json(silent=True) or {}
+    enabled = bool(data.get("enabled", True))
+    cfg = db.toggle_webhook_enabled(project_id, enabled, provider=provider)
+    return jsonify({
+        "integration": cfg,
+        "message": f"{provider.capitalize()} notifications {'enabled' if enabled else 'disabled'}"
+    }), 200
+
+
+@app.route("/api/projects/<project_id>/integrations/<provider>", methods=["DELETE"])
+@login_required
+def delete_provider_integration_route(project_id, provider):
+    """Disconnect and delete integration configuration for a provider."""
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    ok = db.delete_webhook_config(project_id, provider=provider)
+    return jsonify({"success": ok, "message": f"{provider.capitalize()} integration removed successfully"}), 200
 
 
 # ---------------------------------------------------------
@@ -866,92 +1386,139 @@ def test_project_webhook(project_id):
 
 @app.route("/ingest", methods=["POST"])
 def ingest():
+    # 1. Prevent oversized payloads (64KB max)
+    content_len = request.content_length
+    if content_len and content_len > ingestion.MAX_PAYLOAD_BYTES:
+        return jsonify({
+            "error": "Payload Too Large",
+            "message": f"Telemetry request size ({content_len} bytes) exceeds maximum limit of {ingestion.MAX_PAYLOAD_BYTES} bytes"
+        }), 413
+
+    # 2. Authenticate SDK credentials & resolve project_id
     project = _get_project_from_auth()
     if not project:
-        return jsonify({"error": "unauthorized, missing or invalid Bearer API token"}), 401
+        return jsonify({"error": "Unauthorized", "message": "Missing, invalid, or revoked Bearer API token"}), 401
 
     project_id = project["id"]
-    payload = request.get_json(silent=True)
-    if not payload:
-        return jsonify({"error": "invalid or missing JSON body"}), 400
 
-    missing = [f for f in REQUIRED_FIELDS if f not in payload]
-    if missing:
-        return jsonify({"error": f"missing required fields: {missing}"}), 400
+    # 3. Rate-limit SDK clients & absorb bursts (Token Bucket)
+    allowed, retry_after = ingestion.ingestion_rate_limiter.check_limit(project_id)
+    if not allowed:
+        resp = jsonify({
+            "error": "Too Many Requests",
+            "message": f"Telemetry ingestion rate limit exceeded for project {project_id}",
+            "retry_after": retry_after
+        })
+        resp.status_code = 429
+        resp.headers["Retry-After"] = str(retry_after)
+        return resp
 
-    event = {
-        "timestamp": payload.get("timestamp", time.time()),
-        "endpoint": payload["endpoint"],
-        "method": payload["method"],
-        "status_code": int(payload["status_code"]),
-        "latency_ms": float(payload["latency_ms"]),
-        "ip": payload["ip"],
-        "user_id": payload.get("user_id"),
-        "payload_size": payload.get("payload_size", 0),
-        "project_id": project_id,
-        "tenant_id": project_id,
-    }
+    # 4. Parse JSON payload
+    try:
+        raw_payload = request.get_json(silent=True)
+    except Exception:
+        raw_payload = None
 
-    # Check rate limiter — block abusive IPs for this project
-    ip = event["ip"]
-    rate_status = rate_limiter.record_request(ip, project_id=project_id)
-    room_name = f"project_{project_id}"
+    if raw_payload is None or not isinstance(raw_payload, dict):
+        return jsonify({"error": "Bad Request", "message": "Invalid or missing JSON object in request body"}), 400
 
-    if rate_status.get("blocked"):
-        if rate_status.get("auto_blocked"):
-            socketio.emit(f'ip_blocked_{project_id}', {
+    # 5. Schema Validation & Data Loss Prevention (Redaction & Field Whitelisting)
+    remote_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    if remote_ip and "," in remote_ip:
+        remote_ip = remote_ip.split(",")[0].strip()
+
+    is_valid, err_msg, event = ingestion.validate_and_sanitize_event(
+        raw_payload,
+        project_id=project_id,
+        remote_addr=remote_ip
+    )
+    if not is_valid:
+        return jsonify({"error": "Bad Request", "message": err_msg}), 400
+
+    # 6. Replay & Duplicate Event Detection (Sliding Window LRU + TTL)
+    dedup_fingerprint = f"{project_id}:{event['event_id']}"
+    if ingestion.dedup_cache.is_duplicate(dedup_fingerprint):
+        return jsonify({
+            "status": "duplicate_ignored",
+            "message": "Telemetry event already processed",
+            "event_id": event["event_id"]
+        }), 202
+
+    # 7. Safe Execution Pipeline — Never Expose Internal Server Errors
+    try:
+        # Check rate limiter — block abusive end-user IPs for this project
+        ip = event["ip"]
+        rate_status = rate_limiter.record_request(ip, project_id=project_id)
+        room_name = f"project_{project_id}"
+
+        if rate_status.get("blocked"):
+            if rate_status.get("auto_blocked"):
+                socketio.emit(f'ip_blocked_{project_id}', {
+                    "ip": ip,
+                    "reason": rate_status["reason"],
+                    "project_id": project_id
+                }, room=room_name)
+                socketio.emit('ip_blocked', {
+                    "ip": ip,
+                    "reason": rate_status["reason"],
+                    "project_id": project_id
+                }, room=room_name)
+            return jsonify({"error": "rate limited", "detail": rate_status}), 429
+
+        # Warn dashboard if IP is approaching the limit
+        if rate_status.get("warning"):
+            socketio.emit(f'ip_warning_{project_id}', {
                 "ip": ip,
-                "reason": rate_status["reason"],
+                "count": rate_status["count"],
+                "limit": rate_status["limit"],
                 "project_id": project_id
             }, room=room_name)
-            socketio.emit('ip_blocked', {
+            socketio.emit('ip_warning', {
                 "ip": ip,
-                "reason": rate_status["reason"],
+                "count": rate_status["count"],
+                "limit": rate_status["limit"],
                 "project_id": project_id
             }, room=room_name)
-        return jsonify({"error": "rate limited", "detail": rate_status}), 429
 
-    # Warn dashboard if IP is approaching the limit
-    if rate_status.get("warning"):
-        socketio.emit(f'ip_warning_{project_id}', {
-            "ip": ip,
-            "count": rate_status["count"],
-            "limit": rate_status["limit"],
-            "project_id": project_id
-        }, room=room_name)
-        socketio.emit('ip_warning', {
-            "ip": ip,
-            "count": rate_status["count"],
-            "limit": rate_status["limit"],
-            "project_id": project_id
-        }, room=room_name)
+        # Run detection inline (feature computation + rules + score + fusion)
+        scored_event = detection.score_event(event)
 
-    # Run detection inline (feature computation + rules + score + fusion)
-    scored_event = detection.score_event(event)
+        event_id = db.insert_event(scored_event)
+        scored_event["id"] = event_id
 
-    event_id = db.insert_event(scored_event)
-    scored_event["id"] = event_id
+        # Push to dashboard via WebSocket (strictly scoped to project room)
+        try:
+            socketio.emit(f'new_event_{project_id}', scored_event, room=room_name)
+            socketio.emit('new_event', scored_event, room=room_name)
+            socketio.emit(f'onboarding_telemetry_{project_id}', {
+                "status": "received",
+                "project_id": project_id,
+                "event": scored_event
+            }, room=room_name)
+        except Exception as ws_err:
+            # WebSocket failure must never fail ingestion
+            pass
 
-    # Push to dashboard via WebSocket (strictly scoped to project room)
-    socketio.emit(f'new_event_{project_id}', scored_event, room=room_name)
-    socketio.emit('new_event', scored_event, room=room_name)
+        # If it's an alert (medium or high) and NOT suppressed by cooldown, dispatch alert notifications
+        if scored_event.get("severity") in ("medium", "high") and not scored_event.get("alert_suppressed"):
+            try:
+                socketio.emit(f'new_alert_{project_id}', scored_event, room=room_name)
+                socketio.emit('new_alert', scored_event, room=room_name)
+            except Exception as ws_alert_err:
+                pass
 
-    # If it's an alert (medium or high), push that too
-    if scored_event.get("severity") in ("medium", "high"):
-        socketio.emit(f'new_alert_{project_id}', scored_event, room=room_name)
-        socketio.emit('new_alert', scored_event, room=room_name)
+            # Dispatch automated alerts across all active project integrations via NotificationService
+            try:
+                notification_service.dispatch_project_alerts(scored_event, project_id=project_id, sender_fn=webhook.send_alert)
+            except Exception as hook_err:
+                # External notification failures must never impede detection
+                pass
 
-        # Fire automated webhook for alerts strictly using this project's active configuration
-        webhook_cfg = db.get_webhook_config(project_id, raw=True, active_only=True)
-        if webhook_cfg and webhook_cfg.get("webhook_url"):
-            webhook.send_alert(scored_event, webhook_url=webhook_cfg["webhook_url"])
-        elif project_id in ('proj_demo_default', 'phase1-demo-token', 'default'):
-            # Backward-compatible environment fallback for default demo project only
-            env_slack = os.environ.get("SLACK_WEBHOOK_URL", "")
-            if env_slack:
-                webhook.send_alert(scored_event, webhook_url=env_slack)
+        return jsonify(scored_event), 201
 
-    return jsonify(scored_event), 201
+    except Exception:
+        # Never expose internal errors or tracebacks
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/webhook_test", methods=["POST"])
@@ -1058,8 +1625,33 @@ def investigate(alert_id):
         return jsonify({"error": "Forbidden: access denied to this alert"}), 403
 
     import investigator
-    report = investigator.generate_threat_report(alert_id)
+    report = investigator.generate_threat_report(alert_id, user_id=g.current_user["id"])
     return jsonify({"report": report})
+
+
+@app.route("/api/alerts/<int:alert_id>/report", methods=["GET"])
+@app.route("/api/alerts/<int:alert_id>/report.pdf", methods=["GET"])
+@login_required
+def get_alert_report(alert_id):
+    """
+    Dedicated endpoint to fetch executive threat reports (markdown / pdf payload).
+    Strictly verifies project authorization to prevent cross-tenant IDOR attacks.
+    """
+    event = db.get_event_by_id(alert_id)
+    if not event:
+        return jsonify({"error": "Alert not found"}), 404
+
+    event_proj = event.get("project_id") or event.get("tenant_id")
+    if not db.user_has_project_access(g.current_user["id"], event_proj):
+        return jsonify({"error": "Forbidden: access denied to this report"}), 403
+
+    import investigator
+    report = investigator.generate_threat_report(alert_id, user_id=g.current_user["id"])
+    return jsonify({
+        "alert_id": alert_id,
+        "project_id": event_proj,
+        "report": report
+    }), 200
 
 
 if __name__ == "__main__":
