@@ -4,7 +4,8 @@ let socket = null;
 
 export const initSocket = () => {
   if (!socket) {
-    socket = io('/', {
+    const wsUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_BASE_URL || '/';
+    socket = io(wsUrl, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       withCredentials: true,

@@ -184,6 +184,22 @@ def update_user_password(user_id: str, new_password_hash: str) -> bool:
     return True
 
 
+def update_user_email_verified(user_id: str) -> bool:
+    """Mark user email as verified. Uses db abstraction layer for PostgreSQL/SQLite compatibility."""
+    if not user_id:
+        return False
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            "UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?",
+            (now, user_id)
+        )
+        conn.commit()
+        conn.close()
+    return True
+
+
 # ---------------------------------------------------------
 # Email Verification & Password Reset Tokens
 # ---------------------------------------------------------

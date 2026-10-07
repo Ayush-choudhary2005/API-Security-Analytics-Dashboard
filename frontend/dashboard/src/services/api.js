@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 const api = axios.create({
-  baseURL: '',
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -47,7 +49,7 @@ export const projectService = {
   createKey: (projectId, name) => api.post(`/api/projects/${projectId}/keys`, { name }),
   regenerateKey: (projectId) => api.post(`/api/projects/${projectId}/keys/regenerate`),
   revokeKey: (projectId, keyId) => api.delete(`/api/projects/${projectId}/keys/${keyId}`),
-  downloadSdkUrl: (projectId) => `/api/projects/${projectId}/download-sdk`,
+  downloadSdkUrl: (projectId) => `${API_BASE_URL}/api/projects/${projectId}/download-sdk`,
 };
 
 export const telemetryService = {
@@ -76,7 +78,7 @@ export const webhookService = {
 export const investigationService = {
   investigate: (alertId) => api.get(`/api/investigate/${alertId}`),
   getReport: (alertId) => api.get(`/api/alerts/${alertId}/report`),
-  getPdfUrl: (alertId) => `/api/alerts/${alertId}/report.pdf`,
+  getPdfUrl: (alertId) => `${API_BASE_URL}/api/alerts/${alertId}/report.pdf?download=1`,
 };
 
 export default api;

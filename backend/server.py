@@ -214,6 +214,23 @@ def ready():
 # Security Hardening: Headers & Error Handlers
 # ---------------------------------------------------------
 
+@app.before_request
+def handle_cors_preflight():
+    """Handle CORS preflight OPTIONS requests for configured origins."""
+    if request.method == "OPTIONS":
+        origin = request.headers.get("Origin")
+        cors_cfg = app.config.get("CORS_ALLOWED_ORIGINS", "*")
+        allowed_origins = [o.strip() for o in cors_cfg.split(",") if o.strip()]
+        if origin and ("*" in allowed_origins or origin in allowed_origins):
+            from flask import Response
+            resp = Response(status=204)
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
+            return resp
+
+
 @app.after_request
 def apply_security_headers(response):
     """Enforce defense-in-depth secure HTTP headers across all responses."""
@@ -221,6 +238,16 @@ def apply_security_headers(response):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Configure CORS headers for allowed origins
+    origin = request.headers.get("Origin")
+    cors_cfg = app.config.get("CORS_ALLOWED_ORIGINS", "*")
+    allowed_origins = [o.strip() for o in cors_cfg.split(",") if o.strip()]
+    if origin and ("*" in allowed_origins or origin in allowed_origins):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
 
     if app.config.get("SESSION_COOKIE_SECURE"):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -233,7 +260,7 @@ def apply_security_headers(response):
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
             "font-src 'self' https://fonts.gstatic.com data:; "
             "img-src 'self' data: https:; "
-            "connect-src 'self' ws: wss:;"
+            "connect-src 'self' ws: wss: https:;"
         )
     return response
 
@@ -520,12 +547,8 @@ def auth_google_callback():
         provider_user_id=sub,
         provider_email=email
     )
-    # Google verifies emails, so mark verified
-    with db._lock:
-        conn = db.get_conn()
-        conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (new_user["id"],))
-        conn.commit()
-        conn.close()
+    # Google verifies emails, so mark verified — use db abstraction for PostgreSQL compatibility
+    db.update_user_email_verified(new_user["id"])
 
     now = time.time()
     session.permanent = True
@@ -1658,10 +1681,88 @@ def get_alert_report(alert_id):
 
     import investigator
     report = investigator.generate_threat_report(alert_id, user_id=g.current_user["id"])
+
+    # If requested for download or with Accept: application/pdf, compile and serve as real application/pdf binary
+    if request.args.get("download") == "1" or request.headers.get("Accept") == "application/pdf":
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib import colors
+
+            buf = io.BytesIO()
+            doc = SimpleDocTemplate(buf, pagesize=letter, rightMargin=54, leftMargin=54, topMargin=54, bottomMargin=54)
+            styles = getSampleStyleSheet()
+
+            title_style = ParagraphStyle(
+                'ReportTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                leading=22,
+                textColor=colors.HexColor('#0f172a'),
+                spaceAfter=10
+            )
+            meta_style = ParagraphStyle(
+                'ReportMeta',
+                parent=styles['Normal'],
+                fontSize=9,
+                leading=13,
+                textColor=colors.HexColor('#475569')
+            )
+            body_style = ParagraphStyle(
+                'ReportBody',
+                parent=styles['Normal'],
+                fontSize=10,
+                leading=14,
+                textColor=colors.HexColor('#1e293b')
+            )
+            heading_style = ParagraphStyle(
+                'ReportH2',
+                parent=styles['Heading2'],
+                fontSize=12,
+                leading=16,
+                textColor=colors.HexColor('#0284c7'),
+                spaceBefore=12,
+                spaceAfter=5
+            )
+
+            story = []
+            story.append(Paragraph("SentinAPI — Threat Intelligence Report", title_style))
+            story.append(Paragraph(f"<b>Alert ID:</b> #{alert_id} &nbsp;|&nbsp; <b>Project:</b> {event_proj} &nbsp;|&nbsp; <b>Generated:</b> {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}", meta_style))
+            story.append(Spacer(1, 8))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#cbd5e1'), spaceAfter=12))
+
+            for line in report.split('\n'):
+                clean = line.strip()
+                if not clean or clean.startswith('# '):
+                    continue
+                if clean.startswith('### ') or clean.startswith('## '):
+                    hdr = clean.lstrip('#').strip()
+                    story.append(Paragraph(f"<b>{hdr}</b>", heading_style))
+                elif clean.startswith('---'):
+                    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#e2e8f0'), spaceAfter=6, spaceBefore=6))
+                else:
+                    # Sanitize HTML tags for ReportLab Paragraph
+                    formatted = clean.replace('&', '&amp;')
+                    story.append(Paragraph(formatted, body_style))
+                    story.append(Spacer(1, 3))
+
+            doc.build(story)
+            buf.seek(0)
+            return send_file(
+                buf,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f"threat-report-alert-{alert_id}.pdf"
+            )
+        except Exception as pdf_err:
+            logger.warning(f"PDF generation error: {pdf_err}")
+
     return jsonify({
         "alert_id": alert_id,
         "project_id": event_proj,
-        "report": report
+        "report": report,
+        "pdf_url": f"/api/alerts/{alert_id}/report.pdf?download=1"
     }), 200
 
 

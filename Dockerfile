@@ -1,7 +1,23 @@
 # =================================================================
 # Production Dockerfile — API Security Analytics & Active Defense Platform
 # =================================================================
-FROM python:3.11-slim as base
+
+# -------------------------------------------------------------
+# Stage 1: Build React + Vite Production Frontend
+# -------------------------------------------------------------
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend/dashboard
+
+COPY frontend/dashboard/package*.json ./
+RUN npm ci || npm install
+
+COPY frontend/dashboard/ ./
+RUN npm run build
+
+# -------------------------------------------------------------
+# Stage 2: Production Python Runtime & Web Server
+# -------------------------------------------------------------
+FROM python:3.11-slim AS base
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -28,7 +44,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application directories
 COPY backend/ ./backend/
-COPY frontend/dashboard/dist/ ./frontend/dashboard/dist/
+COPY --from=frontend-builder /app/frontend/dashboard/dist/ ./frontend/dashboard/dist/
 COPY sdk/ ./sdk/
 COPY gunicorn_config.py .
 

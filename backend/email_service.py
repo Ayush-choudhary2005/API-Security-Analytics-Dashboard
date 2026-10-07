@@ -24,7 +24,8 @@ _dev_mailbox = []
 
 
 def _get_app_base_url() -> str:
-    return os.environ.get("APP_BASE_URL", "http://localhost:5000").rstrip("/")
+    port = os.environ.get("PORT", "5001")
+    return os.environ.get("APP_BASE_URL", f"http://localhost:{port}").rstrip("/")
 
 
 def is_smtp_configured() -> bool:

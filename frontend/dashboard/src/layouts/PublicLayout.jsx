@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, ChevronRight, Menu, X, ExternalLink } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export const PublicLayout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user } = useAuth() || {};
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -49,19 +51,31 @@ export const PublicLayout = ({ children }) => {
 
           {/* CTA Buttons */}
           <div className="hidden sm:flex items-center space-x-4">
-            <Link
-              to="/login"
-              className="text-sm font-medium text-slate-300 hover:text-white px-3 py-2 rounded-md transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              to="/signup"
-              className="inline-flex items-center space-x-1.5 text-sm font-medium bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg shadow-sm shadow-cyan-600/30 transition-all"
-            >
-              <span>Get Started</span>
-              <ChevronRight className="w-4 h-4" />
-            </Link>
+            {user ? (
+              <Link
+                to="/app"
+                className="inline-flex items-center space-x-1.5 text-sm font-medium bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg shadow-sm shadow-cyan-600/30 transition-all"
+              >
+                <span>Console Dashboard</span>
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="text-sm font-medium text-slate-300 hover:text-white px-3 py-2 rounded-md transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/signup"
+                  className="inline-flex items-center space-x-1.5 text-sm font-medium bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg shadow-sm shadow-cyan-600/30 transition-all"
+                >
+                  <span>Get Started</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}

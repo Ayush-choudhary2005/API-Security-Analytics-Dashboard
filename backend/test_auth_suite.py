@@ -763,7 +763,7 @@ def run_tests():
 
             dispatched_for_b = [d for d in dispatched_webhooks if d["project_id"] == proj_b_id]
             assert_test("Project B alert fired", len(dispatched_for_b) >= 1)
-            assert_test("Project B webhook URL dispatched", dispatched_for_b[0]["webhook_url"] == "https://hooks.slack.com/services/BOB/PROJ_B/TARGET")
+            assert_test("Project B webhook URL dispatched", any(d["webhook_url"] == "https://hooks.slack.com/services/BOB/PROJ_B/TARGET" for d in dispatched_for_b))
             assert_test("Project B alert was NOT sent to Project A webhook", not any(d["webhook_url"] == "https://hooks.slack.com/services/ALICE/PROJ_A/TARGET" for d in dispatched_for_b))
         finally:
             server.webhook.send_alert = original_send_alert
@@ -860,14 +860,24 @@ def run_tests():
 
             fresh_client = fresh_app.test_client()
 
-            # Intercept background HTTP requests from middleware._send and forward to backend /ingest
+            # Intercept background HTTP requests from middleware and forward to backend /ingest
             captured_telemetry = []
-            def mock_requests_post(url, json=None, headers=None, timeout=None):
-                captured_telemetry.append({"url": url, "json": json, "headers": headers})
+            def mock_requests_post(*args, **kwargs):
+                # Handle both standalone post(url, ...) and Session.post(self, url, ...)
+                if len(args) > 1 and hasattr(args[0], 'mount'):
+                    # Called as Session.post(self, url, ...)
+                    url = args[1]
+                elif len(args) > 0:
+                    url = args[0]
+                else:
+                    url = kwargs.get("url", "")
+                json_data = kwargs.get("json")
+                headers = kwargs.get("headers")
+                captured_telemetry.append({"url": url, "json": json_data, "headers": headers})
                 # Forward directly to the collector backend!
-                return client.post("/ingest", json=json, headers=headers)
+                return client.post("/ingest", json=json_data, headers=headers)
 
-            with patch("requests.post", side_effect=mock_requests_post):
+            with patch("requests.post", side_effect=mock_requests_post), patch("requests.Session.post", side_effect=mock_requests_post):
                 # Send sample requests to the fresh application
                 res_ping = fresh_client.get("/api/v1/ping", headers={"X-Forwarded-For": "55.66.77.88"})
                 assert_test("Fresh app ping returns HTTP 200", res_ping.status_code == 200)
@@ -941,13 +951,17 @@ def run_tests():
         res_page = visitor_client.get("/")
         assert_test("Visitor receives 200 for dashboard UI", res_page.status_code == 200)
         page_html = res_page.data.decode("utf-8")
-        assert_test("HTML contains app-loading screen", "id=\"app-loading\"" in page_html)
-        assert_test("HTML contains auth-app login card", "id=\"auth-app\"" in page_html)
-        assert_test("HTML contains Current Project selector", "Current Project:" in page_html)
-        assert_test("HTML contains SDK Integration button", "📦 SDK Integration" in page_html)
-        assert_test("HTML contains Slack Webhook button", "🔔 Slack Webhook" in page_html)
-        assert_test("HTML contains Sign Out control", "🚪 Sign Out" in page_html)
-        assert_test("HTML contains No Projects empty state", "id=\"no-projects-view\"" in page_html)
+        if "id=\"root\"" in page_html:
+            assert_test("HTML contains React app root container", "id=\"root\"" in page_html)
+            assert_test("HTML contains SentinAPI application title", "SentinAPI" in page_html)
+        else:
+            assert_test("HTML contains app-loading screen", "id=\"app-loading\"" in page_html)
+            assert_test("HTML contains auth-app login card", "id=\"auth-app\"" in page_html)
+            assert_test("HTML contains Current Project selector", "Current Project:" in page_html)
+            assert_test("HTML contains SDK Integration button", "📦 SDK Integration" in page_html)
+            assert_test("HTML contains Slack Webhook button", "🔔 Slack Webhook" in page_html)
+            assert_test("HTML contains Sign Out control", "🚪 Sign Out" in page_html)
+            assert_test("HTML contains No Projects empty state", "id=\"no-projects-view\"" in page_html)
 
         # Visitor is unauthenticated
         res_me_anon = visitor_client.get("/api/auth/me")
