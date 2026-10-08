@@ -54,23 +54,23 @@ export const ResetPasswordPage = () => {
       subtitle="Enter your single-use reset token and choose a strong replacement password."
     >
       {error && (
-        <div className="mb-4 p-2.5 rounded bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2">
+        <div className="mb-4 p-2.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {message ? (
-        <div className="p-4 rounded bg-emerald-950/40 border border-emerald-800/60 text-emerald-200 text-xs space-y-2.5">
-          <div className="flex items-center space-x-2 text-emerald-300 font-medium">
+        <div className="p-4 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs space-y-2.5">
+          <div className="flex items-center space-x-2 text-white font-medium">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             <span>Password Reset Complete</span>
           </div>
-          <p className="text-slate-300 leading-relaxed">{message}</p>
+          <p className="text-zinc-300 leading-relaxed">{message}</p>
           <div className="pt-2">
             <Link
               to="/login"
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors"
             >
               <span>Sign In with New Password</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -80,33 +80,33 @@ export const ResetPasswordPage = () => {
       ) : (
         <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Reset Token</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Reset Token</label>
             <input
               type="text"
               required
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="Paste security reset token"
-              className="w-full bg-[#090d16] border border-slate-800 rounded px-3 py-1.5 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-sky-500 transition-colors"
+              className="w-full bg-black border border-zinc-800 rounded px-3 py-1.5 text-xs text-white placeholder-zinc-500 font-mono focus:outline-none focus:border-white transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">New Password (Min. 8 chars)</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">New Password (Min. 8 chars)</label>
             <div className="relative">
-              <Lock className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+              <Lock className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="New strong password"
-                className="w-full bg-[#090d16] border border-slate-800 rounded pl-8 pr-9 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+                className="w-full bg-black border border-zinc-800 rounded pl-8 pr-9 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
+                className="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300"
               >
                 {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               </button>
@@ -114,16 +114,16 @@ export const ResetPasswordPage = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Confirm New Password</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1">Confirm New Password</label>
             <div className="relative">
-              <Lock className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+              <Lock className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm new password"
-                className="w-full bg-[#090d16] border border-slate-800 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+                className="w-full bg-black border border-zinc-800 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white transition-colors"
               />
             </div>
           </div>
@@ -131,14 +131,14 @@ export const ResetPasswordPage = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-xs font-medium text-white transition-colors"
+            className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-white hover:bg-zinc-200 disabled:opacity-50 text-xs font-semibold text-black transition-colors"
           >
             <span>{loading ? 'Updating Password...' : 'Save New Password'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
 
-          <div className="pt-3 border-t border-slate-800/80 text-center">
-            <Link to="/login" className="text-xs text-sky-400 hover:underline">
+          <div className="pt-3 border-t border-zinc-800 text-center">
+            <Link to="/login" className="text-xs text-zinc-400 hover:text-white transition-colors">
               Back to Sign In
             </Link>
           </div>

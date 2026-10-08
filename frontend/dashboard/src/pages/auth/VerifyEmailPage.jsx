@@ -47,20 +47,20 @@ export const VerifyEmailPage = () => {
     >
       {loading ? (
         <div className="py-6 text-center space-y-2.5">
-          <div className="w-6 h-6 mx-auto border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-400">Validating cryptographic token...</p>
+          <div className="w-6 h-6 mx-auto border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs text-zinc-400">Validating cryptographic token...</p>
         </div>
       ) : success ? (
-        <div className="p-4 rounded bg-emerald-950/40 border border-emerald-800/60 text-emerald-200 text-xs space-y-2.5">
-          <div className="flex items-center space-x-2 text-emerald-300 font-medium">
+        <div className="p-4 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs space-y-2.5">
+          <div className="flex items-center space-x-2 text-white font-medium">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             <span>Verification Successful</span>
           </div>
-          <p className="text-slate-300 leading-relaxed">{message}</p>
+          <p className="text-zinc-300 leading-relaxed">{message}</p>
           <div className="pt-2">
             <Link
               to="/login"
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-colors"
             >
               <span>Continue to Sign In</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -70,40 +70,40 @@ export const VerifyEmailPage = () => {
       ) : (
         <div className="space-y-4">
           {message && (
-            <div className="p-2.5 rounded bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-center space-x-2">
+            <div className="p-2.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{message}</span>
             </div>
           )}
 
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <p className="text-xs text-zinc-400 leading-relaxed">
             If the link in your email did not open automatically, enter your verification token below:
           </p>
 
           <form onSubmit={handleManualSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Verification Token</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Verification Token</label>
               <input
                 type="text"
                 required
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value)}
                 placeholder="Paste verification token"
-                className="w-full bg-[#090d16] border border-slate-800 rounded px-3 py-1.5 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-sky-500 transition-colors"
+                className="w-full bg-black border border-zinc-800 rounded px-3 py-1.5 text-xs text-white placeholder-zinc-500 font-mono focus:outline-none focus:border-white transition-colors"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-sky-600 hover:bg-sky-500 text-xs font-medium text-white transition-colors"
+              className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-white hover:bg-zinc-200 text-xs font-semibold text-black transition-colors"
             >
               <span>Verify Token</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>
 
-          <div className="pt-3 border-t border-slate-800/80 text-center">
-            <Link to="/login" className="text-xs text-sky-400 hover:underline">
+          <div className="pt-3 border-t border-zinc-800 text-center">
+            <Link to="/login" className="text-xs text-zinc-400 hover:text-white transition-colors">
               Back to Sign In
             </Link>
           </div>

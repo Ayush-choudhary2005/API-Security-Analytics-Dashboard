@@ -9,22 +9,22 @@ export const PublicLayout = ({ children }) => {
   const { user } = useAuth() || {};
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-black text-zinc-100 flex flex-col font-sans">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-50 bg-[#0b0f19]/95 backdrop-blur-xs border-b border-slate-800/80">
+      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-xs border-b border-zinc-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           {/* Brand Logo */}
           <Link to="/" className="flex items-center space-x-2.5 group">
-            <div className="w-7 h-7 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-sky-400 group-hover:border-sky-500/50 transition-colors">
+            <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white group-hover:border-zinc-500 transition-colors">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="text-xs font-semibold tracking-tight text-white group-hover:text-sky-400 transition-colors">
+            <span className="text-xs font-semibold tracking-tight text-white transition-colors">
               api-security-analytics-dashboard
             </span>
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-6 text-xs font-medium text-slate-300">
+          <nav className="hidden md:flex items-center space-x-6 text-xs font-medium text-zinc-400">
             <a href="#problem" className="hover:text-white transition-colors">
               Capabilities
             </a>
@@ -50,7 +50,7 @@ export const PublicLayout = ({ children }) => {
             {user ? (
               <Link
                 to="/app"
-                className="inline-flex items-center space-x-1 text-xs font-medium bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded transition-colors"
+                className="inline-flex items-center space-x-1 text-xs font-semibold bg-white hover:bg-zinc-200 text-black px-3 py-1.5 rounded transition-colors"
               >
                 <span>Console Dashboard</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -59,13 +59,13 @@ export const PublicLayout = ({ children }) => {
               <>
                 <Link
                   to="/login"
-                  className="text-xs font-medium text-slate-300 hover:text-white px-2.5 py-1.5 rounded transition-colors"
+                  className="text-xs font-medium text-zinc-400 hover:text-white px-2.5 py-1.5 rounded transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/signup"
-                  className="inline-flex items-center space-x-1 text-xs font-medium bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded transition-colors"
+                  className="inline-flex items-center space-x-1 text-xs font-semibold bg-white hover:bg-zinc-200 text-black px-3 py-1.5 rounded transition-colors"
                 >
                   <span>Get Started</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -77,7 +77,7 @@ export const PublicLayout = ({ children }) => {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-white rounded"
+            className="md:hidden p-1.5 text-zinc-400 hover:text-white rounded"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -86,59 +86,59 @@ export const PublicLayout = ({ children }) => {
 
         {/* Mobile dropdown */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-[#0b0f19] border-b border-slate-800 px-4 py-3 space-y-2 text-xs">
+          <div className="md:hidden bg-black border-b border-zinc-800 px-4 py-3 space-y-2 text-xs">
             <a
               href="#problem"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-slate-300 hover:text-white py-1"
+              className="block text-zinc-400 hover:text-white py-1"
             >
               Capabilities
             </a>
             <a
               href="#how-it-works"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-slate-300 hover:text-white py-1"
+              className="block text-zinc-400 hover:text-white py-1"
             >
               Pipeline
             </a>
             <a
               href="#architecture"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-slate-300 hover:text-white py-1"
+              className="block text-zinc-400 hover:text-white py-1"
             >
               Architecture
             </a>
             <a
               href="#sdk"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-slate-300 hover:text-white py-1"
+              className="block text-zinc-400 hover:text-white py-1"
             >
               SDK Integration
             </a>
             <a
               href="#integrations"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-slate-300 hover:text-white py-1"
+              className="block text-zinc-400 hover:text-white py-1"
             >
               Integrations
             </a>
             <a
               href="#docs"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-slate-300 hover:text-white py-1"
+              className="block text-zinc-400 hover:text-white py-1"
             >
               Documentation
             </a>
-            <div className="pt-2 border-t border-slate-800 flex flex-col space-y-1.5">
+            <div className="pt-2 border-t border-zinc-800 flex flex-col space-y-1.5">
               <Link
                 to="/login"
-                className="w-full text-center py-1.5 text-xs text-slate-300 hover:text-white border border-slate-800 rounded"
+                className="w-full text-center py-1.5 text-xs text-zinc-300 hover:text-white border border-zinc-800 rounded"
               >
                 Sign In
               </Link>
               <Link
                 to="/signup"
-                className="w-full text-center py-1.5 text-xs bg-sky-600 text-white rounded font-medium"
+                className="w-full text-center py-1.5 text-xs bg-white text-black rounded font-semibold"
               >
                 Get Started
               </Link>
@@ -151,74 +151,74 @@ export const PublicLayout = ({ children }) => {
       <main className="flex-grow">{children}</main>
 
       {/* Footer */}
-      <footer className="bg-[#0b0f19] border-t border-slate-800/80 py-10 text-xs text-slate-400">
+      <footer className="bg-black border-t border-zinc-800 py-10 text-xs text-zinc-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center space-x-2 text-white font-semibold text-xs mb-2.5">
-              <Shield className="w-4 h-4 text-sky-400" />
+              <Shield className="w-4 h-4 text-white" />
               <span>api-security-analytics-dashboard</span>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed mb-3">
+            <p className="text-xs text-zinc-400 leading-relaxed mb-3">
               API Security Analytics and Active Defense Platform. Real-time telemetry, Isolation Forest anomaly detection, automated defense, and autonomous threat intelligence.
             </p>
-            <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-[#0e1420] border border-slate-800 text-slate-300 text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 text-[11px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
               <span>All Systems Operational</span>
             </div>
           </div>
 
           <div>
-            <h4 className="text-slate-200 font-medium text-xs uppercase tracking-wider mb-2.5">Product</h4>
-            <ul className="space-y-1.5 text-xs">
-              <li><a href="#problem" className="hover:text-slate-200 transition-colors">Attack Defense</a></li>
-              <li><a href="#how-it-works" className="hover:text-slate-200 transition-colors">ML Anomaly Detection</a></li>
-              <li><a href="#sdk" className="hover:text-slate-200 transition-colors">Python SDK</a></li>
-              <li><a href="#integrations" className="hover:text-slate-200 transition-colors">Integrations</a></li>
+            <h4 className="text-zinc-200 font-medium text-xs uppercase tracking-wider mb-2.5">Product</h4>
+            <ul className="space-y-1.5 text-xs text-zinc-400">
+              <li><a href="#problem" className="hover:text-white transition-colors">Attack Defense</a></li>
+              <li><a href="#how-it-works" className="hover:text-white transition-colors">ML Anomaly Detection</a></li>
+              <li><a href="#sdk" className="hover:text-white transition-colors">Python SDK</a></li>
+              <li><a href="#integrations" className="hover:text-white transition-colors">Integrations</a></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-slate-200 font-medium text-xs uppercase tracking-wider mb-2.5">Resources</h4>
-            <ul className="space-y-1.5 text-xs">
-              <li><a href="#docs" className="hover:text-slate-200 transition-colors">Documentation</a></li>
-              <li><a href="#architecture" className="hover:text-slate-200 transition-colors">Architecture Specifications</a></li>
-              <li><Link to="/login" className="hover:text-slate-200 transition-colors">Developer Console</Link></li>
-              <li><span className="text-slate-400">API Reference</span></li>
+            <h4 className="text-zinc-200 font-medium text-xs uppercase tracking-wider mb-2.5">Resources</h4>
+            <ul className="space-y-1.5 text-xs text-zinc-400">
+              <li><a href="#docs" className="hover:text-white transition-colors">Documentation</a></li>
+              <li><a href="#architecture" className="hover:text-white transition-colors">Architecture Specifications</a></li>
+              <li><Link to="/login" className="hover:text-white transition-colors">Developer Console</Link></li>
+              <li><span className="text-zinc-500">API Reference</span></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-slate-200 font-medium text-xs uppercase tracking-wider mb-2.5">Compliance & Security</h4>
-            <ul className="space-y-1.5 text-xs">
-              <li><span className="text-slate-300">Server-Side Tenant Isolation</span></li>
-              <li><span className="text-slate-300">Zero Secret Leakage Engine</span></li>
-              <li><span className="text-slate-300">Fail-Open SDK Architecture</span></li>
-              <li><span className="text-slate-300">Single Internal User ID Model</span></li>
+            <h4 className="text-zinc-200 font-medium text-xs uppercase tracking-wider mb-2.5">Compliance & Security</h4>
+            <ul className="space-y-1.5 text-xs text-zinc-400">
+              <li><span className="text-zinc-300">Server-Side Tenant Isolation</span></li>
+              <li><span className="text-zinc-300">Zero Secret Leakage Engine</span></li>
+              <li><span className="text-zinc-300">Fail-Open SDK Architecture</span></li>
+              <li><span className="text-zinc-300">Single Internal User ID Model</span></li>
             </ul>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 mt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 mt-6 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between text-xs text-zinc-500">
           <p>&copy; {new Date().getFullYear()} api-security-analytics-dashboard. All rights reserved.</p>
           <div className="flex space-x-5 mt-3 sm:mt-0">
             <button
               type="button"
               onClick={() => setLegalModal('privacy')}
-              className="hover:text-slate-200 text-slate-400 transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
+              className="hover:text-white text-zinc-400 transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
             >
               Privacy Policy
             </button>
             <button
               type="button"
               onClick={() => setLegalModal('terms')}
-              className="hover:text-slate-200 text-slate-400 transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
+              className="hover:text-white text-zinc-400 transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
             >
               Terms of Service
             </button>
             <button
               type="button"
               onClick={() => setLegalModal('security')}
-              className="hover:text-slate-200 text-slate-400 transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
+              className="hover:text-white text-zinc-400 transition-colors cursor-pointer bg-transparent border-0 p-0 text-xs"
             >
               Security Disclosure
             </button>
@@ -229,16 +229,16 @@ export const PublicLayout = ({ children }) => {
       {/* Legal & Policy Modal Dialog */}
       {legalModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
           onClick={() => setLegalModal(null)}
         >
           <div
-            className="relative w-full max-w-2xl bg-[#0e1420] border border-slate-800 rounded-md shadow-2xl p-6 sm:p-7 max-h-[85vh] overflow-y-auto"
+            className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-md shadow-2xl p-6 sm:p-7 max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-5">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-5">
               <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-sky-400">
+                <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white">
                   <Shield className="w-4 h-4" />
                 </div>
                 <div>
@@ -247,37 +247,37 @@ export const PublicLayout = ({ children }) => {
                     {legalModal === 'terms' && 'Terms of Service'}
                     {legalModal === 'security' && 'Security Disclosure Policy'}
                   </h3>
-                  <p className="text-[11px] text-slate-400">api-security-analytics-dashboard</p>
+                  <p className="text-[11px] text-zinc-500">api-security-analytics-dashboard</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLegalModal(null)}
-                className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors"
+                className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-900 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-5 text-xs text-slate-300 leading-relaxed">
+            <div className="space-y-5 text-xs text-zinc-300 leading-relaxed">
               {legalModal === 'privacy' && (
                 <>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">1. Telemetry Ingestion and Privacy Protection</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       api-security-analytics-dashboard collects HTTP telemetry metadata (request paths, HTTP verbs, status codes, request latency, and anonymized client IP hashes) exclusively to calculate machine-learning anomaly scores and defend host APIs against brute-force or volumetric abuse. We do not store unencrypted passwords, personal identifying information, or customer application payload data.
                     </p>
                   </div>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">2. Multi-Tenant Cryptographic Boundaries</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       All collected telemetry, active IP blocks, and Isolation Forest training models are strictly scoped to your specific tenant organization and project IDs. No telemetry data or customer traffic patterns are ever exposed or merged across different accounts.
                     </p>
                   </div>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">3. Data Retention and Control</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       Your organization maintains full sovereignty over ingested telemetry. Project maintainers can purge telemetry event histories, remove API keys, and terminate project monitoring from the console at any time.
                     </p>
                   </div>
@@ -288,19 +288,19 @@ export const PublicLayout = ({ children }) => {
                 <>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">1. Authorized Monitoring</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       You agree to deploy the telemetry SDKs and configure active rate-limiting or blocking solely on APIs, domains, and server infrastructure that you own or have explicit legal authorization to defend.
                     </p>
                   </div>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">2. Fail-Open Architecture and Availability</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       Our SDKs are architected with non-blocking, fail-open guarantees so that telemetry dispatch will never degrade host API availability. Operators maintain full responsibility for the overall health and deployment of their upstream server infrastructure.
                     </p>
                   </div>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">3. Acceptable Platform Use</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       You agree not to perform volumetric denial-of-service tests against the telemetry ingestion endpoints or attempt to bypass cryptographic multi-tenant authorization boundaries.
                     </p>
                   </div>
@@ -311,19 +311,19 @@ export const PublicLayout = ({ children }) => {
                 <>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">1. Coordinated Vulnerability Disclosure</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       We prioritize system security and value responsible vulnerability disclosures from developers and independent security researchers. If you identify a potential security issue in the platform or SDKs, we encourage prompt, coordinated reporting.
                     </p>
                   </div>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">2. Reporting Channel</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       Please submit security reports with detailed reproduction steps, vulnerable components, and proof-of-concept indicators directly through GitHub Security Advisories or by contacting the project maintainers.
                     </p>
                   </div>
                   <div>
                     <h4 className="text-white font-medium mb-1 text-xs">3. Safe Harbor Commitment</h4>
-                    <p className="text-slate-400">
+                    <p className="text-zinc-400">
                       We will not initiate legal action against researchers acting in good faith who conduct non-disruptive testing, avoid accessing or exfiltrating tenant data, and allow reasonable time for remediation prior to public disclosure.
                     </p>
                   </div>
@@ -331,11 +331,11 @@ export const PublicLayout = ({ children }) => {
               )}
             </div>
 
-            <div className="mt-6 pt-3 border-t border-slate-800 flex justify-end">
+            <div className="mt-6 pt-3 border-t border-zinc-800 flex justify-end">
               <button
                 type="button"
                 onClick={() => setLegalModal(null)}
-                className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
+                className="px-3 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-medium transition-colors border border-zinc-800"
               >
                 Close
               </button>
