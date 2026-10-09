@@ -19,10 +19,12 @@ import {
   Layers,
 } from 'lucide-react';
 import { PublicLayout } from '../../layouts/PublicLayout';
+import { useAuth } from '../../context/AuthContext';
 
 export const LandingPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [activeFramework, setActiveFramework] = useState('flask');
 
@@ -31,8 +33,10 @@ export const LandingPage = () => {
     const linkRequired = searchParams.get('link_required');
     if (oauthError || linkRequired) {
       navigate(`/login?${searchParams.toString()}`, { replace: true });
+    } else if (!authLoading && isAuthenticated) {
+      navigate('/app', { replace: true });
     }
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, isAuthenticated, authLoading]);
 
   const copyCode = (code) => {
     navigator.clipboard.writeText(code);

@@ -30,6 +30,9 @@ export const authService = {
   resetPassword: (data) => api.post('/api/auth/reset-password', data),
   changePassword: (data) => api.post('/api/auth/change-password', data),
   updateProfile: (data) => api.put('/api/auth/profile', data),
+  getGoogleStatus: () => api.get('/api/auth/google/status'),
+  getPendingLink: () => api.get('/api/auth/pending-link'),
+  linkGoogle: (password) => api.post('/api/auth/link-google', { password }),
 };
 
 export const organizationService = {

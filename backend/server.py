@@ -187,7 +187,18 @@ def static_assets(path):
 @app.route("/app/<path:path>", methods=["GET"])
 @app.route("/", methods=["GET"])
 def dashboard(path=None):
-    return send_from_directory(DASHBOARD_DIR, "index.html")
+    index_file = os.path.join(DASHBOARD_DIR, "index.html")
+    if os.path.exists(index_file):
+        return send_from_directory(DASHBOARD_DIR, "index.html")
+    return """<!doctype html>
+<html>
+<head><title>SentinAPI: Build Required</title></head>
+<body style="font-family: monospace; background: #0A0B0D; color: #E6E8EB; padding: 40px; text-align: center;">
+  <h2 style="color: #C792EA;">Frontend Production Build Required</h2>
+  <p style="color: #9BA1AC;">The dashboard application assets have not been built yet.</p>
+  <p>Please run <code style="background:#16181D;padding:4px 8px;border-radius:4px;border:1px solid #1E2127;">npm run build</code> in <code>frontend/dashboard</code> to generate the SPA distribution.</p>
+</body>
+</html>""", 200, {"Content-Type": "text/html"}
 
 
 @app.route("/health", methods=["GET"])
@@ -286,6 +297,11 @@ def handle_forbidden(e):
 def handle_not_found(e):
     if request.path.startswith("/api/") or request.path in ("/ingest", "/events/recent", "/alerts/recent", "/alerts/stats", "/history"):
         return jsonify({"error": "Not Found", "message": "The requested endpoint does not exist"}), 404
+    # For HTML browser navigation, serve the SPA shell so React Router handles the route
+    if request.method == "GET" and ("text/html" in request.headers.get("Accept", "") or "." not in request.path.split("/")[-1]):
+        index_file = os.path.join(DASHBOARD_DIR, "index.html")
+        if os.path.exists(index_file):
+            return send_from_directory(DASHBOARD_DIR, "index.html")
     return e
 
 
@@ -465,7 +481,7 @@ def auth_google():
     if not google_auth.is_google_oauth_configured():
         return redirect(url_for("dashboard", error="google_oauth_not_configured"))
 
-    redirect_uri = google_auth.get_redirect_uri()
+    redirect_uri = google_auth.get_redirect_uri(request)
     return google_auth.oauth.google.authorize_redirect(redirect_uri)
 
 

@@ -17,12 +17,22 @@ def is_google_oauth_configured() -> bool:
     return bool(client_id and client_secret)
 
 
-def get_redirect_uri() -> str:
+def get_redirect_uri(req=None) -> str:
     """
     Return the configured OAuth redirect URI.
-    Defaults to local development server on port 5001.
+    Defaults to request host callback or http://127.0.0.1:5001/auth/google/callback.
     """
-    return os.environ.get("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5001/auth/google/callback").strip()
+    env_uri = os.environ.get("GOOGLE_REDIRECT_URI", "").strip()
+    if env_uri:
+        return env_uri
+    try:
+        from flask import has_request_context, request as flask_req
+        target_req = req or (flask_req if has_request_context() else None)
+        if target_req:
+            return f"{target_req.scheme}://{target_req.host}/auth/google/callback"
+    except Exception:
+        pass
+    return "http://127.0.0.1:5001/auth/google/callback"
 
 
 def init_google_oauth(app):

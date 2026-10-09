@@ -79,6 +79,8 @@ export function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/dashboard" element={<Navigate to="/app" replace />} />
+              <Route path="/account" element={<Navigate to="/app/settings" replace />} />
 
               {/* Authenticated Dashboard Application */}
               <Route
