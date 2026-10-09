@@ -25,6 +25,7 @@ export const ProjectsPage = () => {
     projects,
     currentProject,
     latestCreatedKey,
+    setLatestCreatedKey,
     selectProject,
     refreshProjects,
     openCreateOrgModal,
@@ -42,6 +43,7 @@ export const ProjectsPage = () => {
   const [newKeyRaw, setNewKeyRaw] = useState(null);
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState('Developer Key');
+  const [keyError, setKeyError] = useState(null);
 
   // Member invite modal
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -83,14 +85,20 @@ export const ProjectsPage = () => {
     e.preventDefault();
     if (!currentProject?.id) return;
     setLoading(true);
+    setKeyError(null);
     try {
       const res = await projectService.createKey(currentProject.id, newKeyName);
-      if (res.data?.raw_key) {
-        setNewKeyRaw(res.data.raw_key);
+      const raw = res.data?.key?.raw_key || res.data?.raw_key;
+      if (raw) {
+        setNewKeyRaw(raw);
+        if (setLatestCreatedKey) setLatestCreatedKey(raw);
+      } else {
+        setKeyError('Key provisioned, but raw key secret was not returned.');
       }
       fetchKeys();
     } catch (err) {
       console.error('Failed to generate key:', err);
+      setKeyError(err.response?.data?.error || 'Failed to generate key. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -102,15 +110,19 @@ export const ProjectsPage = () => {
       return;
     }
     setLoading(true);
+    setKeyError(null);
     try {
       const res = await projectService.regenerateKey(currentProject.id);
-      if (res.data?.key?.raw_key) {
-        setNewKeyRaw(res.data.key.raw_key);
+      const raw = res.data?.key?.raw_key || res.data?.raw_key;
+      if (raw) {
+        setNewKeyRaw(raw);
+        if (setLatestCreatedKey) setLatestCreatedKey(raw);
         setShowNewKeyModal(true);
       }
       fetchKeys();
     } catch (err) {
       console.error('Failed to rotate key:', err);
+      alert(err.response?.data?.error || 'Failed to rotate key.');
     } finally {
       setLoading(false);
     }
@@ -372,7 +384,19 @@ export const ProjectsPage = () => {
                     {projectKeys.length === 0 && (
                       <tr>
                         <td colSpan="5" className="py-8 text-center text-[#7B818B] font-mono">
-                          Zero API keys generated yet. Click 'Create New Key' to provision an ingestion credential.
+                          <span>Zero API keys generated yet.{' '}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setKeyError(null);
+                              setNewKeyRaw(null);
+                              setShowNewKeyModal(true);
+                            }}
+                            className="text-[#C792EA] hover:underline font-semibold cursor-pointer"
+                          >
+                            Click here to create a new key
+                          </button>
+                          <span> to provision an ingestion credential.</span>
                         </td>
                       </tr>
                     )}
@@ -541,12 +565,41 @@ export const ProjectsPage = () => {
 
       {/* Modal: New Key Created */}
       {showNewKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowNewKeyModal(false);
+              setNewKeyRaw(null);
+              setKeyError(null);
+            }
+          }}
+        >
           <div className="bg-[#101216] border border-[#2A2E37] rounded p-6 w-full max-w-md shadow-2xl">
-            <div className="flex items-center space-x-2 text-[#E6E8EB] font-semibold mb-2">
-              <Key className="w-5 h-5 text-[#C792EA]" />
-              <span className="font-mono text-sm">{newKeyRaw ? 'API Key Generated' : 'Create API Key'}</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2 text-[#E6E8EB] font-semibold">
+                <Key className="w-5 h-5 text-[#C792EA]" />
+                <span className="font-mono text-sm">{newKeyRaw ? 'API Key Generated' : 'Create API Key'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNewKeyModal(false);
+                  setNewKeyRaw(null);
+                  setKeyError(null);
+                }}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
             </div>
+
+            {keyError && (
+              <div className="mb-3 p-2.5 rounded bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178]">
+                {keyError}
+              </div>
+            )}
 
             {newKeyRaw ? (
               <div className="space-y-4">
@@ -557,19 +610,22 @@ export const ProjectsPage = () => {
                 <div className="p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] break-all select-all flex items-center justify-between">
                   <span>{newKeyRaw}</span>
                   <button
+                    type="button"
                     onClick={() => copyToClipboard(newKeyRaw, 'modal_key')}
-                    className="ml-3 p-1 text-[#7B818B] hover:text-[#E6E8EB]"
+                    className="ml-3 p-1 text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer"
                   >
                     {copiedKey === 'modal_key' ? <Check className="w-4 h-4 text-[#C3E88D]" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
                 <div className="flex justify-end pt-2">
                   <button
+                    type="button"
                     onClick={() => {
                       setShowNewKeyModal(false);
                       setNewKeyRaw(null);
+                      setKeyError(null);
                     }}
-                    className="px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-xs font-semibold text-[#0A0B0D] font-mono"
+                    className="px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-xs font-semibold text-[#0A0B0D] font-mono cursor-pointer transition-colors"
                   >
                     I Have Saved This Key
                   </button>
@@ -585,21 +641,24 @@ export const ProjectsPage = () => {
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
                     placeholder="e.g. Production Ingestion Key"
-                    className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
+                    className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-hidden transition-colors font-mono"
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-2 border-t border-[#1E2127]">
                   <button
                     type="button"
-                    onClick={() => setShowNewKeyModal(false)}
-                    className="px-3 py-1.5 text-xs text-[#7B818B] hover:text-[#E6E8EB]"
+                    onClick={() => {
+                      setShowNewKeyModal(false);
+                      setKeyError(null);
+                    }}
+                    className="px-3 py-1.5 text-xs text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer font-mono"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-1.5 text-xs bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] font-semibold font-mono rounded"
+                    className="px-4 py-1.5 text-xs bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] font-semibold font-mono rounded cursor-pointer transition-colors"
                   >
                     {loading ? 'Generating...' : 'Generate Key'}
                   </button>
