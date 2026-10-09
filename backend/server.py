@@ -1098,6 +1098,37 @@ if __name__ == "__main__":
     app.run(port=5002)
 """
 
+    fastapi_example_code = f"""\"\"\"
+Sample integration of ML-O11Y Security SDK into your FastAPI application.
+\"\"\"
+from fastapi import FastAPI
+from security_sdk.fastapi import SecurityMiddleware
+import config
+
+app = FastAPI(title="{proj['name']}")
+
+# Attach zero-latency ASGI security observability middleware:
+app.add_middleware(
+    SecurityMiddleware,
+    collector_url=config.COLLECTOR_URL,
+    api_key=config.SDK_KEY,
+    app_name="{proj['name']}"
+)
+
+@app.get("/")
+def index():
+    return {{"status": "online", "message": "FastAPI is protected by ML-O11Y!"}}
+
+@app.get("/api/data")
+def get_data():
+    return {{"data": [1, 2, 3]}}
+
+if __name__ == "__main__":
+    import uvicorn
+    print(f"Server starting. Telemetry forwarding to {{config.COLLECTOR_URL}}...")
+    uvicorn.run(app, port=5002)
+"""
+
     readme_code = f"""# 🛡️ ML-O11Y Security SDK
 
 Preconfigured SDK for project: **{proj['name']}** (`{proj['id']}`)
@@ -1108,7 +1139,9 @@ Preconfigured SDK for project: **{proj['name']}** (`{proj['id']}`)
 ```bash
 pip install .
 ```
-Then in your Flask application:
+Then in your application:
+
+**Flask:**
 ```python
 from flask import Flask
 from security_sdk import SecurityMiddleware
@@ -1118,18 +1151,17 @@ app = Flask(__name__)
 SecurityMiddleware(app, collector_url=config.COLLECTOR_URL, api_key=config.SDK_KEY)
 ```
 
-### Option B: Standalone Drop-in
-Keep `middleware.py` and `config.py` in your application folder:
+**FastAPI:**
 ```python
-from flask import Flask
-from middleware import SecurityMiddleware
+from fastapi import FastAPI
+from security_sdk.fastapi import SecurityMiddleware
 import config
 
-app = Flask(__name__)
-SecurityMiddleware(app, collector_url=config.COLLECTOR_URL, api_key=config.SDK_KEY)
+app = FastAPI()
+app.add_middleware(SecurityMiddleware, collector_url=config.COLLECTOR_URL, api_key=config.SDK_KEY)
 ```
 
-### Option C: Zero-Hardcoding via Environment Variables
+### Option B: Zero-Hardcoding via Environment Variables
 ```bash
 export SECURITY_SDK_API_KEY="{raw_key}"
 export SECURITY_SDK_COLLECTOR_URL="{collector_url}"
@@ -1152,11 +1184,12 @@ SecurityMiddleware(app)
                 for f in files:
                     full_p = os.path.join(root, f)
                     rel_p = os.path.relpath(full_p, sdk_dir)
-                    if f not in ("sample_app.py", "config.py", "README.md"):
+                    if f not in ("sample_app.py", "sample_fastapi.py", "config.py", "README.md"):
                         z.write(full_p, arcname=rel_p)
 
         z.writestr("config.py", config_code)
         z.writestr("sample_app.py", example_code)
+        z.writestr("sample_fastapi.py", fastapi_example_code)
         z.writestr("README.md", readme_code)
     buf.seek(0)
 

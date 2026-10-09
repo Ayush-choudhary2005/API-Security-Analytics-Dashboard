@@ -13,6 +13,7 @@ import {
   UserPlus,
   Lock,
   ExternalLink,
+  Download,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { projectService, organizationService } from '../../services/api';
@@ -23,6 +24,7 @@ export const ProjectsPage = () => {
     organizations,
     projects,
     currentProject,
+    latestCreatedKey,
     selectProject,
     refreshProjects,
     openCreateOrgModal,
@@ -284,7 +286,17 @@ export const ProjectsPage = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={projectService.downloadSdkUrl(currentProject?.id) + (latestCreatedKey ? `?api_key=${encodeURIComponent(latestCreatedKey)}` : '')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+                    title="Download preconfigured SDK archive containing ready-to-run middleware and config"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download SDK (.zip)</span>
+                  </a>
                   <button
                     onClick={handleRegenerateKey}
                     disabled={loading}
@@ -428,16 +440,28 @@ export const ProjectsPage = () => {
                   <p className="text-xs text-[#9BA1AC] mb-4 line-clamp-2">{proj.description || 'No description provided'}</p>
 
                   <div className="pt-3 border-t border-[#1E2127] flex items-center justify-between">
-                    <button
-                      onClick={() => selectProject(proj)}
-                      className={`text-xs font-mono font-semibold px-3 py-1 rounded transition-colors ${
-                        currentProject?.id === proj.id
-                          ? 'bg-[#82AAFF] text-[#0A0B0D]'
-                          : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127]'
-                      }`}
-                    >
-                      {currentProject?.id === proj.id ? 'Selected' : 'Switch Context'}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => selectProject(proj)}
+                        className={`text-xs font-mono font-semibold px-3 py-1 rounded transition-colors ${
+                          currentProject?.id === proj.id
+                            ? 'bg-[#82AAFF] text-[#0A0B0D]'
+                            : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127]'
+                        }`}
+                      >
+                        {currentProject?.id === proj.id ? 'Selected' : 'Switch Context'}
+                      </button>
+                      <a
+                        href={projectService.downloadSdkUrl(proj.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-mono text-[#82AAFF] hover:text-[#a0c2ff] inline-flex items-center space-x-1 px-2 py-1 rounded bg-[#16181D] border border-[#1E2127]"
+                        title="Download SDK archive for this project"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>SDK</span>
+                      </a>
+                    </div>
                     <button
                       onClick={() => handleDeleteProject(proj.id, proj.name)}
                       className="text-xs text-[#F07178] hover:text-red-400 font-mono transition-colors"

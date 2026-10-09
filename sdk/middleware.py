@@ -52,6 +52,7 @@ except ImportError:
                 api_key
                 or token
                 or os.environ.get("SECURITY_SDK_API_KEY")
+                or os.environ.get("SECURITY_API_KEY")
                 or os.environ.get("MLO11Y_API_KEY")
                 or os.environ.get("API_SECURITY_KEY")
                 or ""
@@ -65,7 +66,19 @@ except ImportError:
                 or os.environ.get("COLLECTOR_URL")
                 or "http://localhost:5001"
             )
-            self.collector_url: str = resolved_url.strip().rstrip("/")
+            clean_url = str(resolved_url).strip()
+            if clean_url.endswith("/ingest"):
+                clean_url = clean_url[:-7]
+            clean_url = clean_url.rstrip("/")
+            if not clean_url.startswith(("http://", "https://")):
+                if "localhost" in clean_url or "127.0.0.1" in clean_url:
+                    clean_url = f"http://{clean_url}"
+                elif clean_url.startswith("/"):
+                    clean_url = "http://localhost:5001"
+                else:
+                    clean_url = f"https://{clean_url}"
+
+            self.collector_url: str = clean_url
             self.ingest_url: str = f"{self.collector_url}/ingest"
 
             if enabled is not None:
