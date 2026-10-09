@@ -76,6 +76,8 @@ export const webhookService = {
   configure: (projectId, data) => api.post(`/api/projects/${projectId}/webhooks`, data),
   test: (projectId, provider) => api.post(`/api/projects/${projectId}/webhooks/test`, { provider }),
   delete: (projectId, provider) => api.delete(`/api/projects/${projectId}/webhooks/${provider}`),
+  toggle: (projectId, provider, enabled) => api.post(`/api/projects/${projectId}/webhooks/toggle`, { provider, enabled }),
+  getStatus: (projectId) => api.get(`/api/projects/${projectId}/integrations/status`),
 };
 
 export const investigationService = {

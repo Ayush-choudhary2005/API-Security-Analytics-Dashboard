@@ -137,7 +137,10 @@ class NotificationService:
             prov = cfg.get("provider", "slack")
             if url:
                 if sender_fn:
-                    sender_fn(alert_data, webhook_url=url)
+                    try:
+                        sender_fn(alert_data, webhook_url=url, provider=prov)
+                    except TypeError:
+                        sender_fn(alert_data, webhook_url=url)
                 else:
                     self.dispatch_alert_direct(alert_data, url, provider_id=prov)
 

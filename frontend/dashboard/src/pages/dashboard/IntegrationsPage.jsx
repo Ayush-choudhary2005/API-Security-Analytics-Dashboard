@@ -35,7 +35,8 @@ export const IntegrationsPage = () => {
     setLoading(true);
     try {
       const res = await webhookService.list(currentProject.id);
-      setWebhooks(res.data?.webhooks || []);
+      const list = res.data?.webhooks || (res.data?.webhook ? [res.data.webhook] : []);
+      setWebhooks(list);
     } catch (err) {
       console.error('Failed to load project webhooks:', err);
     } finally {
@@ -49,6 +50,16 @@ export const IntegrationsPage = () => {
 
   const slackConfig = webhooks.find((w) => w.provider === 'slack');
   const discordConfig = webhooks.find((w) => w.provider === 'discord');
+
+  const handleToggleWebhook = async (provider, currentEnabled) => {
+    if (!currentProject?.id) return;
+    try {
+      await webhookService.toggle(currentProject.id, provider, !currentEnabled);
+      fetchWebhooks();
+    } catch (err) {
+      console.error(`Failed to toggle ${provider} webhook:`, err);
+    }
+  };
 
   const handleSaveSlack = async (e) => {
     e.preventDefault();
@@ -186,9 +197,17 @@ export const IntegrationsPage = () => {
           {slackConfig ? (
             <div className="p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] flex items-center justify-between">
               <span className="truncate">{slackConfig.masked_url || 'https://hooks.slack.com/services/****'}</span>
-              <span className="text-[10px] font-mono uppercase bg-[#16181D] text-[#C3E88D] px-2 py-0.5 rounded border border-[#C3E88D]/30">
-                ACTIVE_STREAM
-              </span>
+              <button
+                onClick={() => handleToggleWebhook('slack', slackConfig.enabled)}
+                className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                  slackConfig.enabled
+                    ? 'bg-[#16181D] text-[#C3E88D] border-[#C3E88D]/30 hover:border-[#C3E88D]'
+                    : 'bg-[#16181D] text-[#7B818B] border-[#7B818B]/30 hover:border-[#7B818B]'
+                }`}
+                title={slackConfig.enabled ? 'Click to pause alert stream' : 'Click to resume alert stream'}
+              >
+                {slackConfig.enabled ? 'ACTIVE_STREAM' : 'STREAM_PAUSED'}
+              </button>
             </div>
           ) : (
             <form onSubmit={handleSaveSlack} className="space-y-3">
@@ -250,9 +269,17 @@ export const IntegrationsPage = () => {
           {discordConfig ? (
             <div className="p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] flex items-center justify-between">
               <span className="truncate">{discordConfig.masked_url || 'https://discord.com/api/webhooks/****'}</span>
-              <span className="text-[10px] font-mono uppercase bg-[#16181D] text-[#C3E88D] px-2 py-0.5 rounded border border-[#C3E88D]/30">
-                ACTIVE_STREAM
-              </span>
+              <button
+                onClick={() => handleToggleWebhook('discord', discordConfig.enabled)}
+                className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                  discordConfig.enabled
+                    ? 'bg-[#16181D] text-[#C3E88D] border-[#C3E88D]/30 hover:border-[#C3E88D]'
+                    : 'bg-[#16181D] text-[#7B818B] border-[#7B818B]/30 hover:border-[#7B818B]'
+                }`}
+                title={discordConfig.enabled ? 'Click to pause alert stream' : 'Click to resume alert stream'}
+              >
+                {discordConfig.enabled ? 'ACTIVE_STREAM' : 'STREAM_PAUSED'}
+              </button>
             </div>
           ) : (
             <form onSubmit={handleSaveDiscord} className="space-y-3">

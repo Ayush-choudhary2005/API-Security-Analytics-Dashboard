@@ -29,7 +29,9 @@ def get_redirect_uri(req=None) -> str:
         from flask import has_request_context, request as flask_req
         target_req = req or (flask_req if has_request_context() else None)
         if target_req:
-            return f"{target_req.scheme}://{target_req.host}/auth/google/callback"
+            proto = target_req.headers.get("X-Forwarded-Proto", target_req.scheme)
+            host = target_req.headers.get("X-Forwarded-Host", target_req.host)
+            return f"{proto}://{host}/auth/google/callback"
     except Exception:
         pass
     return "http://127.0.0.1:5001/auth/google/callback"

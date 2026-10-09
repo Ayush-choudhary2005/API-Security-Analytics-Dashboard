@@ -48,6 +48,10 @@ app_cfg = get_config()
 app = Flask(__name__)
 app.config.from_object(app_cfg)
 
+# Support reverse proxy headers (e.g. Render, Cloudflare, AWS ALB)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # Initialize structured logging with secret redaction filters
 logger = logging_config.configure_logging(app, env=app_cfg.ENV)
 
@@ -1290,7 +1294,22 @@ def project_webhooks(project_id):
         return jsonify({"webhook": cfg, "message": f"{adapter.display_name} configuration saved successfully"}), 200
 
     # GET returns masked config — never leaks raw secret
-    return jsonify({"webhook": db.get_webhook_config(project_id, provider=provider, raw=False)}), 200
+    single_cfg = db.get_webhook_config(project_id, provider=provider, raw=False)
+    all_cfgs = db.list_webhook_configs(project_id, raw=False)
+    return jsonify({
+        "webhook": single_cfg,
+        "webhooks": all_cfgs
+    }), 200
+
+
+@app.route("/api/projects/<project_id>/webhooks/<provider>", methods=["DELETE"])
+@login_required
+def delete_project_webhook_by_provider(project_id, provider):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    ok = db.delete_webhook_config(project_id, provider=provider)
+    return jsonify({"success": ok, "message": f"{provider.capitalize()} webhook removed successfully"}), 200
 
 
 @app.route("/api/projects/<project_id>/webhooks/toggle", methods=["POST"])
@@ -1313,6 +1332,7 @@ def test_project_webhook(project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
 
     proj = db.get_project_by_id(project_id)
+    project_name = proj.get("name", "Project") if proj else "Project"
     data = request.get_json(silent=True) or {}
     provider = data.get("provider") or request.args.get("provider")
     url_to_test = data.get("webhook_url", "").strip()
@@ -1324,7 +1344,7 @@ def test_project_webhook(project_id):
         url_to_test = raw_cfg["webhook_url"]
         provider = raw_cfg.get("provider", provider or "slack")
 
-    success, msg = notification_service.test_connection(url_to_test, project_name=proj.get("name", "Project"), provider_id=provider)
+    success, msg = notification_service.test_connection(url_to_test, project_name=project_name, provider_id=provider)
     if success:
         return jsonify({"success": True, "message": msg}), 200
     else:
