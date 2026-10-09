@@ -200,6 +200,85 @@ def update_user_email_verified(user_id: str) -> bool:
     return True
 
 
+def delete_user(user_id: str) -> tuple[bool, str]:
+    """
+    Permanently delete a user account and cascade-remove all owned entities:
+    - User identities (auth_identities)
+    - Tokens (email_verification_tokens, password_reset_tokens)
+    - Organization memberships & owned organizations (with projects, keys, webhooks, events)
+    - User record (users)
+    """
+    if not user_id:
+        return False, "User ID is required"
+
+    conn = get_conn()
+    user = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        conn.close()
+        return False, "User not found"
+
+    # 1. Find all organizations owned by this user
+    owned_org_rows = conn.execute(
+        "SELECT organization_id FROM organization_members WHERE user_id = ? AND role = 'owner'",
+        (user_id,)
+    ).fetchall()
+    owned_org_ids = [r["organization_id"] for r in owned_org_rows]
+
+    # 2. Find all projects directly owned or within owned organizations
+    proj_query = "SELECT id FROM projects WHERE user_id = ?"
+    params = [user_id]
+    if owned_org_ids:
+        placeholders = ", ".join(["?"] * len(owned_org_ids))
+        proj_query += f" OR organization_id IN ({placeholders})"
+        params.extend(owned_org_ids)
+
+    proj_rows = conn.execute(proj_query, tuple(params)).fetchall()
+    proj_ids = list(set([r["id"] for r in proj_rows]))
+    conn.close()
+
+    with _lock:
+        conn = get_conn()
+        # Clean up projects
+        for pid in proj_ids:
+            conn.execute("DELETE FROM api_keys WHERE project_id = ?", (pid,))
+            conn.execute("DELETE FROM webhook_configs WHERE project_id = ?", (pid,))
+            conn.execute("DELETE FROM events WHERE project_id = ? OR tenant_id = ?", (pid, pid))
+            try:
+                conn.execute("DELETE FROM project_onboarding WHERE project_id = ?", (pid,))
+            except Exception:
+                pass
+            conn.execute("DELETE FROM projects WHERE id = ?", (pid,))
+
+        # Clean up owned organizations
+        for oid in owned_org_ids:
+            conn.execute("DELETE FROM organization_members WHERE organization_id = ?", (oid,))
+            conn.execute("DELETE FROM organizations WHERE id = ?", (oid,))
+
+        # Clean up memberships in any remaining organizations
+        conn.execute("DELETE FROM organization_members WHERE user_id = ?", (user_id,))
+
+        # Clean up authentication identities and tokens
+        try:
+            conn.execute("DELETE FROM auth_identities WHERE user_id = ?", (user_id,))
+        except Exception:
+            pass
+        try:
+            conn.execute("DELETE FROM email_verification_tokens WHERE user_id = ?", (user_id,))
+        except Exception:
+            pass
+        try:
+            conn.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,))
+        except Exception:
+            pass
+
+        # Finally, delete user record
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+
+    return True, "User account and all associated data permanently deleted"
+
+
 # ---------------------------------------------------------
 # Email Verification & Password Reset Tokens
 # ---------------------------------------------------------

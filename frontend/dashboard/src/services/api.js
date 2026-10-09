@@ -33,6 +33,7 @@ export const authService = {
   getGoogleStatus: () => api.get('/api/auth/google/status'),
   getPendingLink: () => api.get('/api/auth/pending-link'),
   linkGoogle: (password) => api.post('/api/auth/link-google', { password }),
+  deleteAccount: (data) => api.delete('/api/auth/account', { data }),
 };
 
 export const organizationService = {

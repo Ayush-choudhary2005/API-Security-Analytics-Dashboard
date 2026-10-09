@@ -758,6 +758,43 @@ def auth_change_password():
     }), 200
 
 
+@app.route("/api/auth/account", methods=["DELETE"])
+@login_required
+def auth_delete_account():
+    """
+    Permanently delete the authenticated user's account and associated data.
+    Enforces password verification if the user has a password,
+    or confirmation string (confirmation='DELETE' or confirmation=email) for OAuth-only users.
+    """
+    data = request.get_json(silent=True) or {}
+    password = data.get("password", "")
+    confirmation = (data.get("confirmation") or "").strip().upper()
+
+    user_id = g.current_user["id"]
+    email = g.current_user["email"]
+    raw_user = db.get_user_by_email(email)
+    stored_hash = raw_user.get("password_hash", "") if raw_user else ""
+    has_existing_pw = bool(stored_hash and not stored_hash.startswith("!oauth_"))
+
+    if has_existing_pw:
+        if not password or not auth.verify_password(stored_hash, password):
+            return jsonify({"error": "Incorrect password. Account deletion aborted."}), 401
+    else:
+        # For OAuth-only users, require explicit confirmation
+        if confirmation not in ("DELETE", email.upper()):
+            return jsonify({"error": "Please type 'DELETE' to confirm permanent account deletion."}), 400
+
+    success, msg = db.delete_user(user_id)
+    if not success:
+        return jsonify({"error": msg}), 400
+
+    session.clear()
+    return jsonify({
+        "success": True,
+        "message": "Your account and all associated telemetry, keys, and projects have been permanently deleted."
+    }), 200
+
+
 # ---------------------------------------------------------
 # Organization / Workspace Management Routes
 # ---------------------------------------------------------

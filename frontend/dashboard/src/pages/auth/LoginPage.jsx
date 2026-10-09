@@ -20,8 +20,11 @@ export const LoginPage = () => {
     const oauthError = searchParams.get('error');
     const linkRequired = searchParams.get('link_required');
     const oauthEmail = searchParams.get('email');
+    const isDeleted = searchParams.get('deleted');
 
-    if (linkRequired === '1' && oauthEmail) {
+    if (isDeleted === '1') {
+      setLinkingNotice('Your account and all associated telemetry have been permanently deleted.');
+    } else if (linkRequired === '1' && oauthEmail) {
       setEmail(oauthEmail);
       setLinkingNotice(
         `An account with "${oauthEmail}" already exists. Please sign in with your password to connect your Google account.`
