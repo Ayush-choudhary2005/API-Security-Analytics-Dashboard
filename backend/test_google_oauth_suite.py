@@ -54,6 +54,12 @@ class GoogleOAuthTestSuite(unittest.TestCase):
         conn.commit()
         conn.close()
 
+    def _create_test_project_for_session(self, name="Test Project"):
+        res_org = self.client.post("/api/organizations", json={"name": f"{name} Org"})
+        org_id = res_org.get_json()["organization"]["id"] if res_org.status_code == 201 else None
+        res_proj = self.client.post("/api/projects", json={"name": name, "organization_id": org_id})
+        return res_proj.get_json()["project"]["id"]
+
     # =========================================================
     # TEST 1: New user → Google signup
     # =========================================================
@@ -86,11 +92,9 @@ class GoogleOAuthTestSuite(unittest.TestCase):
         self.assertEqual(ident["provider"], "google")
         self.assertEqual(ident["provider_user_id"], "google_sub_1001")
 
-        # Verify default project and SDK key provisioned
+        # Clean slate: User starts with 0 projects and 0 keys
         projects = db.get_projects_by_user(user["id"])
-        self.assertEqual(len(projects), 1, "Should provision initial default project")
-        keys = db.list_api_keys_for_project(projects[0]["id"])
-        self.assertTrue(len(keys) >= 1, "Should provision initial SDK key")
+        self.assertEqual(len(projects), 0, "New user starts with 0 projects (clean slate)")
 
         # Verify authenticated session can access protected API
         res_me = self.client.get("/api/auth/me")
@@ -112,8 +116,9 @@ class GoogleOAuthTestSuite(unittest.TestCase):
         }
         self.client.get("/auth/google/callback?code=mock_code_1")
         first_user = db.get_user_by_email("google_newbie@example.com")
-        first_projects = db.get_projects_by_user(first_user["id"])
-        first_pid = first_projects[0]["id"]
+        
+        # User creates a project explicitly
+        first_pid = self._create_test_project_for_session("Persistent Project")
 
         # Logout
         self.client.post("/api/auth/logout")
@@ -231,8 +236,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
             "userinfo": {"sub": "google_sub_1001", "email": "google_newbie@example.com"}
         }
         self.client.get("/auth/google/callback?code=code")
-        projects = self.client.get("/api/projects").get_json()["projects"]
-        pid = projects[0]["id"]
+        pid = self._create_test_project_for_session("SDK Proj")
 
         res_dl = self.client.get(f"/api/projects/{pid}/sdk/download")
         self.assertEqual(res_dl.status_code, 200)
@@ -262,8 +266,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
             "userinfo": {"sub": "google_sub_1001", "email": "google_newbie@example.com"}
         }
         self.client.get("/auth/google/callback?code=code")
-        projects = self.client.get("/api/projects").get_json()["projects"]
-        pid = projects[0]["id"]
+        pid = self._create_test_project_for_session("Telemetry Proj")
 
         # Regenerate SDK key to get raw token
         res_key = self.client.post(f"/api/projects/{pid}/keys/regenerate")
@@ -292,8 +295,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
             "userinfo": {"sub": "google_sub_1001", "email": "google_newbie@example.com"}
         }
         self.client.get("/auth/google/callback?code=code")
-        projects = self.client.get("/api/projects").get_json()["projects"]
-        pid = projects[0]["id"]
+        pid = self._create_test_project_for_session("WS Proj")
 
         # Connect WebSocket using authenticated session
         ws_client = socketio.test_client(app, flask_test_client=self.client)
@@ -316,8 +318,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
             "userinfo": {"sub": "google_sub_1001", "email": "google_newbie@example.com"}
         }
         self.client.get("/auth/google/callback?code=code")
-        projects = self.client.get("/api/projects").get_json()["projects"]
-        pid = projects[0]["id"]
+        pid = self._create_test_project_for_session("Slack Proj")
 
         res_wh = self.client.post(f"/api/projects/{pid}/webhooks", json={
             "webhook_url": "https://hooks.slack.com/services/T999/B888/secretToken999",
@@ -360,7 +361,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
             "userinfo": {"sub": "google_sub_victim", "email": "google_victim@example.com"}
         }
         self.client.get("/auth/google/callback?code=code1")
-        victim_proj_id = self.client.get("/api/projects").get_json()["projects"][0]["id"]
+        victim_proj_id = self._create_test_project_for_session("Victim Proj")
         self.client.post("/api/auth/logout")
 
         # 2. Attacker logs in via Google
@@ -387,7 +388,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
             "userinfo": {"sub": "google_sub_victim", "email": "google_victim@example.com"}
         }
         self.client.get("/auth/google/callback?code=code1")
-        victim_pid = self.client.get("/api/projects").get_json()["projects"][0]["id"]
+        victim_pid = self._create_test_project_for_session("Victim Proj")
         self.client.post("/api/auth/logout")
 
         # Setup Attacker
@@ -396,7 +397,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
             "userinfo": {"sub": "google_sub_attacker", "email": "google_attacker@example.com"}
         }
         self.client.get("/auth/google/callback?code=code2")
-        attacker_pid = self.client.get("/api/projects").get_json()["projects"][0]["id"]
+        attacker_pid = self._create_test_project_for_session("Attacker Proj")
         attacker_key = self.client.post(f"/api/projects/{attacker_pid}/keys/regenerate").get_json()["key"]["raw_key"]
 
         # Attacker injects payload claiming victim_pid with attacker_key

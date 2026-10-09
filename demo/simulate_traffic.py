@@ -91,7 +91,7 @@ def simulate_burst(requests_count: int = 35):
 
 def run_continuous():
     print("=" * 65)
-    print(" SentinAPI Real-Time Telemetry & Attack Simulator")
+    print("Real-Time Telemetry & Attack Simulator")
     print(f" Target: {COLLECTOR_URL}")
     print(f" Key:    {TOKEN} (Demo E-Commerce Project)")
     print("=" * 65)

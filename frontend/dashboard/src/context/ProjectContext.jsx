@@ -128,6 +128,11 @@ export const ProjectProvider = ({ children }) => {
     localStorage.setItem('api_sec_current_project_id', project.id);
   };
 
+  // Modal visibility states accessible from any page/component
+  const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
+  const [showCreateProjModal, setShowCreateProjModal] = useState(false);
+  const [latestCreatedKey, setLatestCreatedKey] = useState(null);
+
   const createOrganization = async (name, slug) => {
     try {
       const res = await organizationService.create({ name, slug });
@@ -151,6 +156,9 @@ export const ProjectProvider = ({ children }) => {
         description,
         organization_id: currentOrg.id,
       });
+      if (res.data?.api_key) {
+        setLatestCreatedKey(res.data.api_key);
+      }
       await fetchProjects(currentOrg.id);
       if (res.data?.project) {
         selectProject(res.data.project);
@@ -158,6 +166,21 @@ export const ProjectProvider = ({ children }) => {
       return { success: true, data: res.data };
     } catch (err) {
       return { success: false, error: err.response?.data?.error || 'Failed to create project' };
+    }
+  };
+
+  const deleteProject = async (projectId) => {
+    try {
+      await projectService.delete(projectId);
+      if (currentProject?.id === projectId) {
+        leaveProjectRoom(projectId);
+        setCurrentProject(null);
+        localStorage.removeItem('api_sec_current_project_id');
+      }
+      await fetchProjects(currentOrg?.id);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.response?.data?.error || 'Failed to delete project' };
     }
   };
 
@@ -170,10 +193,19 @@ export const ProjectProvider = ({ children }) => {
         currentProject,
         loading,
         error,
+        showCreateOrgModal,
+        setShowCreateOrgModal,
+        showCreateProjModal,
+        setShowCreateProjModal,
+        openCreateOrgModal: () => setShowCreateOrgModal(true),
+        openCreateProjModal: () => setShowCreateProjModal(true),
+        latestCreatedKey,
+        setLatestCreatedKey,
         selectOrganization,
         selectProject,
         createOrganization,
         createProject,
+        deleteProject,
         refreshOrganizations: fetchOrganizations,
         refreshProjects: () => fetchProjects(currentOrg?.id),
       }}

@@ -38,6 +38,12 @@ export const AppLayout = ({ children }) => {
     selectProject,
     createOrganization,
     createProject,
+    showCreateOrgModal,
+    setShowCreateOrgModal,
+    showCreateProjModal,
+    setShowCreateProjModal,
+    latestCreatedKey,
+    setLatestCreatedKey,
   } = useProject();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -48,11 +54,10 @@ export const AppLayout = ({ children }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [liveAlerts, setLiveAlerts] = useState([]);
+  const [copiedLatestKey, setCopiedLatestKey] = useState(false);
 
-  // Modal states
-  const [showOrgModal, setShowOrgModal] = useState(false);
+  // Form input states
   const [newOrgName, setNewOrgName] = useState('');
-  const [showProjModal, setShowProjModal] = useState(false);
   const [newProjName, setNewProjName] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
 
@@ -90,7 +95,7 @@ export const AppLayout = ({ children }) => {
     if (!newOrgName.trim()) return;
     const res = await createOrganization(newOrgName.trim());
     if (res.success) {
-      setShowOrgModal(false);
+      setShowCreateOrgModal(false);
       setNewOrgName('');
     }
   };
@@ -100,7 +105,7 @@ export const AppLayout = ({ children }) => {
     if (!newProjName.trim()) return;
     const res = await createProject(newProjName.trim(), newProjDesc.trim());
     if (res.success) {
-      setShowProjModal(false);
+      setShowCreateProjModal(false);
       setNewProjName('');
       setNewProjDesc('');
     }
@@ -185,7 +190,7 @@ export const AppLayout = ({ children }) => {
                   <button
                     onClick={() => {
                       setOrgDropdownOpen(false);
-                      setShowOrgModal(true);
+                      setShowCreateOrgModal(true);
                     }}
                     className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded transition-colors"
                   >
@@ -242,7 +247,7 @@ export const AppLayout = ({ children }) => {
                   <button
                     onClick={() => {
                       setProjectDropdownOpen(false);
-                      setShowProjModal(true);
+                      setShowCreateProjModal(true);
                     }}
                     className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded transition-colors"
                   >
@@ -471,7 +476,7 @@ export const AppLayout = ({ children }) => {
       </div>
 
       {/* Modal: Create Organization */}
-      {showOrgModal && (
+      {showCreateOrgModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
           <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Create New Organization</h3>
@@ -493,7 +498,7 @@ export const AppLayout = ({ children }) => {
               <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
                 <button
                   type="button"
-                  onClick={() => setShowOrgModal(false)}
+                  onClick={() => setShowCreateOrgModal(false)}
                   className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
                 >
                   Cancel
@@ -511,12 +516,12 @@ export const AppLayout = ({ children }) => {
       )}
 
       {/* Modal: Create Project */}
-      {showProjModal && (
+      {showCreateProjModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
           <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Create New Project</h3>
             <p className="text-xs text-[#9BA1AC] mb-4">
-              Create an isolated project within <span className="text-[#E6E8EB] font-medium">{currentOrg?.name}</span> to collect API metrics.
+              Create an isolated project within <span className="text-[#E6E8EB] font-medium">{currentOrg?.name || 'Workspace'}</span> to collect API metrics.
             </p>
             <form onSubmit={handleCreateProjSubmit} className="space-y-4">
               <div>
@@ -543,7 +548,7 @@ export const AppLayout = ({ children }) => {
               <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
                 <button
                   type="button"
-                  onClick={() => setShowProjModal(false)}
+                  onClick={() => setShowCreateProjModal(false)}
                   className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
                 >
                   Cancel
@@ -552,10 +557,58 @@ export const AppLayout = ({ children }) => {
                   type="submit"
                   className="px-3.5 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] font-semibold rounded transition-colors"
                 >
-                  Create Project
+                  Create Project & Key
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Newly Generated API Key */}
+      {latestCreatedKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className="bg-[#101216] border border-[#C3E88D]/40 rounded-md p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#C3E88D]"></span>
+              <h3 className="text-sm font-semibold text-[#E6E8EB]">SDK Key Generated</h3>
+            </div>
+            <p className="text-xs text-[#9BA1AC] mb-3">
+              Your new project has been created and your initial SDK ingestion key has been provisioned. Copy this key now to configure your SDK.
+            </p>
+            <div className="bg-[#16181D] border border-[#2A2E37] rounded p-2.5 flex items-center justify-between mb-4 font-mono text-xs text-[#C3E88D] break-all">
+              <span>{latestCreatedKey}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(latestCreatedKey);
+                  setCopiedLatestKey(true);
+                  setTimeout(() => setCopiedLatestKey(false), 2000);
+                }}
+                className="ml-2 px-2 py-1 rounded bg-[#101216] hover:bg-[#1E2127] text-xs text-[#E6E8EB] border border-[#2A2E37] flex-shrink-0 transition-colors"
+              >
+                {copiedLatestKey ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <div className="flex justify-end space-x-2 pt-2 border-t border-[#1E2127]">
+              <button
+                type="button"
+                onClick={() => setLatestCreatedKey(null)}
+                className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLatestCreatedKey(null);
+                  navigate('/app/sdk');
+                }}
+                className="px-3.5 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold rounded transition-colors"
+              >
+                Go to SDK Integration
+              </button>
+            </div>
           </div>
         </div>
       )}

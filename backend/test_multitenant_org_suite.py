@@ -48,13 +48,19 @@ class TestMultiTenantOrgSuite(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 201)
         data = resp.get_json()
+        resp_org = self.client.post("/api/organizations", json={"name": f"{email_prefix.capitalize()} Org"})
+        self.assertEqual(resp_org.status_code, 201)
+        org = resp_org.get_json()["organization"]
+        resp_proj = self.client.post("/api/projects", json={"name": f"{email_prefix.capitalize()} Project", "organization_id": org["id"]})
+        self.assertEqual(resp_proj.status_code, 201)
+        proj_data = resp_proj.get_json()
         return {
             "email": email,
             "password": password,
             "user": data["user"],
-            "organization": data.get("organization"),
-            "project": data["default_project"],
-            "api_key": data["api_key"]
+            "organization": org,
+            "project": proj_data["project"],
+            "api_key": proj_data["api_key"]
         }
 
     def _login_user(self, user_info):
@@ -165,7 +171,7 @@ class TestMultiTenantOrgSuite(unittest.TestCase):
         resp = self.client.get(f"/api/projects?organization_id={staging_org['id']}")
         self.assertEqual(resp.status_code, 200)
         proj_list = resp.get_json()["projects"]
-        self.assertEqual(len(proj_list), 2)  # default project created with org + new project
+        self.assertEqual(len(proj_list), 1)  # only explicitly created project exists (clean slate)
         proj_names = [p["name"] for p in proj_list]
         self.assertIn("Staging Microservice", proj_names)
 

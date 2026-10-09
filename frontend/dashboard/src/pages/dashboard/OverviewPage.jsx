@@ -35,7 +35,14 @@ const PIE_COLORS = ['#C792EA', '#82AAFF', '#F07178', '#FFCB6B', '#C3E88D', '#7B8
 
 export const OverviewPage = () => {
   const navigate = useNavigate();
-  const { currentProject, projects } = useProject();
+  const {
+    currentOrg,
+    organizations,
+    currentProject,
+    projects,
+    openCreateOrgModal,
+    openCreateProjModal,
+  } = useProject();
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -143,27 +150,50 @@ export const OverviewPage = () => {
         anomalies: h.anomalies_detected || 0,
         latency: Math.round(h.avg_latency || 12),
       }))
-    : Array.from({ length: 12 }, (_, i) => ({
-        time: `${i * 2}:00`,
-        requests: Math.floor(Math.random() * 20) + 5,
-        anomalies: Math.floor(Math.random() * 2),
-        latency: Math.floor(Math.random() * 15) + 8,
-      }));
+    : [];
 
-  if (!currentProject) {
+  // Empty state: No workspace / organization
+  if (!currentOrg || organizations.length === 0) {
     return (
-      <div className="py-20 text-center space-y-3.5 bg-[#101216] border border-[#1E2127] rounded-md p-8">
-        <Server className="w-10 h-10 mx-auto text-[#7B818B]" />
-        <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
-        <p className="text-xs text-[#9BA1AC] max-w-sm mx-auto">
-          Create or select a project from the top navigation to view security telemetry and defense streams.
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
+        <div className="w-12 h-12 rounded-full bg-[#C792EA]/10 border border-[#C792EA]/30 flex items-center justify-center mx-auto text-[#C792EA]">
+          <Server className="w-6 h-6" />
+        </div>
+        <h2 className="text-base font-semibold text-[#E6E8EB]">No Workspace Created</h2>
+        <p className="text-xs text-[#9BA1AC] max-w-md mx-auto leading-relaxed">
+          Welcome to your security dashboard! Start clean by creating your organization workspace. Once created, you can add projects, generate SDK keys, and begin monitoring live traffic.
         </p>
-        <Link
-          to="/app/projects"
-          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
-        >
-          <span>Configure Projects</span>
-        </Link>
+        <div className="pt-2">
+          <button
+            onClick={openCreateOrgModal}
+            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+          >
+            <span>Create Workspace</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state: Workspace exists but no projects
+  if (!currentProject || projects.length === 0) {
+    return (
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
+        <div className="w-12 h-12 rounded-full bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
+          <Server className="w-6 h-6" />
+        </div>
+        <h2 className="text-base font-semibold text-[#E6E8EB]">No Projects in {currentOrg?.name}</h2>
+        <p className="text-xs text-[#9BA1AC] max-w-md mx-auto leading-relaxed">
+          You don't have any projects in this workspace yet. Create a project to generate your primary SDK API key and begin monitoring incoming traffic.
+        </p>
+        <div className="pt-2">
+          <button
+            onClick={openCreateProjModal}
+            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+          >
+            <span>Create Project</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -229,7 +259,9 @@ export const OverviewPage = () => {
         <div className="p-4">
           <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Risk Score</span>
           <p className="text-xl font-bold text-[#C792EA] font-mono">
-            {stats?.max_anomaly_score ? Number(stats.max_anomaly_score).toFixed(2) : '1.00'}
+            {stats?.max_anomaly_score && (events.length > 0 || stats?.total_events > 0)
+              ? Number(stats.max_anomaly_score).toFixed(2)
+              : '0.00'}
           </p>
           <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">ISOLATION FOREST MAX</p>
         </div>
@@ -262,18 +294,35 @@ export const OverviewPage = () => {
             </div>
           </div>
           <div className="h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trafficChartData}>
-                <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
-                <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} />
-                <YAxis stroke="#7B818B" fontSize={10} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '6px', fontSize: '11px', color: '#E6E8EB' }}
-                />
-                <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="#82AAFF" fillOpacity={0.12} name="Requests" />
-                <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="#F07178" fillOpacity={0.2} name="Anomalies" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {trafficChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trafficChartData}>
+                  <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
+                  <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} />
+                  <YAxis stroke="#7B818B" fontSize={10} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '6px', fontSize: '11px', color: '#E6E8EB' }}
+                  />
+                  <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="#82AAFF" fillOpacity={0.12} name="Requests" />
+                  <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="#F07178" fillOpacity={0.2} name="Anomalies" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                <Activity className="w-7 h-7 text-[#7B818B] mb-2 opacity-50" />
+                <p className="text-xs text-[#E6E8EB] font-medium">No Ingested Traffic Yet</p>
+                <p className="text-[11px] text-[#9BA1AC] max-w-xs mt-1">
+                  Connect the SDK to start monitoring live API requests and anomaly distributions.
+                </p>
+                <Link
+                  to="/app/sdk"
+                  className="mt-3 inline-flex items-center space-x-1 text-xs text-[#82AAFF] hover:underline font-mono"
+                >
+                  <span>Open SDK Guide</span>
+                  <ArrowUpRight className="w-3 h-3" />
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 

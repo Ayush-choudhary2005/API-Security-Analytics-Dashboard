@@ -18,7 +18,17 @@ import { useProject } from '../../context/ProjectContext';
 import { projectService, organizationService } from '../../services/api';
 
 export const ProjectsPage = () => {
-  const { currentOrg, projects, currentProject, selectProject, refreshProjects } = useProject();
+  const {
+    currentOrg,
+    organizations,
+    projects,
+    currentProject,
+    selectProject,
+    refreshProjects,
+    openCreateOrgModal,
+    openCreateProjModal,
+    deleteProject,
+  } = useProject();
 
   const [activeTab, setActiveTab] = useState('keys'); // 'keys', 'projects', 'members'
   const [projectKeys, setProjectKeys] = useState([]);
@@ -117,6 +127,16 @@ export const ProjectsPage = () => {
     }
   };
 
+  const handleDeleteProject = async (projectId, projectName) => {
+    if (!window.confirm(`Are you sure you want to delete project "${projectName}"? All API keys and telemetry for this project will be deleted.`)) {
+      return;
+    }
+    const res = await deleteProject(projectId);
+    if (!res.success) {
+      alert(res.error || 'Failed to delete project');
+    }
+  };
+
   const handleInviteMember = async (e) => {
     e.preventDefault();
     if (!currentOrg?.id || !memberEmail.trim()) return;
@@ -146,6 +166,29 @@ export const ProjectsPage = () => {
       console.error('Failed to remove member:', err);
     }
   };
+
+  // Empty state: No workspace
+  if (!currentOrg || organizations.length === 0) {
+    return (
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
+        <div className="w-12 h-12 rounded-full bg-[#C792EA]/10 border border-[#C792EA]/30 flex items-center justify-center mx-auto text-[#C792EA]">
+          <FolderGit2 className="w-6 h-6" />
+        </div>
+        <h2 className="text-base font-semibold text-[#E6E8EB]">No Workspace Created</h2>
+        <p className="text-xs text-[#9BA1AC] max-w-md mx-auto leading-relaxed">
+          Create an organization workspace before provisioning projects and API keys.
+        </p>
+        <div className="pt-2">
+          <button
+            onClick={openCreateOrgModal}
+            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+          >
+            <span>Create Workspace</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -200,145 +243,213 @@ export const ProjectsPage = () => {
 
       {/* TAB 1: SDK KEYS */}
       {activeTab === 'keys' && (
-        <div className="space-y-6">
-          <div className="rounded bg-[#101216] border border-[#1E2127] p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-[#1E2127] pb-3">
-              <div>
-                <div className="flex items-center space-x-2">
-                  <Key className="w-4 h-4 text-[#C792EA]" />
-                  <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
-                    SDK Credentials: {currentProject?.name}
-                  </h3>
-                </div>
-                <p className="text-[11px] text-[#9BA1AC] font-mono mt-1">
-                  CSPRNG 128-bit secret keys. Cryptographically hashed using SHA-256 in persistence layer.
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-2">
+        !currentProject ? (
+          <div className="py-16 text-center space-y-3 bg-[#101216] border border-[#1E2127] rounded p-6">
+            <Key className="w-8 h-8 text-[#7B818B] mx-auto opacity-60" />
+            <h3 className="text-sm font-semibold text-[#E6E8EB]">No Project Selected</h3>
+            <p className="text-xs text-[#9BA1AC] max-w-sm mx-auto">
+              Select or create a project to inspect and generate SDK API keys.
+            </p>
+            <div className="pt-2">
+              {projects.length > 0 ? (
                 <button
-                  onClick={handleRegenerateKey}
-                  disabled={loading}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-colors"
+                  onClick={() => setActiveTab('projects')}
+                  className="px-3.5 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded font-mono transition-colors"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Rotate Key</span>
+                  Choose a Project
                 </button>
+              ) : (
                 <button
-                  onClick={() => {
-                    setNewKeyRaw(null);
-                    setShowNewKeyModal(true);
-                  }}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+                  onClick={openCreateProjModal}
+                  className="px-3.5 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded font-mono transition-colors"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Create New Key</span>
+                  Create Project
                 </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded border border-[#1E2127]">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-[#16181D] text-[#7B818B] text-[10px] uppercase tracking-wider border-b border-[#1E2127]">
-                  <tr>
-                    <th className="py-2.5 px-4">Key Label</th>
-                    <th className="py-2.5 px-4">Secret Prefix</th>
-                    <th className="py-2.5 px-4">Status</th>
-                    <th className="py-2.5 px-4">Provisioned</th>
-                    <th className="py-2.5 px-4 text-right">Enforcement</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1E2127]/60 bg-[#101216]">
-                  {projectKeys.map((k) => (
-                    <tr key={k.id} className="hover:bg-[#16181D]/60 transition-colors">
-                      <td className="py-2.5 px-4 text-[#E6E8EB] font-sans font-medium">{k.name}</td>
-                      <td className="py-2.5 px-4 text-[#82AAFF]">
-                        {k.key_prefix}...
-                        <button
-                          onClick={() => copyToClipboard(k.key_prefix, k.id)}
-                          className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] inline-flex align-middle"
-                          title="Copy prefix"
-                        >
-                          {copiedKey === k.id ? <Check className="w-3 h-3 text-[#C3E88D]" /> : <Copy className="w-3 h-3" />}
-                        </button>
-                      </td>
-                      <td className="py-2.5 px-4">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase border ${
-                            k.status === 'active'
-                              ? 'bg-[#C3E88D]/15 text-[#C3E88D] border-[#C3E88D]/30'
-                              : 'bg-[#16181D] text-[#7B818B] border-[#1E2127]'
-                          }`}
-                        >
-                          {k.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-[#7B818B] text-[11px]">
-                        {k.created_at ? new Date(k.created_at * 1000).toLocaleDateString() : 'Active'}
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-sans">
-                        {k.status === 'active' && (
-                          <button
-                            onClick={() => handleRevokeKey(k.id)}
-                            className="text-xs text-[#F07178] hover:underline font-mono"
-                          >
-                            Revoke
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {projectKeys.length === 0 && (
-                    <tr>
-                      <td colSpan="5" className="py-8 text-center text-[#7B818B] font-mono">
-                        Zero API keys generated yet. Click 'Create New Key' to provision an ingestion credential.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              )}
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="rounded bg-[#101216] border border-[#1E2127] p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-[#1E2127] pb-3">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Key className="w-4 h-4 text-[#C792EA]" />
+                    <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
+                      SDK Credentials: {currentProject?.name}
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-[#9BA1AC] font-mono mt-1">
+                    CSPRNG 128-bit secret keys. Cryptographically hashed using SHA-256 in persistence layer.
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleRegenerateKey}
+                    disabled={loading}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Rotate Key</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewKeyRaw(null);
+                      setShowNewKeyModal(true);
+                    }}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Create New Key</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded border border-[#1E2127]">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-[#16181D] text-[#7B818B] text-[10px] uppercase tracking-wider border-b border-[#1E2127]">
+                    <tr>
+                      <th className="py-2.5 px-4">Key Label</th>
+                      <th className="py-2.5 px-4">Secret Prefix</th>
+                      <th className="py-2.5 px-4">Status</th>
+                      <th className="py-2.5 px-4">Provisioned</th>
+                      <th className="py-2.5 px-4 text-right">Enforcement</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1E2127]/60 bg-[#101216]">
+                    {projectKeys.map((k) => (
+                      <tr key={k.id} className="hover:bg-[#16181D]/60 transition-colors">
+                        <td className="py-2.5 px-4 text-[#E6E8EB] font-sans font-medium">{k.name}</td>
+                        <td className="py-2.5 px-4 text-[#82AAFF]">
+                          {k.key_prefix}...
+                          <button
+                            onClick={() => copyToClipboard(k.key_prefix, k.id)}
+                            className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] inline-flex align-middle"
+                            title="Copy prefix"
+                          >
+                            {copiedKey === k.id ? <Check className="w-3 h-3 text-[#C3E88D]" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase border ${
+                              k.status === 'active'
+                                ? 'bg-[#C3E88D]/15 text-[#C3E88D] border-[#C3E88D]/30'
+                                : 'bg-[#16181D] text-[#7B818B] border-[#1E2127]'
+                            }`}
+                          >
+                            {k.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-[#7B818B] text-[11px]">
+                          {k.created_at ? new Date(k.created_at * 1000).toLocaleDateString() : 'Active'}
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-sans">
+                          {k.status === 'active' && (
+                            <button
+                              onClick={() => handleRevokeKey(k.id)}
+                              className="text-xs text-[#F07178] hover:underline font-mono"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {projectKeys.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="py-8 text-center text-[#7B818B] font-mono">
+                          Zero API keys generated yet. Click 'Create New Key' to provision an ingestion credential.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* TAB 2: PROJECTS LIST */}
       {activeTab === 'projects' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((proj) => (
-            <div
-              key={proj.id}
-              className={`p-5 rounded bg-[#101216] border transition-colors ${
-                currentProject?.id === proj.id
-                  ? 'border-[#82AAFF] bg-[#16181D]'
-                  : 'border-[#1E2127] hover:border-[#2A2E37]'
-              }`}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-[#101216] border border-[#1E2127] p-3 rounded">
+            <div>
+              <span className="text-xs font-mono text-[#E6E8EB] font-semibold">Projects in {currentOrg?.name || 'Workspace'}</span>
+              <p className="text-[11px] text-[#9BA1AC] font-mono">Scope environments for SDK keys, telemetry pipelines, and rate limiting</p>
+            </div>
+            <button
+              onClick={openCreateProjModal}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono text-[#82AAFF] bg-[#16181D] border border-[#2A2E37] px-1.5 py-0.5 rounded">
-                  {proj.id.slice(0, 12)}
-                </span>
-                {currentProject?.id === proj.id && (
-                  <span className="text-[10px] font-mono text-[#C3E88D] uppercase tracking-wider font-semibold border border-[#C3E88D]/30 px-1.5 py-0.5 rounded bg-[#C3E88D]/10">ACTIVE PROJECT</span>
-                )}
-              </div>
-              <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">{proj.name}</h3>
-              <p className="text-xs text-[#9BA1AC] mb-4 line-clamp-2">{proj.description || 'No description provided'}</p>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create Project</span>
+            </button>
+          </div>
 
-              <div className="pt-3 border-t border-[#1E2127] flex items-center justify-between">
+          {projects.length === 0 ? (
+            <div className="py-16 text-center space-y-3 bg-[#101216] border border-[#1E2127] rounded p-6">
+              <FolderGit2 className="w-8 h-8 text-[#7B818B] mx-auto opacity-60" />
+              <h3 className="text-sm font-semibold text-[#E6E8EB]">No Projects in this Workspace</h3>
+              <p className="text-xs text-[#9BA1AC] max-w-sm mx-auto">
+                Create your first project to automatically generate your initial SDK API key and start streaming telemetry.
+              </p>
+              <div className="pt-2">
                 <button
-                  onClick={() => selectProject(proj)}
-                  className={`text-xs font-mono font-semibold px-3 py-1 rounded transition-colors ${
-                    currentProject?.id === proj.id
-                      ? 'bg-[#82AAFF] text-[#0A0B0D]'
-                      : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127]'
-                  }`}
+                  onClick={openCreateProjModal}
+                  className="px-3.5 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded font-mono transition-colors"
                 >
-                  {currentProject?.id === proj.id ? 'Selected' : 'Switch Context'}
+                  Create Project
                 </button>
               </div>
             </div>
-          ))}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map((proj) => (
+                <div
+                  key={proj.id}
+                  className={`p-5 rounded bg-[#101216] border transition-colors ${
+                    currentProject?.id === proj.id
+                      ? 'border-[#82AAFF] bg-[#16181D]'
+                      : 'border-[#1E2127] hover:border-[#2A2E37]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-mono text-[#82AAFF] bg-[#16181D] border border-[#2A2E37] px-1.5 py-0.5 rounded">
+                      {proj.id.slice(0, 12)}
+                    </span>
+                    {currentProject?.id === proj.id && (
+                      <span className="text-[10px] font-mono text-[#C3E88D] uppercase tracking-wider font-semibold border border-[#C3E88D]/30 px-1.5 py-0.5 rounded bg-[#C3E88D]/10">ACTIVE PROJECT</span>
+                    )}
+                  </div>
+                  <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">{proj.name}</h3>
+                  <p className="text-xs text-[#9BA1AC] mb-4 line-clamp-2">{proj.description || 'No description provided'}</p>
+
+                  <div className="pt-3 border-t border-[#1E2127] flex items-center justify-between">
+                    <button
+                      onClick={() => selectProject(proj)}
+                      className={`text-xs font-mono font-semibold px-3 py-1 rounded transition-colors ${
+                        currentProject?.id === proj.id
+                          ? 'bg-[#82AAFF] text-[#0A0B0D]'
+                          : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127]'
+                      }`}
+                    >
+                      {currentProject?.id === proj.id ? 'Selected' : 'Switch Context'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProject(proj.id, proj.name)}
+                      className="text-xs text-[#F07178] hover:text-red-400 font-mono transition-colors"
+                      title="Delete project"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

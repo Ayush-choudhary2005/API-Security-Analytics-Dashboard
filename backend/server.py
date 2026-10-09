@@ -107,7 +107,7 @@ def _resolve_and_verify_project(user_id):
         if user_projects:
             project_id = user_projects[0]["id"]
         else:
-            project_id = "default"
+            return None, (jsonify({"error": "No projects found", "code": "NO_PROJECTS"}), 404)
 
     if not db.user_owns_project(user_id, project_id):
         return None, (jsonify({"error": "Forbidden: access denied to this project"}), 403)
@@ -361,13 +361,9 @@ def auth_register():
     if db.get_user_by_email(email):
         return jsonify({"error": "An account with this email already exists"}), 409
 
-    # Create user, workspace organization & initial project
+    # Create user only - clean slate with zero predefined workspaces/projects/keys
     pw_hash = auth.hash_password(password)
     user = db.create_user(email, pw_hash, name=name, email_verified=0)
-    org_name = f"{name}'s Workspace" if name else f"{email.split('@')[0].capitalize()}'s Workspace"
-    default_org = db.create_organization(user["id"], name=org_name)
-    default_proj = db.create_project(user["id"], name="Default Project", description="Primary security project", organization_id=default_org["id"])
-    key_info = db.create_api_key(default_proj["id"], name="Primary SDK Key")
 
     # Generate verification token & dispatch transactional email
     v_token = db.create_email_verification_token(user["id"])
@@ -381,9 +377,6 @@ def auth_register():
 
     return jsonify({
         "user": user,
-        "organization": default_org,
-        "default_project": default_proj,
-        "api_key": key_info["raw_key"],
         "message": "Account created successfully. A verification email has been sent."
     }), 201
 
@@ -819,21 +812,11 @@ def create_organization_route():
 
     try:
         org = db.create_organization(g.current_user["id"], name=name, slug=slug)
-        # Create an initial default project for this new workspace
-        initial_proj = db.create_project(
-            g.current_user["id"],
-            name="Main API",
-            description=f"Primary API for {name}",
-            organization_id=org["id"]
-        )
-        key_info = db.create_api_key(initial_proj["id"], name="Primary SDK Key")
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
     return jsonify({
-        "organization": org,
-        "default_project": initial_proj,
-        "api_key": key_info["raw_key"]
+        "organization": org
     }), 201
 
 

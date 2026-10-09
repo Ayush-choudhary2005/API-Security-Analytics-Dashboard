@@ -95,10 +95,15 @@ def run_tests():
         assert_test("Signup returns HTTP 201", res.status_code == 201, f"Status: {res.status_code}")
         assert_test("Signup returns user object with ID and email", data.get("user", {}).get("email") == alice_email)
         assert_test("Password hash is not exposed in response", "password_hash" not in data.get("user", {}))
-        assert_test("Auto-creates default project", data.get("default_project", {}).get("name") == "Default Project")
-        assert_test("Auto-generates raw API key", bool(data.get("api_key")))
-        alice_key = data.get("api_key")
-        alice_proj_id = data.get("default_project", {}).get("id")
+        assert_test("Clean slate: no auto-created project on signup", "default_project" not in data)
+        assert_test("Clean slate: no auto-created api key on signup", "api_key" not in data)
+        # Alice explicitly creates organization and project
+        res_org = client.post("/api/organizations", json={"name": "Alice Org"})
+        alice_org_id = res_org.get_json()["organization"]["id"] if res_org.status_code == 201 else None
+        res_proj = client.post("/api/projects", json={"name": "Alice Project", "organization_id": alice_org_id})
+        assert_test("Alice explicitly creates project", res_proj.status_code == 201)
+        alice_proj_id = res_proj.get_json()["project"]["id"]
+        alice_key = res_proj.get_json().get("api_key")
 
         # Verify session established
         res_me = client.get("/api/auth/me")
@@ -185,8 +190,11 @@ def run_tests():
             "password": "Password123!",
             "confirm_password": "Password123!"
         })
-        bob_proj_id = res_bob_reg.get_json()["default_project"]["id"]
         assert_test("Bob registered successfully", res_bob_reg.status_code == 201)
+        res_bob_org = bob_client.post("/api/organizations", json={"name": "Bob Org"})
+        bob_org_id = res_bob_org.get_json()["organization"]["id"] if res_bob_org.status_code == 201 else None
+        res_bob_proj = bob_client.post("/api/projects", json={"name": "Bob Project", "organization_id": bob_org_id})
+        bob_proj_id = res_bob_proj.get_json()["project"]["id"]
 
         # Bob tries to access Alice's project via API
         res_bob_alice_proj = bob_client.get(f"/api/projects/{alice_proj_id}")

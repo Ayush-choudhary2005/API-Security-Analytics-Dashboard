@@ -560,27 +560,17 @@ def link_identity(user_id: str, provider: str, provider_user_id: str, provider_e
 def create_user_with_identity(email: str, provider: str, provider_user_id: str, provider_email: str = None) -> dict:
     """
     Create a new internal user directly linked to an OAuth identity (e.g. Google signup).
-    Also provisions a default organization, default project, and primary SDK key.
+    Clean slate: does NOT auto-provision workspaces, projects, or API keys.
     """
     norm_email = email.strip().lower()
     user = create_user(norm_email, password_hash=None)
     identity = link_identity(user["id"], provider, provider_user_id, provider_email or norm_email)
-    
-    # Auto-provision default organization
-    default_org = create_organization(user["id"], name="Default Workspace")
-
-    # Auto-provision default project in that organization
-    default_proj = create_project(user["id"], name="Default Project", description="Primary security project", organization_id=default_org["id"])
-    key_info = create_api_key(default_proj["id"], name="Primary SDK Key")
     
     return {
         "id": user["id"],
         "email": user["email"],
         "created_at": user["created_at"],
         "updated_at": user.get("updated_at"),
-        "default_organization": default_org,
-        "default_project": default_proj,
-        "api_key": key_info["raw_key"],
         "identity": identity
     }
 

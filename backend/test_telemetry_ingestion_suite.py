@@ -50,13 +50,19 @@ class TestTelemetryIngestionSuite(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 201)
         data = resp.get_json()
+        resp_org = self.client.post("/api/organizations", json={"name": f"{email_prefix.capitalize()} Org"})
+        self.assertEqual(resp_org.status_code, 201)
+        org = resp_org.get_json()["organization"]
+        resp_proj = self.client.post("/api/projects", json={"name": f"{email_prefix.capitalize()} Project", "organization_id": org["id"]})
+        self.assertEqual(resp_proj.status_code, 201)
+        proj_data = resp_proj.get_json()
         return {
             "email": email,
             "password": password,
             "user": data["user"],
-            "organization": data.get("organization"),
-            "project": data["default_project"],
-            "api_key": data["api_key"]
+            "organization": org,
+            "project": proj_data["project"],
+            "api_key": proj_data["api_key"]
         }
 
     def setUp(self):

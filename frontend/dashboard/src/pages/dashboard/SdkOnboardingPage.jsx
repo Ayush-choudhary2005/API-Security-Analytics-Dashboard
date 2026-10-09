@@ -18,7 +18,7 @@ import { onboardingService, projectService } from '../../services/api';
 import { getSocket } from '../../services/socket';
 
 export const SdkOnboardingPage = () => {
-  const { currentProject } = useProject();
+  const { currentOrg, currentProject, openCreateOrgModal, openCreateProjModal } = useProject();
 
   const [framework, setFramework] = useState('flask');
   const [currentStep, setCurrentStep] = useState(1);
@@ -167,6 +167,37 @@ app.use(securityMiddleware({
   collectorUrl: '/ingest'
 }));`,
   };
+
+  if (!currentProject) {
+    return (
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
+        <div className="w-12 h-12 rounded-full bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
+          <Terminal className="w-6 h-6" />
+        </div>
+        <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
+        <p className="text-xs text-[#9BA1AC] max-w-md mx-auto leading-relaxed">
+          Create or select a project to get your project-scoped SDK integration instructions and API keys.
+        </p>
+        <div className="pt-2">
+          {currentOrg ? (
+            <button
+              onClick={openCreateProjModal}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            >
+              <span>Create Project</span>
+            </button>
+          ) : (
+            <button
+              onClick={openCreateOrgModal}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            >
+              <span>Create Workspace</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">

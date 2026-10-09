@@ -57,8 +57,8 @@ class SaaSAuthTestSuite(unittest.TestCase):
         self.assertEqual(data["user"]["email"], unique_email)
         self.assertEqual(data["user"]["name"], "Jane Developer")
         self.assertEqual(data["user"]["email_verified"], 0)
-        self.assertIn("default_project", data)
-        self.assertIn("api_key", data)
+        self.assertNotIn("default_project", data)
+        self.assertNotIn("api_key", data)
 
         # Verify email was dispatched to in-memory dev mailbox
         email_record = email_service.get_latest_email(to_email=unique_email, email_type="email_verification")

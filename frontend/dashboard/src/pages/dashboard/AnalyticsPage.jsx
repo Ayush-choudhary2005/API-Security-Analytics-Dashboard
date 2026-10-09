@@ -27,7 +27,7 @@ import { useProject } from '../../context/ProjectContext';
 import { telemetryService } from '../../services/api';
 
 export const AnalyticsPage = () => {
-  const { currentProject } = useProject();
+  const { currentOrg, currentProject, openCreateOrgModal, openCreateProjModal } = useProject();
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -61,29 +61,54 @@ export const AnalyticsPage = () => {
         anomalies: item.attacks !== undefined ? item.attacks : (item.anomalies_detected || 0),
         avgLatency: Math.round(item.avg_latency || 12),
       }))
-    : Array.from({ length: 15 }, (_, i) => ({
-        time: `${String(i * 2).padStart(2, '0')}:00`,
-        requests: Math.floor(Math.random() * 35) + 12,
-        anomalies: Math.floor(Math.random() * 3),
-        avgLatency: Math.floor(Math.random() * 15) + 8,
-      }));
+    : [];
 
   const attackTypes = stats?.attack_distribution
-    ? Object.entries(stats.attack_distribution).map(([type, count]) => ({
-        type: type.replace('_', ' ').toUpperCase(),
-        count,
-      }))
-    : [
-        { type: 'BRUTE FORCE', count: 8 },
-        { type: 'BURST ANOMALY', count: 4 },
-        { type: 'ENDPOINT SCAN', count: 3 },
-        { type: 'PAYLOAD PROBE', count: 2 },
-      ];
+    ? Object.entries(stats.attack_distribution)
+        .filter(([_, count]) => count > 0)
+        .map(([type, count]) => ({
+          type: type.replace('_', ' ').toUpperCase(),
+          count,
+        }))
+    : [];
 
   const totalVol = chartData.reduce((acc, c) => acc + (c.requests || 0), 0);
   const totalAnom = chartData.reduce((acc, c) => acc + (c.anomalies || 0), 0);
-  const avgLat = Math.round(chartData.reduce((acc, c) => acc + (c.avgLatency || 0), 0) / (chartData.length || 1));
+  const avgLat = totalVol > 0 && chartData.length > 0
+    ? Math.round(chartData.reduce((acc, c) => acc + (c.avgLatency || 0), 0) / chartData.length)
+    : 0;
   const breachRate = totalVol > 0 ? ((totalAnom / totalVol) * 100).toFixed(2) : '0.00';
+
+  if (!currentProject) {
+    return (
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
+        <div className="w-12 h-12 rounded-full bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
+          <BarChart3 className="w-6 h-6" />
+        </div>
+        <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
+        <p className="text-xs text-[#9BA1AC] max-w-md mx-auto leading-relaxed">
+          Create or select a project to inspect aggregate telemetry velocity, anomaly breakdown, and latency distribution.
+        </p>
+        <div className="pt-2">
+          {currentOrg ? (
+            <button
+              onClick={openCreateProjModal}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            >
+              <span>Create Project</span>
+            </button>
+          ) : (
+            <button
+              onClick={openCreateOrgModal}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            >
+              <span>Create Workspace First</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -173,29 +198,39 @@ export const AnalyticsPage = () => {
           <span className="text-[10px] font-mono text-[#7B818B]">TIME-SERIES DUAL-AXIS</span>
         </div>
         <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="reqGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#82AAFF" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#82AAFF" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="anomGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#F07178" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#F07178" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
-              <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
-              <YAxis stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
-              />
-              <Legend wrapperStyle={{ fontSize: '11px', fontFamily: 'monospace', paddingTop: '10px' }} />
-              <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="url(#reqGradient)" name="Total Requests" />
-              <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="url(#anomGradient)" name="Flagged Anomalies" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="reqGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#82AAFF" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#82AAFF" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="anomGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#F07178" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#F07178" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
+                <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
+                <YAxis stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
+                />
+                <Legend wrapperStyle={{ fontSize: '11px', fontFamily: 'monospace', paddingTop: '10px' }} />
+                <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="url(#reqGradient)" name="Total Requests" />
+                <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="url(#anomGradient)" name="Flagged Anomalies" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-center p-4">
+              <BarChart3 className="w-7 h-7 text-[#7B818B] mb-2 opacity-50" />
+              <p className="text-xs text-[#E6E8EB] font-medium">No Historical Traffic Data</p>
+              <p className="text-[11px] text-[#9BA1AC] max-w-xs mt-1">
+                Telemetry sent from your configured SDK will generate request volume trends and anomaly spikes here.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -213,17 +248,27 @@ export const AnalyticsPage = () => {
             <span className="text-[10px] font-mono text-[#C792EA]">p50 / p95 METRIC</span>
           </div>
           <div className="h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
-                <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
-                <YAxis stroke="#7B818B" fontSize={10} unit="ms" tickLine={false} fontFamily="monospace" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
-                />
-                <Line type="monotone" dataKey="avgLatency" stroke="#C792EA" strokeWidth={1.5} dot={{ r: 2, fill: '#C792EA' }} name="Avg Latency (ms)" />
-              </LineChart>
-            </ResponsiveContainer>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
+                  <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
+                  <YAxis stroke="#7B818B" fontSize={10} unit="ms" tickLine={false} fontFamily="monospace" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
+                  />
+                  <Line type="monotone" dataKey="avgLatency" stroke="#C792EA" strokeWidth={1.5} dot={{ r: 2, fill: '#C792EA' }} name="Avg Latency (ms)" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                <Clock className="w-7 h-7 text-[#7B818B] mb-2 opacity-50" />
+                <p className="text-xs text-[#E6E8EB] font-medium">No Latency Measurements</p>
+                <p className="text-[11px] text-[#9BA1AC] max-w-xs mt-1">
+                  Latency distributions will display here once transactions begin streaming.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -240,17 +285,27 @@ export const AnalyticsPage = () => {
             <span className="text-[10px] font-mono text-[#FFCB6B]">CLASSIFIER HISTOGRAM</span>
           </div>
           <div className="h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={attackTypes} layout="vertical">
-                <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
-                <XAxis type="number" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
-                <YAxis dataKey="type" type="category" stroke="#7B818B" fontSize={9} width={110} tickLine={false} fontFamily="monospace" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
-                />
-                <Bar dataKey="count" fill="#C3E88D" radius={[0, 2, 2, 0]} name="Occurrences" />
-              </BarChart>
-            </ResponsiveContainer>
+            {attackTypes.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={attackTypes} layout="vertical">
+                  <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
+                  <XAxis type="number" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
+                  <YAxis dataKey="type" type="category" stroke="#7B818B" fontSize={9} width={110} tickLine={false} fontFamily="monospace" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
+                  />
+                  <Bar dataKey="count" fill="#C3E88D" radius={[0, 2, 2, 0]} name="Occurrences" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                <Layers className="w-7 h-7 text-[#7B818B] mb-2 opacity-50" />
+                <p className="text-xs text-[#E6E8EB] font-medium">Zero Hostile Signatures</p>
+                <p className="text-[11px] text-[#9BA1AC] max-w-xs mt-1">
+                  No attack vectors or heuristic threshold triggers identified for this project scope.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
