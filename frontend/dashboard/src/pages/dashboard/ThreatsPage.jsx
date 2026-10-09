@@ -8,6 +8,7 @@ import {
   Search,
   ExternalLink,
   Zap,
+  Radio,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { telemetryService, onboardingService } from '../../services/api';
@@ -112,26 +113,31 @@ export const ThreatsPage = () => {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1E2127] pb-4">
         <div>
-          <h1 className="text-lg font-bold text-white tracking-tight">Threats and Active Defense</h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Machine learning anomaly detections, brute-force alarms, and automated firewall blocks.
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">Threat Registry & Active Defense</h1>
+            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#F07178] border border-[#2A2E37]">
+              <span>ACTIVE_FIREWALL</span>
+            </span>
+          </div>
+          <p className="text-xs text-[#9BA1AC] mt-1 font-mono">
+            Machine learning anomaly scoring, volumetric flood filters, and automated tenant rate-limiting.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2.5">
           <button
             onClick={handleSimulateAttack}
             disabled={simulatingAttack}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-medium transition-colors"
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#FFCB6B]/40 text-[#FFCB6B] text-xs font-mono font-medium transition-colors"
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span>{simulatingAttack ? 'Injecting Probe...' : 'Simulate Test Attack'}</span>
+            <Zap className="w-3.5 h-3.5 fill-current" />
+            <span>{simulatingAttack ? 'INJECTING PROBE...' : 'SIMULATE ATTACK'}</span>
           </button>
           <button
             onClick={() => setShowBlockModal(true)}
-            className="inline-flex items-center space-x-1 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors"
+            className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] text-xs font-semibold transition-colors shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Block IP Address</span>
@@ -140,15 +146,15 @@ export const ThreatsPage = () => {
       </div>
 
       {/* Filter Row */}
-      <div className="p-3 rounded bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row gap-2.5 items-center justify-between">
+      <div className="p-3 rounded bg-[#101216] border border-[#1E2127] flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div className="relative w-full sm:w-80">
-          <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+          <Search className="w-3.5 h-3.5 text-[#7B818B] absolute left-3 top-2.5" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by attack type, IP, or endpoint..."
-            className="w-full bg-black border border-zinc-800 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white transition-colors"
+            placeholder="Search by vector, IP, or endpoint..."
+            className="w-full bg-[#16181D] border border-[#1E2127] rounded pl-8 pr-3 py-1.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
           />
         </div>
 
@@ -156,71 +162,71 @@ export const ThreatsPage = () => {
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
-            className="bg-black border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-white font-mono transition-colors"
+            className="bg-[#16181D] border border-[#1E2127] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
           >
-            <option value="ALL">All Severities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
+            <option value="ALL">SEVERITY: ALL</option>
+            <option value="critical">CRITICAL</option>
+            <option value="high">HIGH</option>
+            <option value="medium">MEDIUM</option>
+            <option value="low">LOW</option>
           </select>
         </div>
       </div>
 
       {/* Alerts Table */}
-      <div className="rounded bg-zinc-950 border border-zinc-800 overflow-hidden">
-        <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between">
+      <div className="rounded bg-[#101216] border border-[#1E2127] overflow-hidden">
+        <div className="p-3.5 border-b border-[#1E2127] flex items-center justify-between bg-[#16181D]">
           <div className="flex items-center space-x-2">
-            <ShieldAlert className="w-4 h-4 text-white" />
-            <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Detected Security Incidents</h3>
+            <ShieldAlert className="w-4 h-4 text-[#F07178]" />
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Detected Security Incidents</h3>
           </div>
-          <span className="text-[10px] font-mono text-zinc-400">{filteredAlerts.length} total records</span>
+          <span className="text-[10px] font-mono text-[#7B818B]">{filteredAlerts.length} RECORDS BUFFERED</span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-zinc-900 text-zinc-400 font-mono text-[10px] uppercase border-b border-zinc-800">
+            <thead className="bg-[#101216] text-[#7B818B] font-mono text-[10px] uppercase border-b border-[#1E2127]">
               <tr>
-                <th className="py-2 px-3">Severity</th>
-                <th className="py-2 px-3">Attack Signature</th>
-                <th className="py-2 px-3">Anomaly Score</th>
-                <th className="py-2 px-3">Endpoint</th>
-                <th className="py-2 px-3">Attacker IP</th>
-                <th className="py-2 px-3">Timestamp</th>
-                <th className="py-2 px-3 text-right">Action</th>
+                <th className="py-2.5 px-3">Severity</th>
+                <th className="py-2.5 px-3">Attack Signature</th>
+                <th className="py-2.5 px-3">Anomaly Score</th>
+                <th className="py-2.5 px-3">Target Endpoint</th>
+                <th className="py-2.5 px-3">Host Origin IP</th>
+                <th className="py-2.5 px-3">Incident Timestamp</th>
+                <th className="py-2.5 px-3 text-right">Investigation</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-[#1E2127]/60">
               {filteredAlerts.map((alt) => (
-                <tr key={alt.id} className="hover:bg-zinc-900/50">
+                <tr key={alt.id} className="hover:bg-[#16181D]/60 transition-colors">
                   <td className="py-2 px-3 font-mono">
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase border ${
                         alt.severity === 'critical' || alt.severity === 'high'
-                          ? 'bg-white text-black border border-white'
-                          : 'bg-zinc-900 text-zinc-300 border border-zinc-700'
+                          ? 'bg-[#F07178]/15 text-[#F07178] border-[#F07178]/30'
+                          : 'bg-[#FFCB6B]/15 text-[#FFCB6B] border-[#FFCB6B]/30'
                       }`}
                     >
                       {alt.severity || 'high'}
                     </span>
                   </td>
-                  <td className="py-2 px-3 font-medium text-zinc-200">
+                  <td className="py-2 px-3 font-medium text-[#E6E8EB]">
                     {(alt.attack_type || 'Anomaly Detected').replace('_', ' ')}
                   </td>
-                  <td className="py-2 px-3 font-mono text-white">
-                    {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(2) : alt.anomaly_score}
+                  <td className="py-2 px-3 font-mono text-[#C792EA]">
+                    {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(3) : alt.anomaly_score}
                   </td>
-                  <td className="py-2 px-3 font-mono text-zinc-300">{alt.endpoint || '/api'}</td>
-                  <td className="py-2 px-3 font-mono text-zinc-400">{alt.ip || alt.source_ip || '127.0.0.1'}</td>
-                  <td className="py-2 px-3 text-zinc-400 font-mono text-[11px]">
+                  <td className="py-2 px-3 font-mono text-[#9BA1AC]">{alt.endpoint || '/api'}</td>
+                  <td className="py-2 px-3 font-mono text-[#82AAFF]">{alt.ip || alt.source_ip || '127.0.0.1'}</td>
+                  <td className="py-2 px-3 text-[#7B818B] font-mono text-[11px]">
                     {alt.timestamp ? new Date(alt.timestamp * 1000).toLocaleString() : 'Recent'}
                   </td>
                   <td className="py-2 px-3 text-right">
                     <button
                       onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
-                      className="inline-flex items-center space-x-1 text-zinc-400 hover:text-white text-xs font-medium hover:underline"
+                      className="inline-flex items-center space-x-1 text-[#82AAFF] hover:underline text-xs font-mono"
                     >
-                      <span>Investigate</span>
+                      <span>Root Cause</span>
                       <ExternalLink className="w-3 h-3" />
                     </button>
                   </td>
@@ -228,8 +234,8 @@ export const ThreatsPage = () => {
               ))}
               {filteredAlerts.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="py-8 text-center text-zinc-500 font-sans">
-                    No active threat alerts registered for this project.
+                  <td colSpan="7" className="py-12 text-center text-[#7B818B] font-mono">
+                    Zero threat incidents logged for this project scope.
                   </td>
                 </tr>
               )}
@@ -239,39 +245,39 @@ export const ThreatsPage = () => {
       </div>
 
       {/* Blocked IP Table */}
-      <div className="rounded bg-zinc-950 border border-zinc-800 p-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="rounded bg-[#101216] border border-[#1E2127] p-4">
+        <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
           <div className="flex items-center space-x-2">
-            <Lock className="w-4 h-4 text-zinc-300" />
-            <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Active IP Defense Deny-List</h3>
+            <Lock className="w-4 h-4 text-[#FFCB6B]" />
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Active IP Defense Deny-List</h3>
           </div>
-          <span className="text-[10px] font-mono text-zinc-400">{blockedIPs.length} enforced</span>
+          <span className="text-[10px] font-mono text-[#7B818B]">{blockedIPs.length} ENFORCED RULES</span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-zinc-900 text-zinc-400 text-[10px] uppercase border-b border-zinc-800">
+            <thead className="bg-[#16181D] text-[#7B818B] text-[10px] uppercase border-b border-[#1E2127]">
               <tr>
                 <th className="py-2 px-3">IP Address</th>
-                <th className="py-2 px-3">Reason / Threat</th>
-                <th className="py-2 px-3">Blocked At</th>
-                <th className="py-2 px-3 text-right">Enforcement</th>
+                <th className="py-2 px-3">Reason / Vector</th>
+                <th className="py-2 px-3">Blocked Timestamp</th>
+                <th className="py-2 px-3 text-right">Enforcement Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-[#1E2127]/60">
               {blockedIPs.map((b) => (
-                <tr key={b.ip} className="hover:bg-zinc-900/50">
-                  <td className="py-2 px-3 text-white font-medium">{b.ip}</td>
-                  <td className="py-2 px-3 text-zinc-300 font-sans">{b.reason || 'Threshold breach'}</td>
-                  <td className="py-2 px-3 text-zinc-400">
+                <tr key={b.ip} className="hover:bg-[#16181D]/60 transition-colors">
+                  <td className="py-2 px-3 text-[#F07178] font-bold">{b.ip}</td>
+                  <td className="py-2 px-3 text-[#9BA1AC] font-sans">{b.reason || 'Threshold breach'}</td>
+                  <td className="py-2 px-3 text-[#7B818B]">
                     {b.blocked_at ? new Date(b.blocked_at * 1000).toLocaleString() : 'Active'}
                   </td>
-                  <td className="py-2 px-3 text-right font-sans">
+                  <td className="py-2 px-3 text-right">
                     <button
                       onClick={() => handleUnblock(b.ip)}
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-medium border border-zinc-800 transition-colors"
+                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono border border-[#1E2127] transition-colors"
                     >
-                      <Unlock className="w-3 h-3" />
+                      <Unlock className="w-3 h-3 text-[#C3E88D]" />
                       <span>Unblock</span>
                     </button>
                   </td>
@@ -279,7 +285,7 @@ export const ThreatsPage = () => {
               ))}
               {blockedIPs.length === 0 && (
                 <tr>
-                  <td colSpan="4" className="py-6 text-center text-zinc-500 font-sans">
+                  <td colSpan="4" className="py-8 text-center text-[#7B818B] font-mono">
                     Zero IP addresses currently denied.
                   </td>
                 </tr>
@@ -292,45 +298,45 @@ export const ThreatsPage = () => {
       {/* Modal: Block IP */}
       {showBlockModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="bg-zinc-950 border border-zinc-800 rounded p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-white mb-1">Manually Block IP Address</h3>
-            <p className="text-xs text-zinc-400 mb-4">
-              Requests matching this IP address will immediately receive HTTP 429 Too Many Requests.
+          <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Manually Block IP Address</h3>
+            <p className="text-xs text-[#9BA1AC] mb-4">
+              Requests matching this IP address will immediately receive HTTP 429 and be blocked at ingestion.
             </p>
             <form onSubmit={handleManualBlock} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">IP Address</label>
+                <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Host IP Address</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. 198.51.100.45"
                   value={blockIpInput}
                   onChange={(e) => setBlockIpInput(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-white transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded px-3 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Reason (Optional)</label>
+                <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Reason (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. Suspected credential stuffing probe"
                   value={blockReasonInput}
                   onChange={(e) => setBlockReasonInput(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
-              <div className="flex justify-end space-x-2.5 pt-1">
+              <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
                 <button
                   type="button"
                   onClick={() => setShowBlockModal(false)}
-                  className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded"
+                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={blockLoading}
-                  className="px-3.5 py-1.5 text-xs bg-white hover:bg-zinc-200 text-black font-semibold rounded transition-colors"
+                  className="px-3.5 py-1.5 text-xs bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] font-semibold rounded transition-colors shadow-xs"
                 >
                   {blockLoading ? 'Applying...' : 'Enforce Deny Rule'}
                 </button>
@@ -342,3 +348,6 @@ export const ThreatsPage = () => {
     </div>
   );
 };
+
+export default ThreatsPage;
+

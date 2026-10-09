@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Shield,
   RefreshCw,
+  Cpu,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { onboardingService, projectService } from '../../services/api';
@@ -126,12 +127,12 @@ app = Flask(__name__)
 SecurityMiddleware(
     app,
     api_key="${activeKey}",
-    collector_url="https://api.sentinapi.io/ingest"
+    collector_url="/ingest"
 )
 
-@app.route("/api/products", methods=["GET"])
-def get_products():
-    return {"status": "ok", "items": []}, 200`,
+@app.route("/api/v1/resource", methods=["GET"])
+def get_resource():
+    return {"status": "success", "data": []}, 200`,
     fastapi: `# Add to your FastAPI application (main.py):
 from fastapi import FastAPI
 from security_sdk.fastapi import SecurityMiddleware
@@ -141,12 +142,12 @@ app = FastAPI()
 app.add_middleware(
     SecurityMiddleware,
     api_key="${activeKey}",
-    collector_url="https://api.sentinapi.io/ingest"
+    collector_url="/ingest"
 )
 
-@app.get("/api/products")
-async def get_products():
-    return {"status": "ok"}`,
+@app.get("/api/v1/resource")
+async def get_resource():
+    return {"status": "success", "data": []}`,
     django: `# Add to your Django settings.py:
 MIDDLEWARE = [
     'security_sdk.django.SecurityMiddleware',
@@ -154,59 +155,64 @@ MIDDLEWARE = [
 ]
 
 SECURITY_API_KEY = "${activeKey}"
-SECURITY_COLLECTOR_URL = "https://api.sentinapi.io/ingest"`,
+SECURITY_COLLECTOR_URL = "/ingest"`,
     node: `// Node.js Express integration:
 const express = require('express');
-const { securityMiddleware } = require('@sentinapi/node-sdk');
+const { securityMiddleware } = require('@security-analytics/node-sdk');
 
 const app = express();
 
 app.use(securityMiddleware({
   apiKey: '${activeKey}',
-  collectorUrl: 'https://api.sentinapi.io/ingest'
+  collectorUrl: '/ingest'
 }));`,
   };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1E2127] pb-4">
         <div>
-          <h1 className="text-lg font-semibold text-white tracking-tight">SDK Guided Onboarding</h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Connect {currentProject?.name} to the active defense pipeline in under 2 minutes.
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">SDK Guided Onboarding</h1>
+            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#82AAFF] border border-[#2A2E37]">
+              <span>SETUP_WIZARD</span>
+            </span>
+          </div>
+          <p className="text-xs text-[#9BA1AC] mt-1 font-mono">
+            Integrate {currentProject?.name || 'Active Project'} with the API-Security-Analytics-Dashboard pipeline in under 2 minutes.
           </p>
         </div>
 
         {/* Connection Status Pill */}
         <div
-          className={`inline-flex items-center space-x-2 px-2.5 py-1 rounded border text-xs font-mono ${
+          className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded border text-xs font-mono transition-colors ${
             isConnected
-              ? 'bg-zinc-900 border-zinc-700 text-white'
-              : 'bg-black border-zinc-800 text-zinc-400'
+              ? 'bg-[#101216] border-[#C3E88D]/40 text-[#C3E88D]'
+              : 'bg-[#101216] border-[#1E2127] text-[#7B818B]'
           }`}
         >
           <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              isConnected ? 'bg-white' : 'bg-zinc-600'
+            className={`w-2 h-2 rounded-full ${
+              isConnected ? 'bg-[#C3E88D] animate-pulse' : 'bg-[#7B818B]'
             }`}
           />
-          <span>{isConnected ? 'Status: Connected' : 'Waiting for First Telemetry Event'}</span>
+          <span>{isConnected ? 'STREAM_SYNCHRONIZED' : 'WAITING_FOR_INGEST'}</span>
         </div>
       </div>
 
       {/* Stepper Wizard Cards */}
       <div className="space-y-4">
         {/* STEP 1: Select Framework */}
-        <div className="p-5 rounded bg-zinc-950 border border-zinc-800">
+        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center space-x-2.5 mb-3">
-            <span className="w-5 h-5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 flex items-center justify-center text-[11px] font-mono font-medium">
+            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               1
             </span>
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Select Web Framework</h3>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Select Web Framework</h3>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 ml-7.5">
             {[
               { id: 'flask', label: 'Flask' },
               { id: 'fastapi', label: 'FastAPI' },
@@ -216,18 +222,18 @@ app.use(securityMiddleware({
               <button
                 key={fw.id}
                 onClick={() => handleSelectFramework(fw.id)}
-                className={`p-3 rounded border text-xs text-left transition-colors ${
+                className={`p-3 rounded border text-xs text-left transition-colors font-mono ${
                   framework === fw.id
-                    ? 'bg-zinc-900 border-zinc-500 text-white'
-                    : 'bg-black border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                    ? 'bg-[#16181D] border-[#82AAFF] text-[#E6E8EB]'
+                    : 'bg-[#0A0B0D] border-[#1E2127] text-[#7B818B] hover:text-[#E6E8EB] hover:border-[#2A2E37]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-zinc-200">{fw.label}</span>
-                  {framework === fw.id && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                  <span className="font-semibold text-[#E6E8EB]">{fw.label}</span>
+                  {framework === fw.id && <CheckCircle2 className="w-3.5 h-3.5 text-[#82AAFF]" />}
                 </div>
-                <span className="text-[10px] text-zinc-500 font-mono">
-                  {fw.id === 'node' ? 'Preview' : 'Production SDK'}
+                <span className="text-[10px] text-[#7B818B]">
+                  {fw.id === 'node' ? 'Preview Spec' : 'Python Package'}
                 </span>
               </button>
             ))}
@@ -235,102 +241,102 @@ app.use(securityMiddleware({
         </div>
 
         {/* STEP 2: Install Package */}
-        <div className="p-5 rounded bg-zinc-950 border border-zinc-800">
+        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center space-x-2.5 mb-2">
-            <span className="w-5 h-5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 flex items-center justify-center text-[11px] font-mono font-medium">
+            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               2
             </span>
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Install SDK Package</h3>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Install SDK Package</h3>
           </div>
-          <p className="text-xs text-zinc-400 mb-3 ml-7.5">
-            Install via pip into your active Python virtual environment:
+          <p className="text-xs text-[#9BA1AC] mb-3 ml-7.5 font-mono">
+            Execute in your project's active virtual environment:
           </p>
-          <div className="ml-7.5 flex items-center justify-between p-3 rounded bg-black border border-zinc-800 font-mono text-xs text-white">
+          <div className="ml-7.5 flex items-center justify-between p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#E6E8EB]">
             <code>{installCommand}</code>
             <button
               onClick={() => copyText(installCommand, 2)}
-              className="text-zinc-400 hover:text-white inline-flex items-center space-x-1"
+              className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1"
             >
-              {copiedIndex === 2 ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+              {copiedIndex === 2 ? <Check className="w-4 h-4 text-[#C3E88D]" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
         {/* STEP 3: Configure Environment Variable */}
-        <div className="p-5 rounded bg-zinc-950 border border-zinc-800">
+        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center space-x-2.5 mb-2">
-            <span className="w-5 h-5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 flex items-center justify-center text-[11px] font-mono font-medium">
+            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               3
             </span>
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Configure API Key</h3>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Configure Ingestion Key</h3>
           </div>
-          <p className="text-xs text-zinc-400 mb-3 ml-7.5">
-            Export your project's credential or load it via <span className="font-mono text-zinc-300">.env</span>:
+          <p className="text-xs text-[#9BA1AC] mb-3 ml-7.5 font-mono">
+            Export the scoped project credential or load it via <span className="text-[#C792EA]">.env</span>:
           </p>
-          <div className="ml-7.5 flex items-center justify-between p-3 rounded bg-black border border-zinc-800 font-mono text-xs text-white">
+          <div className="ml-7.5 flex items-center justify-between p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF]">
             <code>{envExportCommand}</code>
             <button
               onClick={() => copyText(envExportCommand, 3)}
-              className="text-zinc-400 hover:text-white inline-flex items-center space-x-1"
+              className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1"
             >
-              {copiedIndex === 3 ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+              {copiedIndex === 3 ? <Check className="w-4 h-4 text-[#C3E88D]" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
         {/* STEP 4: Add Integration Code */}
-        <div className="p-5 rounded bg-zinc-950 border border-zinc-800">
+        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2.5">
-              <span className="w-5 h-5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 flex items-center justify-center text-[11px] font-mono font-medium">
+              <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
                 4
               </span>
-              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Attach Security Middleware</h3>
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Attach Telemetry Middleware</h3>
             </div>
             <button
               onClick={() => copyText(snippetCode[framework], 4)}
-              className="inline-flex items-center space-x-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded transition-colors"
+              className="inline-flex items-center space-x-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] px-2.5 py-1 rounded font-mono transition-colors"
             >
-              {copiedIndex === 4 ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedIndex === 4 ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
               <span>Copy Code</span>
             </button>
           </div>
-          <p className="text-xs text-zinc-400 mb-3 ml-7.5">
-            Paste this snippet into your host application entrypoint:
+          <p className="text-xs text-[#9BA1AC] mb-3 ml-7.5 font-mono">
+            Integrate the hook into your host application entrypoint:
           </p>
-          <div className="ml-7.5 p-4 rounded bg-black border border-zinc-800 overflow-x-auto">
-            <pre className="text-xs font-mono text-zinc-200 leading-relaxed">
+          <div className="ml-7.5 p-4 rounded bg-[#0A0B0D] border border-[#1E2127] overflow-x-auto">
+            <pre className="text-xs font-mono text-[#E6E8EB] leading-relaxed">
               <code>{snippetCode[framework]}</code>
             </pre>
           </div>
         </div>
 
         {/* STEP 5: Start, Test & Verify */}
-        <div className="p-5 rounded bg-zinc-950 border border-zinc-800">
+        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center space-x-2.5 mb-2">
-            <span className="w-5 h-5 rounded bg-zinc-900 border border-zinc-700 text-zinc-200 flex items-center justify-center text-[11px] font-mono font-medium">
+            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               5
             </span>
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Start Host API & Verify Telemetry</h3>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Deploy Host API & Ingest Verification Event</h3>
           </div>
-          <p className="text-xs text-zinc-400 mb-4 ml-7.5">
-            Launch your web server and send an initial HTTP request. Alternatively, trigger a synthetic verification ping below:
+          <p className="text-xs text-[#9BA1AC] mb-4 ml-7.5 font-mono">
+            Launch your web server and dispatch an HTTP request, or trigger a synthetic verification probe right here:
           </p>
 
           <div className="ml-7.5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <button
               onClick={handleSendTestEvent}
               disabled={testSending}
-              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-4 py-2 rounded bg-white hover:bg-zinc-200 disabled:opacity-50 text-xs font-semibold text-black transition-colors shadow-sm"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbdff] disabled:opacity-50 text-xs font-semibold font-mono text-[#0A0B0D] transition-colors shadow-xs"
             >
               <Send className={`w-3.5 h-3.5 ${testSending ? 'animate-spin' : ''}`} />
-              <span>{testSending ? 'Dispatching Synthetic Telemetry...' : 'Send Synthetic Test Event'}</span>
+              <span>{testSending ? 'TRANSMITTING TELEMETRY...' : 'DISPATCH TEST TELEMETRY PROBE'}</span>
             </button>
 
             {isConnected && (
-              <div className="flex items-center space-x-1.5 text-xs text-white font-mono">
-                <CheckCircle2 className="w-4 h-4 text-white" />
-                <span>Verified: Telemetry stream detected</span>
+              <div className="flex items-center space-x-1.5 text-xs text-[#C3E88D] font-mono">
+                <CheckCircle2 className="w-4 h-4 text-[#C3E88D]" />
+                <span>TELEMETRY_PIPELINE_VERIFIED</span>
               </div>
             )}
           </div>
@@ -339,3 +345,5 @@ app.use(securityMiddleware({
     </div>
   );
 };
+
+export default SdkOnboardingPage;

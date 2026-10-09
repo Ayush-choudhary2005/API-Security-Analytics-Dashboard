@@ -9,6 +9,9 @@ import {
   ArrowUpRight,
   RefreshCw,
   ExternalLink,
+  ShieldAlert,
+  Radio,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -28,14 +31,7 @@ import { telemetryService } from '../../services/api';
 import { getSocket } from '../../services/socket';
 import { ThreatMap } from '../../components/ThreatMap';
 
-const SEVERITY_COLORS = {
-  critical: '#ffffff',
-  high: '#d4d4d8',
-  medium: '#a1a1aa',
-  low: '#71717a',
-};
-
-const PIE_COLORS = ['#ffffff', '#e4e4e7', '#d4d4d8', '#a1a1aa', '#71717a', '#52525b'];
+const PIE_COLORS = ['#C792EA', '#82AAFF', '#F07178', '#FFCB6B', '#C3E88D', '#7B818B'];
 
 export const OverviewPage = () => {
   const navigate = useNavigate();
@@ -156,17 +152,17 @@ export const OverviewPage = () => {
 
   if (!currentProject) {
     return (
-      <div className="py-16 text-center space-y-3">
-        <Server className="w-10 h-10 mx-auto text-zinc-500" />
-        <h2 className="text-base font-semibold text-white">No Project Selected</h2>
-        <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-          Create or select a project from the top navigation to view security telemetry.
+      <div className="py-20 text-center space-y-3.5 bg-[#101216] border border-[#1E2127] rounded-md p-8">
+        <Server className="w-10 h-10 mx-auto text-[#7B818B]" />
+        <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
+        <p className="text-xs text-[#9BA1AC] max-w-sm mx-auto">
+          Create or select a project from the top navigation to view security telemetry and defense streams.
         </p>
         <Link
           to="/app/projects"
-          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-xs text-black font-semibold transition-colors"
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
         >
-          <span>Go to Projects</span>
+          <span>Configure Projects</span>
         </Link>
       </div>
     );
@@ -175,104 +171,117 @@ export const OverviewPage = () => {
   return (
     <div className="space-y-5">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1E2127] pb-4">
         <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-lg font-bold text-white tracking-tight">{currentProject.name}</h1>
-            <span className="text-[10px] font-mono text-zinc-300 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">{currentProject.name}</h1>
+            <span className="text-[10px] font-mono text-[#C792EA] bg-[#16181D] border border-[#2A2E37] px-2 py-0.5 rounded">
               {currentProject.id}
             </span>
           </div>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Real-time API anomaly scoring and active defense telemetry stream.
+          <p className="text-xs text-[#9BA1AC] mt-1 flex items-center space-x-2 font-mono">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#C3E88D]"></span>
+            <span>TELEMETRY_STATUS: ACTIVE</span>
+            <span>&bull;</span>
+            <span>MODEL: ISOLATION_FOREST</span>
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2.5">
           <button
             onClick={fetchData}
             disabled={loading}
-            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-300 transition-colors"
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-xs text-[#E6E8EB] transition-colors"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#C792EA]' : 'text-[#7B818B]'}`} />
+            <span>Sync</span>
           </button>
           <Link
             to="/app/sdk"
-            className="inline-flex items-center space-x-1 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-xs text-black font-semibold transition-colors"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
           >
-            <span>SDK Setup</span>
+            <span>SDK Quickstart</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
 
       {/* TOP UNIFIED METRICS STRIP */}
-      <div className="bg-zinc-950 border border-zinc-800 rounded grid grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800">
-        <div className="p-3.5 sm:p-4">
-          <span className="text-[11px] font-medium text-zinc-400 block mb-1">Total Requests</span>
-          <p className="text-xl font-bold text-white font-mono">{stats?.total_events ?? events.length}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">Ingested via SDK</p>
+      <div className="bg-[#101216] border border-[#1E2127] rounded grid grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-[#1E2127]">
+        <div className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Total Requests</span>
+          <p className="text-xl font-bold text-[#E6E8EB] font-mono">{stats?.total_events ?? events.length}</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">INGESTED VIA SDK</p>
         </div>
 
-        <div className="p-3.5 sm:p-4">
-          <span className="text-[11px] font-medium text-zinc-400 block mb-1">Threats Detected</span>
-          <p className="text-xl font-bold text-white font-mono">{stats?.total_alerts ?? alerts.length}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">Flagged by ML & Rules</p>
+        <div className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Threats Detected</span>
+          <p className="text-xl font-bold text-[#F07178] font-mono">{stats?.total_alerts ?? alerts.length}</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">ML & HEURISTICS</p>
         </div>
 
-        <div className="p-3.5 sm:p-4">
-          <span className="text-[11px] font-medium text-zinc-400 block mb-1">Active Projects</span>
-          <p className="text-xl font-bold text-white font-mono">{projects.length}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">In organization</p>
+        <div className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Active Projects</span>
+          <p className="text-xl font-bold text-[#82AAFF] font-mono">{projects.length}</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">IN TENANT SCOPE</p>
         </div>
 
-        <div className="p-3.5 sm:p-4">
-          <span className="text-[11px] font-medium text-zinc-400 block mb-1">Risk Score</span>
-          <p className="text-xl font-bold text-white font-mono">
+        <div className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Risk Score</span>
+          <p className="text-xl font-bold text-[#C792EA] font-mono">
             {stats?.max_anomaly_score ? Number(stats.max_anomaly_score).toFixed(2) : '1.00'}
           </p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">Isolation Forest max</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">ISOLATION FOREST MAX</p>
         </div>
 
-        <div className="p-3.5 sm:p-4 col-span-2 lg:col-span-1">
-          <span className="text-[11px] font-medium text-zinc-400 block mb-1">Blocked IPs</span>
-          <p className="text-xl font-bold text-white font-mono">{blockedIPs.length}</p>
-          <p className="text-[10px] text-zinc-500 mt-0.5">Active firewall rules</p>
+        <div className="p-4 col-span-2 lg:col-span-1">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Blocked IPs</span>
+          <p className="text-xl font-bold text-[#FFCB6B] font-mono">{blockedIPs.length}</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">ACTIVE MITIGATION</p>
         </div>
       </div>
 
       {/* CHARTS ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Traffic Over Time */}
-        <div className="lg:col-span-2 p-4 rounded bg-zinc-950 border border-zinc-800">
-          <div className="flex items-center justify-between mb-3">
+        <div className="lg:col-span-2 p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+          <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div>
-              <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Traffic & Latency</h3>
-              <p className="text-[11px] text-zinc-400">Request throughput vs latency percentiles</p>
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Traffic & Latency Timeline</h3>
+              <p className="text-[11px] text-[#9BA1AC]">Throughput volume vs anomalous outliers</p>
+            </div>
+            <div className="flex items-center space-x-3 text-[10px] font-mono">
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-[#82AAFF]"></span>
+                <span className="text-[#9BA1AC]">REQUESTS</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-[#F07178]"></span>
+                <span className="text-[#9BA1AC]">ANOMALIES</span>
+              </span>
             </div>
           </div>
           <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trafficChartData}>
-                <CartesianGrid strokeDasharray="2 2" stroke="#27272a" />
-                <XAxis dataKey="time" stroke="#71717a" fontSize={10} tickLine={false} />
-                <YAxis stroke="#71717a" fontSize={10} tickLine={false} />
+                <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
+                <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} />
+                <YAxis stroke="#7B818B" fontSize={10} tickLine={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#000000', borderColor: '#27272a', borderRadius: '4px', fontSize: '11px', color: '#ffffff' }}
+                  contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '6px', fontSize: '11px', color: '#E6E8EB' }}
                 />
-                <Area type="monotone" dataKey="requests" stroke="#ffffff" strokeWidth={1.5} fill="#ffffff" fillOpacity={0.06} name="Requests" />
-                <Area type="monotone" dataKey="anomalies" stroke="#71717a" strokeWidth={1.5} fill="#71717a" fillOpacity={0.16} name="Anomalies" />
+                <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="#82AAFF" fillOpacity={0.12} name="Requests" />
+                <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="#F07178" fillOpacity={0.2} name="Anomalies" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Attack Distribution */}
-        <div className="p-4 rounded bg-zinc-950 border border-zinc-800">
-          <div className="mb-3">
-            <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Attack Distribution</h3>
-            <p className="text-[11px] text-zinc-400">Classified by detection heuristic</p>
+        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+          <div className="mb-3 border-b border-[#1E2127] pb-2">
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Attack Distribution</h3>
+            <p className="text-[11px] text-[#9BA1AC]">Classified by machine learning vectors</p>
           </div>
           <div className="h-60 flex items-center justify-center">
             {attackDistribution.length > 0 ? (
@@ -292,26 +301,28 @@ export const OverviewPage = () => {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#000000', borderColor: '#27272a', borderRadius: '4px', fontSize: '11px', color: '#ffffff' }}
+                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '6px', fontSize: '11px', color: '#E6E8EB' }}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-center text-xs text-zinc-500 py-12">No attack signatures recorded</div>
+              <div className="text-center text-xs text-[#7B818B] font-mono py-12">No attack signatures recorded</div>
             )}
           </div>
         </div>
       </div>
 
       {/* THREAT GEOLOCATION MAP */}
-      <div className="p-4 rounded bg-zinc-950 border border-zinc-800">
-        <div className="flex items-center justify-between mb-3">
+      <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
           <div>
-            <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Threat Geolocation Map</h3>
-            <p className="text-[11px] text-zinc-400">Live plotting of incoming hostile request origins</p>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Threat Geolocation Map</h3>
+            <p className="text-[11px] text-[#9BA1AC]">Live coordinate projection of hostile ingress origin IPs</p>
           </div>
-          <span className="text-[10px] font-mono text-zinc-500">Leaflet v1.9 / OpenStreetMap</span>
+          <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] border border-[#1E2127] px-2 py-0.5 rounded">
+            SOURCE: LIVE_TELEMETRY
+          </span>
         </div>
         <ThreatMap threats={alerts} />
       </div>
@@ -319,55 +330,63 @@ export const OverviewPage = () => {
       {/* LIVE TABLES ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Live Event Feed Table */}
-        <div className="p-4 rounded bg-zinc-950 border border-zinc-800">
-          <div className="flex items-center justify-between mb-3">
+        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+          <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-white"></span>
-              <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Live Telemetry Feed</h3>
+              <span className="w-2 h-2 rounded-full bg-[#C3E88D] animate-pulse"></span>
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Live Ingest Feed</h3>
             </div>
-            <Link to="/app/live" className="text-xs text-zinc-400 hover:text-white hover:underline inline-flex items-center space-x-1">
-              <span>View full log</span>
+            <Link to="/app/live" className="text-xs text-[#82AAFF] hover:underline inline-flex items-center space-x-1 font-mono text-[11px]">
+              <span>Full Stream</span>
               <ExternalLink className="w-3 h-3" />
             </Link>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900 text-zinc-400 font-mono text-[10px] uppercase border-b border-zinc-800">
+              <thead className="bg-[#16181D] text-[#7B818B] font-mono text-[10px] uppercase border-b border-[#1E2127]">
                 <tr>
-                  <th className="py-1.5 px-2.5">Method</th>
-                  <th className="py-1.5 px-2.5">Endpoint</th>
-                  <th className="py-1.5 px-2.5">Status</th>
-                  <th className="py-1.5 px-2.5">Latency</th>
-                  <th className="py-1.5 px-2.5">IP</th>
+                  <th className="py-2 px-2.5">Method</th>
+                  <th className="py-2 px-2.5">Endpoint</th>
+                  <th className="py-2 px-2.5">Status</th>
+                  <th className="py-2 px-2.5">Latency</th>
+                  <th className="py-2 px-2.5">IP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60 font-mono">
+              <tbody className="divide-y divide-[#1E2127]/60 font-mono">
                 {events.slice(0, 8).map((ev, i) => (
-                  <tr key={ev.id || i} className="hover:bg-zinc-900/50">
-                    <td className="py-1.5 px-2.5 font-bold text-white">{ev.method}</td>
-                    <td className="py-1.5 px-2.5 text-zinc-300 truncate max-w-[120px]">{ev.endpoint}</td>
-                    <td className="py-1.5 px-2.5">
+                  <tr key={ev.id || i} className="hover:bg-[#16181D]/60 transition-colors">
+                    <td className="py-2 px-2.5 font-bold">
+                      <span className={
+                        ev.method === 'GET' ? 'text-[#C3E88D]' :
+                        ev.method === 'POST' ? 'text-[#82AAFF]' :
+                        ev.method === 'PUT' ? 'text-[#FFCB6B]' : 'text-[#F07178]'
+                      }>
+                        {ev.method}
+                      </span>
+                    </td>
+                    <td className="py-2 px-2.5 text-[#E6E8EB] truncate max-w-[130px]">{ev.endpoint}</td>
+                    <td className="py-2 px-2.5">
                       <span
-                        className={`px-1 py-0.5 rounded text-[10px] font-semibold ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
                           ev.status_code >= 500
-                            ? 'bg-zinc-800 text-white border border-zinc-700'
+                            ? 'bg-[#F07178]/15 text-[#F07178] border-[#F07178]/30'
                             : ev.status_code >= 400
-                            ? 'bg-zinc-900 text-zinc-300 border border-zinc-800'
-                            : 'bg-black text-zinc-400 border border-zinc-800'
+                            ? 'bg-[#FFCB6B]/15 text-[#FFCB6B] border-[#FFCB6B]/30'
+                            : 'bg-[#C3E88D]/15 text-[#C3E88D] border-[#C3E88D]/30'
                         }`}
                       >
                         {ev.status_code}
                       </span>
                     </td>
-                    <td className="py-1.5 px-2.5 text-zinc-400">{Math.round(ev.latency_ms || 10)}ms</td>
-                    <td className="py-1.5 px-2.5 text-zinc-400">{ev.ip || '127.0.0.1'}</td>
+                    <td className="py-2 px-2.5 text-[#9BA1AC]">{Math.round(ev.latency_ms || 10)}ms</td>
+                    <td className="py-2 px-2.5 text-[#7B818B]">{ev.ip || '127.0.0.1'}</td>
                   </tr>
                 ))}
                 {events.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="py-6 text-center text-zinc-500 font-sans">
-                      Waiting for incoming telemetry events...
+                    <td colSpan="5" className="py-6 text-center text-[#7B818B] font-mono text-xs">
+                      Awaiting SDK telemetry events...
                     </td>
                   </tr>
                 )}
@@ -377,64 +396,64 @@ export const OverviewPage = () => {
         </div>
 
         {/* Recent Alerts & Threats Table */}
-        <div className="p-4 rounded bg-zinc-950 border border-zinc-800">
-          <div className="flex items-center justify-between mb-3">
+        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+          <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-white"></span>
-              <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Active Security Alerts</h3>
+              <span className="w-2 h-2 rounded-full bg-[#F07178]"></span>
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Active Threat Detections</h3>
             </div>
-            <Link to="/app/threats" className="text-xs text-zinc-400 hover:text-white hover:underline inline-flex items-center space-x-1">
-              <span>View all</span>
+            <Link to="/app/threats" className="text-xs text-[#82AAFF] hover:underline inline-flex items-center space-x-1 font-mono text-[11px]">
+              <span>Threat Log</span>
               <ExternalLink className="w-3 h-3" />
             </Link>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900 text-zinc-400 font-mono text-[10px] uppercase border-b border-zinc-800">
+              <thead className="bg-[#16181D] text-[#7B818B] font-mono text-[10px] uppercase border-b border-[#1E2127]">
                 <tr>
-                  <th className="py-1.5 px-2.5">Severity</th>
-                  <th className="py-1.5 px-2.5">Attack Type</th>
-                  <th className="py-1.5 px-2.5">Score</th>
-                  <th className="py-1.5 px-2.5">Source IP</th>
-                  <th className="py-1.5 px-2.5 text-right">Action</th>
+                  <th className="py-2 px-2.5">Severity</th>
+                  <th className="py-2 px-2.5">Attack Type</th>
+                  <th className="py-2 px-2.5">Score</th>
+                  <th className="py-2 px-2.5">Source IP</th>
+                  <th className="py-2 px-2.5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60">
+              <tbody className="divide-y divide-[#1E2127]/60">
                 {alerts.slice(0, 8).map((alt) => (
-                  <tr key={alt.id} className="hover:bg-zinc-900/50">
-                    <td className="py-1.5 px-2.5">
+                  <tr key={alt.id} className="hover:bg-[#16181D]/60 transition-colors">
+                    <td className="py-2 px-2.5">
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase font-mono ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase font-mono border ${
                           alt.severity === 'critical' || alt.severity === 'high'
-                            ? 'bg-white text-black border border-white'
-                            : 'bg-zinc-900 text-zinc-300 border border-zinc-700'
+                            ? 'bg-[#F07178]/15 text-[#F07178] border-[#F07178]/30'
+                            : 'bg-[#FFCB6B]/15 text-[#FFCB6B] border-[#FFCB6B]/30'
                         }`}
                       >
                         {alt.severity || 'high'}
                       </span>
                     </td>
-                    <td className="py-1.5 px-2.5 font-medium text-zinc-200">
+                    <td className="py-2 px-2.5 font-medium text-[#E6E8EB]">
                       {(alt.attack_type || 'Anomaly').replace('_', ' ')}
                     </td>
-                    <td className="py-1.5 px-2.5 font-mono text-white">
+                    <td className="py-2 px-2.5 font-mono text-[#C792EA]">
                       {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(2) : alt.anomaly_score}
                     </td>
-                    <td className="py-1.5 px-2.5 font-mono text-zinc-400">{alt.ip || alt.source_ip || '-'}</td>
-                    <td className="py-1.5 px-2.5 text-right">
+                    <td className="py-2 px-2.5 font-mono text-[#7B818B]">{alt.ip || alt.source_ip || '-'}</td>
+                    <td className="py-2 px-2.5 text-right">
                       <button
                         onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
-                        className="text-[11px] text-zinc-400 hover:text-white font-medium hover:underline"
+                        className="text-[11px] text-[#82AAFF] hover:underline font-mono"
                       >
-                        Investigate
+                        Investigate &rarr;
                       </button>
                     </td>
                   </tr>
                 ))}
                 {alerts.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="py-6 text-center text-zinc-500 font-sans">
-                      No security anomalies detected. System operating normally.
+                    <td colSpan="5" className="py-6 text-center text-[#7B818B] font-mono text-xs">
+                      Zero hostile anomalies flagged. All pipelines baseline normal.
                     </td>
                   </tr>
                 )}
@@ -446,24 +465,26 @@ export const OverviewPage = () => {
 
       {/* BLOCKED IPS MANAGEMENT */}
       {blockedIPs.length > 0 && (
-        <div className="p-4 rounded bg-zinc-950 border border-zinc-800">
-          <div className="flex items-center justify-between mb-2.5">
-            <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Actively Blocked IP Addresses</h3>
-            <span className="text-[10px] font-mono text-zinc-400">{blockedIPs.length} addresses</span>
+        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+          <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Actively Blocked Host IP Addresses</h3>
+            <span className="text-[10px] font-mono text-[#FFCB6B] bg-[#16181D] border border-[#1E2127] px-2 py-0.5 rounded">
+              {blockedIPs.length} BLOCKED_RULES
+            </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {blockedIPs.map((b) => (
               <div
                 key={b.ip}
-                className="p-2.5 rounded bg-black border border-zinc-800 flex items-center justify-between text-xs"
+                className="p-3 rounded bg-[#16181D] border border-[#1E2127] flex items-center justify-between text-xs"
               >
                 <div>
-                  <p className="font-mono text-white text-[11px]">{b.ip}</p>
-                  <p className="text-[10px] text-zinc-400 truncate max-w-[120px]">{b.reason || 'Rate limit threshold'}</p>
+                  <p className="font-mono text-[#F07178] text-xs font-semibold">{b.ip}</p>
+                  <p className="text-[10px] text-[#9BA1AC] truncate max-w-[120px] font-mono mt-0.5">{b.reason || 'Rate limit threshold'}</p>
                 </div>
                 <button
                   onClick={() => handleUnblock(b.ip)}
-                  className="px-2 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-[10px] font-medium border border-zinc-800 transition-colors"
+                  className="px-2.5 py-1 rounded bg-[#101216] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-[10px] font-mono border border-[#1E2127] transition-colors"
                 >
                   Unblock
                 </button>
@@ -475,3 +496,5 @@ export const OverviewPage = () => {
     </div>
   );
 };
+
+export default OverviewPage;

@@ -9,38 +9,38 @@ export const PublicLayout = ({ children }) => {
   const { user } = useAuth() || {};
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#0A0B0D] text-[#E6E8EB] flex flex-col font-sans selection:bg-[#2A2E37] selection:text-[#E6E8EB]">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-xs border-b border-zinc-800">
+      <header className="sticky top-0 z-50 bg-[#101216]/90 backdrop-blur-md border-b border-[#1E2127]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           {/* Brand Logo */}
           <Link to="/" className="flex items-center space-x-2.5 group">
-            <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white group-hover:border-zinc-500 transition-colors">
+            <div className="w-7 h-7 rounded bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA] group-hover:border-[#C792EA]/60 transition-colors shadow-xs">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="text-xs font-semibold tracking-tight text-white transition-colors">
-              api-security-analytics-dashboard
+            <span className="text-xs font-semibold tracking-tight text-[#E6E8EB] group-hover:text-white transition-colors">
+              API-Security-Analytics-Dashboard
             </span>
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-6 text-xs font-medium text-zinc-400">
-            <a href="#problem" className="hover:text-white transition-colors">
+          <nav className="hidden md:flex items-center space-x-6 text-xs font-medium text-[#9BA1AC]">
+            <a href="#problem" className="hover:text-[#E6E8EB] transition-colors">
               Capabilities
             </a>
-            <a href="#how-it-works" className="hover:text-white transition-colors">
+            <a href="#how-it-works" className="hover:text-[#E6E8EB] transition-colors">
               Pipeline
             </a>
-            <a href="#architecture" className="hover:text-white transition-colors">
+            <a href="#architecture" className="hover:text-[#E6E8EB] transition-colors">
               Architecture
             </a>
-            <a href="#sdk" className="hover:text-white transition-colors">
+            <a href="#sdk" className="hover:text-[#E6E8EB] transition-colors">
               SDK Integration
             </a>
-            <a href="#integrations" className="hover:text-white transition-colors">
+            <a href="#integrations" className="hover:text-[#E6E8EB] transition-colors">
               Integrations
             </a>
-            <a href="#docs" className="hover:text-white transition-colors">
+            <a href="#docs" className="hover:text-[#E6E8EB] transition-colors">
               Documentation
             </a>
           </nav>
@@ -50,22 +50,23 @@ export const PublicLayout = ({ children }) => {
             {user ? (
               <Link
                 to="/app"
-                className="inline-flex items-center space-x-1 text-xs font-semibold bg-white hover:bg-zinc-200 text-black px-3 py-1.5 rounded transition-colors"
+                className="inline-flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] border border-[#2A2E37] hover:border-[#C792EA]/60 px-3 py-1.5 rounded transition-all"
               >
+                <span className="font-mono text-[#C792EA]">~/</span>
                 <span>Console Dashboard</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-3.5 h-3.5 text-[#7B818B]" />
               </Link>
             ) : (
               <>
                 <Link
                   to="/login"
-                  className="text-xs font-medium text-zinc-400 hover:text-white px-2.5 py-1.5 rounded transition-colors"
+                  className="text-xs font-medium text-[#9BA1AC] hover:text-[#E6E8EB] px-2.5 py-1.5 rounded transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/signup"
-                  className="inline-flex items-center space-x-1 text-xs font-semibold bg-white hover:bg-zinc-200 text-black px-3 py-1.5 rounded transition-colors"
+                  className="inline-flex items-center space-x-1 text-xs font-semibold bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] px-3 py-1.5 rounded transition-all shadow-xs"
                 >
                   <span>Get Started</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -77,7 +78,7 @@ export const PublicLayout = ({ children }) => {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 text-zinc-400 hover:text-white rounded"
+            className="md:hidden p-1.5 text-[#9BA1AC] hover:text-[#E6E8EB] rounded transition-colors"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -86,59 +87,59 @@ export const PublicLayout = ({ children }) => {
 
         {/* Mobile dropdown */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-black border-b border-zinc-800 px-4 py-3 space-y-2 text-xs">
+          <div className="md:hidden bg-[#101216] border-b border-[#1E2127] px-4 py-3 space-y-2 text-xs">
             <a
               href="#problem"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-zinc-400 hover:text-white py-1"
+              className="block text-[#9BA1AC] hover:text-[#E6E8EB] py-1"
             >
               Capabilities
             </a>
             <a
               href="#how-it-works"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-zinc-400 hover:text-white py-1"
+              className="block text-[#9BA1AC] hover:text-[#E6E8EB] py-1"
             >
               Pipeline
             </a>
             <a
               href="#architecture"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-zinc-400 hover:text-white py-1"
+              className="block text-[#9BA1AC] hover:text-[#E6E8EB] py-1"
             >
               Architecture
             </a>
             <a
               href="#sdk"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-zinc-400 hover:text-white py-1"
+              className="block text-[#9BA1AC] hover:text-[#E6E8EB] py-1"
             >
               SDK Integration
             </a>
             <a
               href="#integrations"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-zinc-400 hover:text-white py-1"
+              className="block text-[#9BA1AC] hover:text-[#E6E8EB] py-1"
             >
               Integrations
             </a>
             <a
               href="#docs"
               onClick={() => setMobileMenuOpen(false)}
-              className="block text-zinc-400 hover:text-white py-1"
+              className="block text-[#9BA1AC] hover:text-[#E6E8EB] py-1"
             >
               Documentation
             </a>
-            <div className="pt-2 border-t border-zinc-800 flex flex-col space-y-1.5">
+            <div className="pt-2 border-t border-[#1E2127] flex flex-col space-y-1.5">
               <Link
                 to="/login"
-                className="w-full text-center py-1.5 text-xs text-zinc-300 hover:text-white border border-zinc-800 rounded"
+                className="w-full text-center py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127] rounded"
               >
                 Sign In
               </Link>
               <Link
                 to="/signup"
-                className="w-full text-center py-1.5 text-xs bg-white text-black rounded font-semibold"
+                className="w-full text-center py-1.5 text-xs bg-[#C792EA] text-[#0A0B0D] rounded font-semibold"
               >
                 Get Started
               </Link>
@@ -151,55 +152,55 @@ export const PublicLayout = ({ children }) => {
       <main className="flex-grow">{children}</main>
 
       {/* Footer */}
-      <footer className="bg-black border-t border-zinc-800 py-10 text-xs text-zinc-400">
+      <footer className="bg-[#101216] border-t border-[#1E2127] py-10 text-xs text-[#9BA1AC]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <div className="flex items-center space-x-2 text-white font-semibold text-xs mb-2.5">
-              <Shield className="w-4 h-4 text-white" />
-              <span>api-security-analytics-dashboard</span>
+            <div className="flex items-center space-x-2 text-[#E6E8EB] font-semibold text-xs mb-2.5">
+              <Shield className="w-4 h-4 text-[#C792EA]" />
+              <span>API-Security-Analytics-Dashboard</span>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-3">
-              API Security Analytics and Active Defense Platform. Real-time telemetry, Isolation Forest anomaly detection, automated defense, and autonomous threat intelligence.
+            <p className="text-xs text-[#9BA1AC] leading-relaxed mb-3">
+              API Security Analytics & Active Defense Platform. Real-time telemetry, Isolation Forest anomaly detection, automated defense, and autonomous threat intelligence.
             </p>
-            <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-              <span>All Systems Operational</span>
+            <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-[#16181D] border border-[#1E2127] text-[#C3E88D] text-[11px] font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#C3E88D] animate-pulse"></span>
+              <span>COLLECTOR: OPERATIONAL</span>
             </div>
           </div>
 
           <div>
-            <h4 className="text-zinc-200 font-medium text-xs uppercase tracking-wider mb-2.5">Product</h4>
-            <ul className="space-y-1.5 text-xs text-zinc-400">
-              <li><a href="#problem" className="hover:text-white transition-colors">Attack Defense</a></li>
-              <li><a href="#how-it-works" className="hover:text-white transition-colors">ML Anomaly Detection</a></li>
-              <li><a href="#sdk" className="hover:text-white transition-colors">Python SDK</a></li>
-              <li><a href="#integrations" className="hover:text-white transition-colors">Integrations</a></li>
+            <h4 className="text-[#E6E8EB] font-mono font-medium text-xs uppercase tracking-wider mb-2.5">Product</h4>
+            <ul className="space-y-1.5 text-xs text-[#9BA1AC]">
+              <li><a href="#problem" className="hover:text-[#E6E8EB] transition-colors">Attack Defense</a></li>
+              <li><a href="#how-it-works" className="hover:text-[#E6E8EB] transition-colors">ML Anomaly Detection</a></li>
+              <li><a href="#sdk" className="hover:text-[#E6E8EB] transition-colors">Python SDK</a></li>
+              <li><a href="#integrations" className="hover:text-[#E6E8EB] transition-colors">Integrations</a></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-zinc-200 font-medium text-xs uppercase tracking-wider mb-2.5">Resources</h4>
-            <ul className="space-y-1.5 text-xs text-zinc-400">
-              <li><a href="#docs" className="hover:text-white transition-colors">Documentation</a></li>
-              <li><a href="#architecture" className="hover:text-white transition-colors">Architecture Specifications</a></li>
-              <li><Link to="/login" className="hover:text-white transition-colors">Developer Console</Link></li>
-              <li><span className="text-zinc-500">API Reference</span></li>
+            <h4 className="text-[#E6E8EB] font-mono font-medium text-xs uppercase tracking-wider mb-2.5">Resources</h4>
+            <ul className="space-y-1.5 text-xs text-[#9BA1AC]">
+              <li><a href="#docs" className="hover:text-[#E6E8EB] transition-colors">Documentation</a></li>
+              <li><a href="#architecture" className="hover:text-[#E6E8EB] transition-colors">Architecture Specifications</a></li>
+              <li><Link to="/login" className="hover:text-[#E6E8EB] transition-colors">Developer Console</Link></li>
+              <li><span className="text-[#7B818B]">API Reference</span></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-zinc-200 font-medium text-xs uppercase tracking-wider mb-2.5">Compliance & Security</h4>
-            <ul className="space-y-1.5 text-xs text-zinc-400">
-              <li><span className="text-zinc-300">Server-Side Tenant Isolation</span></li>
-              <li><span className="text-zinc-300">Zero Secret Leakage Engine</span></li>
-              <li><span className="text-zinc-300">Fail-Open SDK Architecture</span></li>
-              <li><span className="text-zinc-300">Single Internal User ID Model</span></li>
+            <h4 className="text-[#E6E8EB] font-mono font-medium text-xs uppercase tracking-wider mb-2.5">Security Architecture</h4>
+            <ul className="space-y-1.5 text-xs text-[#9BA1AC] font-mono text-[11px]">
+              <li><span className="text-[#9BA1AC]">&bull; Server-Side Tenant Isolation</span></li>
+              <li><span className="text-[#9BA1AC]">&bull; Zero Secret Leakage Engine</span></li>
+              <li><span className="text-[#9BA1AC]">&bull; Fail-Open SDK Architecture</span></li>
+              <li><span className="text-[#9BA1AC]">&bull; Single Internal User ID Model</span></li>
             </ul>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 mt-6 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between text-xs text-zinc-500">
-          <p>&copy; {new Date().getFullYear()} api-security-analytics-dashboard. All rights reserved.</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 mt-6 border-t border-[#1E2127] flex flex-col sm:flex-row items-center justify-between text-xs text-[#7B818B]">
+          <p className="font-mono text-[11px]">&copy; {new Date().getFullYear()} API-Security-Analytics-Dashboard. All rights reserved.</p>
           <div className="flex space-x-5 mt-3 sm:mt-0">
             <button
               type="button"
@@ -229,49 +230,49 @@ export const PublicLayout = ({ children }) => {
       {/* Legal & Policy Modal Dialog */}
       {legalModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
           onClick={() => setLegalModal(null)}
         >
           <div
-            className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-md shadow-2xl p-6 sm:p-7 max-h-[85vh] overflow-y-auto"
+            className="relative w-full max-w-2xl bg-[#101216] border border-[#2A2E37] rounded-md shadow-2xl p-6 sm:p-7 max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-5">
+            <div className="flex items-center justify-between border-b border-[#1E2127] pb-3 mb-5">
               <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white">
+                <div className="w-7 h-7 rounded bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA]">
                   <Shield className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-white">
+                  <h3 className="text-sm font-semibold text-[#E6E8EB]">
                     {legalModal === 'privacy' && 'Privacy Policy'}
                     {legalModal === 'terms' && 'Terms of Service'}
                     {legalModal === 'security' && 'Security Disclosure Policy'}
                   </h3>
-                  <p className="text-[11px] text-zinc-500">api-security-analytics-dashboard</p>
+                  <p className="text-[11px] font-mono text-[#7B818B]">API-Security-Analytics-Dashboard</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLegalModal(null)}
-                className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-900 transition-colors"
+                className="text-[#9BA1AC] hover:text-[#E6E8EB] p-1 rounded hover:bg-[#16181D] transition-colors"
                 aria-label="Close modal"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-5 text-xs text-zinc-300 leading-relaxed">
+            <div className="space-y-5 text-xs text-[#9BA1AC] leading-relaxed">
               {legalModal === 'privacy' && (
                 <>
                   <div>
-                    <h4 className="text-white font-medium mb-1 text-xs">1. Telemetry Ingestion and Privacy Protection</h4>
-                    <p className="text-zinc-400">
-                      api-security-analytics-dashboard collects HTTP telemetry metadata (request paths, HTTP verbs, status codes, request latency, and anonymized client IP hashes) exclusively to calculate machine-learning anomaly scores and defend host APIs against brute-force or volumetric abuse. We do not store unencrypted passwords, personal identifying information, or customer application payload data.
+                    <h4 className="text-[#E6E8EB] font-medium mb-1 text-xs">1. Telemetry Ingestion and Privacy Protection</h4>
+                    <p className="text-[#9BA1AC]">
+                      API-Security-Analytics-Dashboard collects HTTP telemetry metadata (request paths, HTTP verbs, status codes, request latency, and anonymized client IP hashes) exclusively to calculate machine-learning anomaly scores and defend host APIs against brute-force or volumetric abuse. We do not store unencrypted passwords, personal identifying information, or customer application payload data.
                     </p>
                   </div>
                   <div>
-                    <h4 className="text-white font-medium mb-1 text-xs">2. Multi-Tenant Cryptographic Boundaries</h4>
-                    <p className="text-zinc-400">
+                    <h4 className="text-[#E6E8EB] font-medium mb-1 text-xs">2. Multi-Tenant Cryptographic Boundaries</h4>
+                    <p className="text-[#9BA1AC]">
                       All collected telemetry, active IP blocks, and Isolation Forest training models are strictly scoped to your specific tenant organization and project IDs. No telemetry data or customer traffic patterns are ever exposed or merged across different accounts.
                     </p>
                   </div>

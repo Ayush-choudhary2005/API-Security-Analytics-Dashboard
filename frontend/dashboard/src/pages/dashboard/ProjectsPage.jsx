@@ -12,6 +12,7 @@ import {
   Shield,
   UserPlus,
   Lock,
+  ExternalLink,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { projectService, organizationService } from '../../services/api';
@@ -149,39 +150,50 @@ export const ProjectsPage = () => {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1E2127] pb-4">
         <div>
-          <h1 className="text-lg font-semibold text-white tracking-tight">Project & Credential Management</h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Manage SDK API keys, organization projects, and team access for {currentOrg?.name}.
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">Credentials & Project Governance</h1>
+            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#C792EA] border border-[#2A2E37]">
+              <span>ORG_WORKSPACE</span>
+            </span>
+          </div>
+          <p className="text-xs text-[#9BA1AC] mt-1 font-mono">
+            Provision SDK authentication tokens, switch projects, and grant RBAC access in {currentOrg?.name || 'Active Workspace'}.
           </p>
         </div>
 
         {/* Tab Controls */}
-        <div className="inline-flex items-center space-x-1 bg-black border border-zinc-800 p-0.5 rounded self-start sm:self-auto">
+        <div className="inline-flex items-center space-x-1 bg-[#101216] border border-[#1E2127] p-1 rounded self-start sm:self-auto font-mono text-xs">
           <button
             onClick={() => setActiveTab('keys')}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              activeTab === 'keys' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
+            className={`px-3 py-1.5 rounded transition-colors ${
+              activeTab === 'keys'
+                ? 'bg-[#16181D] text-[#C792EA] font-semibold border border-[#2A2E37]'
+                : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
             SDK API Keys
           </button>
           <button
             onClick={() => setActiveTab('projects')}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              activeTab === 'projects' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
+            className={`px-3 py-1.5 rounded transition-colors ${
+              activeTab === 'projects'
+                ? 'bg-[#16181D] text-[#82AAFF] font-semibold border border-[#2A2E37]'
+                : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
             Projects ({projects.length})
           </button>
           <button
             onClick={() => setActiveTab('members')}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              activeTab === 'members' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
+            className={`px-3 py-1.5 rounded transition-colors ${
+              activeTab === 'members'
+                ? 'bg-[#16181D] text-[#C3E88D] font-semibold border border-[#2A2E37]'
+                : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
-            Organization Members ({members.length})
+            Members ({members.length})
           </button>
         </div>
       </div>
@@ -189,14 +201,17 @@ export const ProjectsPage = () => {
       {/* TAB 1: SDK KEYS */}
       {activeTab === 'keys' && (
         <div className="space-y-6">
-          <div className="rounded bg-zinc-950 border border-zinc-800 p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div className="rounded bg-[#101216] border border-[#1E2127] p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-[#1E2127] pb-3">
               <div>
-                <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
-                  Active SDK Credentials: {currentProject?.name}
-                </h3>
-                <p className="text-[11px] text-zinc-400 mt-0.5">
-                  CSPRNG 128-bit secret keys. Hashed using SHA-256 in persistence layer.
+                <div className="flex items-center space-x-2">
+                  <Key className="w-4 h-4 text-[#C792EA]" />
+                  <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
+                    SDK Credentials: {currentProject?.name}
+                  </h3>
+                </div>
+                <p className="text-[11px] text-[#9BA1AC] font-mono mt-1">
+                  CSPRNG 128-bit secret keys. Cryptographically hashed using SHA-256 in persistence layer.
                 </p>
               </div>
 
@@ -204,7 +219,7 @@ export const ProjectsPage = () => {
                 <button
                   onClick={handleRegenerateKey}
                   disabled={loading}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-medium transition-colors"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-colors"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Rotate Key</span>
@@ -214,7 +229,7 @@ export const ProjectsPage = () => {
                     setNewKeyRaw(null);
                     setShowNewKeyModal(true);
                   }}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors shadow-sm"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Create New Key</span>
@@ -222,50 +237,50 @@ export const ProjectsPage = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded border border-zinc-800">
+            <div className="overflow-x-auto rounded border border-[#1E2127]">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-zinc-900 text-zinc-400 text-[10px] uppercase tracking-wider border-b border-zinc-800">
+                <thead className="bg-[#16181D] text-[#7B818B] text-[10px] uppercase tracking-wider border-b border-[#1E2127]">
                   <tr>
-                    <th className="py-2.5 px-4">Key Name</th>
-                    <th className="py-2.5 px-4">Prefix</th>
+                    <th className="py-2.5 px-4">Key Label</th>
+                    <th className="py-2.5 px-4">Secret Prefix</th>
                     <th className="py-2.5 px-4">Status</th>
-                    <th className="py-2.5 px-4">Created</th>
-                    <th className="py-2.5 px-4 text-right">Action</th>
+                    <th className="py-2.5 px-4">Provisioned</th>
+                    <th className="py-2.5 px-4 text-right">Enforcement</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/60 bg-zinc-950">
+                <tbody className="divide-y divide-[#1E2127]/60 bg-[#101216]">
                   {projectKeys.map((k) => (
-                    <tr key={k.id} className="hover:bg-zinc-900/40 transition-colors">
-                      <td className="py-2.5 px-4 text-white font-sans font-medium">{k.name}</td>
-                      <td className="py-2.5 px-4 text-white">
+                    <tr key={k.id} className="hover:bg-[#16181D]/60 transition-colors">
+                      <td className="py-2.5 px-4 text-[#E6E8EB] font-sans font-medium">{k.name}</td>
+                      <td className="py-2.5 px-4 text-[#82AAFF]">
                         {k.key_prefix}...
                         <button
                           onClick={() => copyToClipboard(k.key_prefix, k.id)}
-                          className="ml-2 text-zinc-400 hover:text-white inline-flex align-middle"
+                          className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] inline-flex align-middle"
                           title="Copy prefix"
                         >
-                          {copiedKey === k.id ? <Check className="w-3 h-3 text-white" /> : <Copy className="w-3 h-3" />}
+                          {copiedKey === k.id ? <Check className="w-3 h-3 text-[#C3E88D]" /> : <Copy className="w-3 h-3" />}
                         </button>
                       </td>
                       <td className="py-2.5 px-4">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase border ${
                             k.status === 'active'
-                              ? 'bg-zinc-900 text-white border border-zinc-700'
-                              : 'bg-black text-zinc-500 border border-zinc-800'
+                              ? 'bg-[#C3E88D]/15 text-[#C3E88D] border-[#C3E88D]/30'
+                              : 'bg-[#16181D] text-[#7B818B] border-[#1E2127]'
                           }`}
                         >
                           {k.status}
                         </span>
                       </td>
-                      <td className="py-2.5 px-4 text-zinc-400 text-[11px]">
+                      <td className="py-2.5 px-4 text-[#7B818B] text-[11px]">
                         {k.created_at ? new Date(k.created_at * 1000).toLocaleDateString() : 'Active'}
                       </td>
                       <td className="py-2.5 px-4 text-right font-sans">
                         {k.status === 'active' && (
                           <button
                             onClick={() => handleRevokeKey(k.id)}
-                            className="text-xs text-zinc-400 hover:text-white underline"
+                            className="text-xs text-[#F07178] hover:underline font-mono"
                           >
                             Revoke
                           </button>
@@ -275,8 +290,8 @@ export const ProjectsPage = () => {
                   ))}
                   {projectKeys.length === 0 && (
                     <tr>
-                      <td colSpan="5" className="py-8 text-center text-zinc-500 font-sans">
-                        No API keys generated yet. Click 'Create New Key' to provision an SDK credential.
+                      <td colSpan="5" className="py-8 text-center text-[#7B818B] font-mono">
+                        Zero API keys generated yet. Click 'Create New Key' to provision an ingestion credential.
                       </td>
                     </tr>
                   )}
@@ -293,33 +308,33 @@ export const ProjectsPage = () => {
           {projects.map((proj) => (
             <div
               key={proj.id}
-              className={`p-5 rounded bg-zinc-950 border transition-colors ${
+              className={`p-5 rounded bg-[#101216] border transition-colors ${
                 currentProject?.id === proj.id
-                  ? 'border-white bg-zinc-900/30 shadow-sm'
-                  : 'border-zinc-800 hover:border-zinc-700'
+                  ? 'border-[#82AAFF] bg-[#16181D]'
+                  : 'border-[#1E2127] hover:border-[#2A2E37]'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono text-zinc-300 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-mono text-[#82AAFF] bg-[#16181D] border border-[#2A2E37] px-1.5 py-0.5 rounded">
                   {proj.id.slice(0, 12)}
                 </span>
                 {currentProject?.id === proj.id && (
-                  <span className="text-[10px] font-mono text-white uppercase tracking-wider font-semibold">Active</span>
+                  <span className="text-[10px] font-mono text-[#C3E88D] uppercase tracking-wider font-semibold border border-[#C3E88D]/30 px-1.5 py-0.5 rounded bg-[#C3E88D]/10">ACTIVE PROJECT</span>
                 )}
               </div>
-              <h3 className="text-sm font-semibold text-white mb-1">{proj.name}</h3>
-              <p className="text-xs text-zinc-400 mb-4 line-clamp-2">{proj.description || 'No description provided'}</p>
+              <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">{proj.name}</h3>
+              <p className="text-xs text-[#9BA1AC] mb-4 line-clamp-2">{proj.description || 'No description provided'}</p>
 
-              <div className="pt-3 border-t border-zinc-800/70 flex items-center justify-between">
+              <div className="pt-3 border-t border-[#1E2127] flex items-center justify-between">
                 <button
                   onClick={() => selectProject(proj)}
-                  className={`text-xs font-semibold px-3 py-1 rounded transition-colors ${
+                  className={`text-xs font-mono font-semibold px-3 py-1 rounded transition-colors ${
                     currentProject?.id === proj.id
-                      ? 'bg-white text-black'
-                      : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 border border-zinc-800'
+                      ? 'bg-[#82AAFF] text-[#0A0B0D]'
+                      : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127]'
                   }`}
                 >
-                  {currentProject?.id === proj.id ? 'Selected' : 'Switch To'}
+                  {currentProject?.id === proj.id ? 'Selected' : 'Switch Context'}
                 </button>
               </div>
             </div>
@@ -329,50 +344,53 @@ export const ProjectsPage = () => {
 
       {/* TAB 3: MEMBERS */}
       {activeTab === 'members' && (
-        <div className="rounded bg-zinc-950 border border-zinc-800 p-5">
-          <div className="flex items-center justify-between mb-4">
+        <div className="rounded bg-[#101216] border border-[#1E2127] p-5">
+          <div className="flex items-center justify-between mb-4 border-b border-[#1E2127] pb-3">
             <div>
-              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Organization Members</h3>
-              <p className="text-[11px] text-zinc-400 mt-0.5">Team members with workspace access</p>
+              <div className="flex items-center space-x-2">
+                <Users className="w-4 h-4 text-[#C3E88D]" />
+                <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Organization Members</h3>
+              </div>
+              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Team members with workspace access privileges</p>
             </div>
             <button
               onClick={() => setShowMemberModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors shadow-sm"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Invite Member</span>
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded border border-zinc-800">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-zinc-900 text-zinc-400 font-mono text-[10px] uppercase tracking-wider border-b border-zinc-800">
+          <div className="overflow-x-auto rounded border border-[#1E2127]">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-[#16181D] text-[#7B818B] text-[10px] uppercase tracking-wider border-b border-[#1E2127]">
                 <tr>
-                  <th className="py-2.5 px-4">User</th>
+                  <th className="py-2.5 px-4 font-sans">User</th>
                   <th className="py-2.5 px-4">Email</th>
                   <th className="py-2.5 px-4">Role</th>
                   <th className="py-2.5 px-4">Joined</th>
-                  <th className="py-2.5 px-4 text-right">Action</th>
+                  <th className="py-2.5 px-4 text-right font-sans">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60 bg-zinc-950">
+              <tbody className="divide-y divide-[#1E2127]/60 bg-[#101216]">
                 {members.map((m) => (
-                  <tr key={m.id || m.user_id} className="hover:bg-zinc-900/40 transition-colors">
-                    <td className="py-2.5 px-4 font-semibold text-white">{m.full_name || 'Team Member'}</td>
-                    <td className="py-2.5 px-4 font-mono text-zinc-300">{m.email}</td>
+                  <tr key={m.id || m.user_id} className="hover:bg-[#16181D]/60 transition-colors">
+                    <td className="py-2.5 px-4 font-semibold text-[#E6E8EB] font-sans">{m.full_name || 'Team Member'}</td>
+                    <td className="py-2.5 px-4 text-[#82AAFF]">{m.email}</td>
                     <td className="py-2.5 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-zinc-900 text-zinc-300 border border-zinc-800">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-[#16181D] text-[#C792EA] border border-[#2A2E37]">
                         {m.role || 'member'}
                       </span>
                     </td>
-                    <td className="py-2.5 px-4 text-zinc-400 text-[11px]">
+                    <td className="py-2.5 px-4 text-[#7B818B] text-[11px]">
                       {m.joined_at ? new Date(m.joined_at * 1000).toLocaleDateString() : 'Active'}
                     </td>
                     <td className="py-2.5 px-4 text-right">
                       {m.role !== 'owner' && (
                         <button
                           onClick={() => handleRemoveMember(m.user_id || m.id)}
-                          className="text-xs text-zinc-400 hover:text-white underline"
+                          className="text-xs text-[#F07178] hover:underline"
                         >
                           Remove
                         </button>
@@ -386,28 +404,28 @@ export const ProjectsPage = () => {
         </div>
       )}
 
-      {/* Modal: New Key Created (Raw Key Display - Shown Once) */}
+      {/* Modal: New Key Created */}
       {showNewKeyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="bg-zinc-950 border border-zinc-800 rounded p-6 w-full max-w-md shadow-2xl">
-            <div className="flex items-center space-x-2 text-white font-semibold mb-2">
-              <Key className="w-5 h-5 text-white" />
-              <span>{newKeyRaw ? 'API Key Generated' : 'Create API Key'}</span>
+          <div className="bg-[#101216] border border-[#2A2E37] rounded p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center space-x-2 text-[#E6E8EB] font-semibold mb-2">
+              <Key className="w-5 h-5 text-[#C792EA]" />
+              <span className="font-mono text-sm">{newKeyRaw ? 'API Key Generated' : 'Create API Key'}</span>
             </div>
 
             {newKeyRaw ? (
               <div className="space-y-4">
-                <p className="text-xs text-zinc-300 leading-relaxed">
-                  Please copy this key now. For your security,{' '}
-                  <span className="text-white font-medium underline">it will never be displayed again</span>.
+                <p className="text-xs text-[#9BA1AC] leading-relaxed font-mono">
+                  Copy this key immediately. For your security,{' '}
+                  <span className="text-[#F07178] font-bold">it will never be displayed again</span>.
                 </p>
-                <div className="p-3 rounded bg-black border border-zinc-800 font-mono text-xs text-white break-all select-all flex items-center justify-between">
+                <div className="p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] break-all select-all flex items-center justify-between">
                   <span>{newKeyRaw}</span>
                   <button
                     onClick={() => copyToClipboard(newKeyRaw, 'modal_key')}
-                    className="ml-3 p-1 text-zinc-400 hover:text-white"
+                    className="ml-3 p-1 text-[#7B818B] hover:text-[#E6E8EB]"
                   >
-                    {copiedKey === 'modal_key' ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+                    {copiedKey === 'modal_key' ? <Check className="w-4 h-4 text-[#C3E88D]" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
                 <div className="flex justify-end pt-2">
@@ -416,7 +434,7 @@ export const ProjectsPage = () => {
                       setShowNewKeyModal(false);
                       setNewKeyRaw(null);
                     }}
-                    className="px-4 py-2 rounded bg-white hover:bg-zinc-200 text-xs font-semibold text-black shadow-sm"
+                    className="px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-xs font-semibold text-[#0A0B0D] font-mono"
                   >
                     I Have Saved This Key
                   </button>
@@ -425,28 +443,28 @@ export const ProjectsPage = () => {
             ) : (
               <form onSubmit={handleGenerateKey} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Key Name</label>
+                  <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Key Label Name</label>
                   <input
                     type="text"
                     required
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
                     placeholder="e.g. Production Ingestion Key"
-                    className="w-full bg-black border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white"
+                    className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                   />
                 </div>
-                <div className="flex justify-end space-x-3 pt-2">
+                <div className="flex justify-end space-x-3 pt-2 border-t border-[#1E2127]">
                   <button
                     type="button"
                     onClick={() => setShowNewKeyModal(false)}
-                    className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white"
+                    className="px-3 py-1.5 text-xs text-[#7B818B] hover:text-[#E6E8EB]"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-1.5 text-xs bg-white hover:bg-zinc-200 text-black font-semibold rounded shadow-sm"
+                    className="px-4 py-1.5 text-xs bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] font-semibold font-mono rounded"
                   >
                     {loading ? 'Generating...' : 'Generate Key'}
                   </button>
@@ -460,47 +478,47 @@ export const ProjectsPage = () => {
       {/* Modal: Invite Member */}
       {showMemberModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="bg-zinc-950 border border-zinc-800 rounded p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-white mb-1">Invite Organization Member</h3>
-            <p className="text-xs text-zinc-400 mb-4">
-              Add a teammate to <span className="text-white font-medium">{currentOrg?.name}</span>.
+          <div className="bg-[#101216] border border-[#2A2E37] rounded p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1 font-mono">Invite Organization Member</h3>
+            <p className="text-xs text-[#9BA1AC] mb-4">
+              Add a teammate to <span className="text-[#82AAFF] font-medium">{currentOrg?.name}</span>.
             </p>
             <form onSubmit={handleInviteMember} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Teammate Email</label>
+                <label className="block text-xs font-mono text-[#9BA1AC] mb-1 uppercase tracking-wider text-[10px]">Teammate Email</label>
                 <input
                   type="email"
                   required
                   placeholder="colleague@company.com"
                   value={memberEmail}
                   onChange={(e) => setMemberEmail(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C3E88D] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Access Role</label>
+                <label className="block text-xs font-mono text-[#9BA1AC] mb-1 uppercase tracking-wider text-[10px]">Access Role</label>
                 <select
                   value={memberRole}
                   onChange={(e) => setMemberRole(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white font-mono"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C3E88D] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none font-mono"
                 >
                   <option value="member">Member (View & Investigate)</option>
                   <option value="admin">Admin (Manage Keys & Webhooks)</option>
                   <option value="viewer">Viewer (Read Only)</option>
                 </select>
               </div>
-              <div className="flex justify-end space-x-3 pt-2">
+              <div className="flex justify-end space-x-3 pt-2 border-t border-[#1E2127]">
                 <button
                   type="button"
                   onClick={() => setShowMemberModal(false)}
-                  className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white"
+                  className="px-3 py-1.5 text-xs text-[#7B818B] hover:text-[#E6E8EB]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-1.5 text-xs bg-white hover:bg-zinc-200 text-black font-semibold rounded shadow-sm"
+                  className="px-4 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold font-mono rounded"
                 >
                   Send Invitation
                 </button>
@@ -512,3 +530,5 @@ export const ProjectsPage = () => {
     </div>
   );
 };
+
+export default ProjectsPage;

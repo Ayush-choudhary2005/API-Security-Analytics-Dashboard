@@ -18,6 +18,8 @@ import {
   Plus,
   LogOut,
   ExternalLink,
+  ChevronRight,
+  Radio,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useProject } from '../context/ProjectContext';
@@ -106,40 +108,40 @@ export const AppLayout = ({ children }) => {
 
   const navigationItems = [
     { label: 'Overview', to: '/app', icon: LayoutDashboard },
-    { label: 'Live Monitoring', to: '/app/live', icon: Activity },
+    { label: 'Live Stream', to: '/app/live', icon: Activity },
     { label: 'Threats & Alerts', to: '/app/threats', icon: ShieldAlert },
     { label: 'Analytics', to: '/app/analytics', icon: BarChart3 },
     { label: 'Projects & Keys', to: '/app/projects', icon: FolderGit2 },
-    { label: 'SDK Onboarding', to: '/app/sdk', icon: Terminal },
-    { label: 'Integrations', to: '/app/integrations', icon: Layers },
-    { label: 'Investigations', to: '/app/investigations', icon: Search },
+    { label: 'SDK Integration', to: '/app/sdk', icon: Terminal },
+    { label: 'Webhooks', to: '/app/integrations', icon: Layers },
+    { label: 'AI Investigations', to: '/app/investigations', icon: Search },
     { label: 'Settings', to: '/app/settings', icon: Settings },
   ];
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#0A0B0D] text-[#E6E8EB] flex flex-col font-sans selection:bg-[#2A2E37] selection:text-[#E6E8EB]">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-black border-b border-zinc-800 h-14 flex items-center justify-between px-4 sm:px-6">
+      <header className="sticky top-0 z-40 bg-[#101216]/90 backdrop-blur-md border-b border-[#1E2127] h-14 flex items-center justify-between px-4 sm:px-6">
         {/* Left: Mobile Toggle & Brand & Scope Pickers */}
         <div className="flex items-center space-x-3 sm:space-x-4">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 text-zinc-400 hover:text-white rounded"
+            className="md:hidden p-1.5 text-[#9BA1AC] hover:text-[#E6E8EB] rounded transition-colors"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
           <NavLink to="/app" className="flex items-center space-x-2.5 group">
-            <div className="w-7 h-7 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white group-hover:border-zinc-500 transition-colors">
+            <div className="w-7 h-7 rounded bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA] group-hover:border-[#C792EA]/60 transition-colors shadow-xs">
               <Shield className="w-4 h-4" />
             </div>
-            <span className="hidden sm:inline-block text-xs font-semibold tracking-tight text-zinc-200 group-hover:text-white transition-colors">
-              api-security-analytics-dashboard
+            <span className="hidden sm:inline-block text-xs font-semibold tracking-tight text-[#E6E8EB] group-hover:text-white transition-colors">
+              API-Security-Analytics-Dashboard
             </span>
           </NavLink>
 
-          <div className="hidden lg:block h-4 w-px bg-zinc-800 mx-1" />
+          <div className="hidden lg:block h-4 w-px bg-[#1E2127] mx-1" />
 
           {/* Organization Switcher Dropdown */}
           <div className="relative">
@@ -150,16 +152,16 @@ export const AppLayout = ({ children }) => {
                 setUserDropdownOpen(false);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium bg-zinc-950 hover:bg-zinc-900 text-zinc-200 px-2.5 py-1.5 rounded border border-zinc-800 transition-colors max-w-[160px] sm:max-w-[200px]"
+              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-2.5 py-1.5 rounded border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
             >
-              <span className="text-zinc-500">Org:</span>
+              <span className="text-[#7B818B] font-mono text-[11px]">org:</span>
               <span className="truncate">{currentOrg ? currentOrg.name : 'Select Org'}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#7B818B] flex-shrink-0" />
             </button>
 
             {orgDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-60 bg-zinc-950 border border-zinc-800 rounded-md shadow-2xl py-1 z-50">
-                <div className="px-3 py-1.5 text-[11px] font-medium text-zinc-500 uppercase tracking-wider border-b border-zinc-850">
+              <div className="absolute left-0 mt-1.5 w-60 bg-[#16181D] border border-[#2A2E37] rounded-md shadow-2xl py-1 z-50">
+                <div className="px-3 py-1.5 text-[10px] font-mono font-medium text-[#7B818B] uppercase tracking-wider border-b border-[#1E2127]">
                   Organizations
                 </div>
                 <div className="max-h-48 overflow-y-auto py-1">
@@ -170,24 +172,24 @@ export const AppLayout = ({ children }) => {
                         selectOrganization(org);
                         setOrgDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-zinc-900 ${
-                        currentOrg?.id === org.id ? 'text-white bg-zinc-900 font-medium' : 'text-zinc-300'
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-[#1E2127] ${
+                        currentOrg?.id === org.id ? 'text-[#C792EA] bg-[#101216] font-semibold' : 'text-[#9BA1AC]'
                       }`}
                     >
                       <span className="truncate">{org.name}</span>
-                      <span className="text-[10px] text-zinc-500 font-mono">{org.role || 'member'}</span>
+                      <span className="text-[10px] text-[#7B818B] font-mono">{org.role || 'member'}</span>
                     </button>
                   ))}
                 </div>
-                <div className="border-t border-zinc-800 p-1">
+                <div className="border-t border-[#1E2127] p-1">
                   <button
                     onClick={() => {
                       setOrgDropdownOpen(false);
                       setShowOrgModal(true);
                     }}
-                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-white hover:bg-zinc-900 p-1.5 rounded transition-colors"
+                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5 text-[#C792EA]" />
                     <span>Create Organization</span>
                   </button>
                 </div>
@@ -204,17 +206,17 @@ export const AppLayout = ({ children }) => {
                 setUserDropdownOpen(false);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium bg-zinc-950 hover:bg-zinc-900 text-zinc-200 px-2.5 py-1.5 rounded border border-zinc-800 transition-colors max-w-[160px] sm:max-w-[200px]"
+              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-2.5 py-1.5 rounded border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
             >
-              <span className="text-zinc-500">Project:</span>
+              <span className="text-[#7B818B] font-mono text-[11px]">proj:</span>
               <span className="truncate">{currentProject ? currentProject.name : 'Select Project'}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#7B818B] flex-shrink-0" />
             </button>
 
             {projectDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-60 bg-zinc-950 border border-zinc-800 rounded-md shadow-2xl py-1 z-50">
-                <div className="px-3 py-1.5 text-[11px] font-medium text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-                  Projects
+              <div className="absolute left-0 mt-1.5 w-64 bg-[#16181D] border border-[#2A2E37] rounded-md shadow-2xl py-1 z-50">
+                <div className="px-3 py-1.5 text-[10px] font-mono font-medium text-[#7B818B] uppercase tracking-wider border-b border-[#1E2127]">
+                  Projects ({currentOrg?.name || 'Active'})
                 </div>
                 <div className="max-h-48 overflow-y-auto py-1">
                   {projects.map((proj) => (
@@ -224,27 +226,27 @@ export const AppLayout = ({ children }) => {
                         selectProject(proj);
                         setProjectDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-zinc-900 ${
-                        currentProject?.id === proj.id ? 'text-white bg-zinc-900 font-medium' : 'text-zinc-300'
+                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-[#1E2127] ${
+                        currentProject?.id === proj.id ? 'text-[#82AAFF] bg-[#101216] font-semibold' : 'text-[#9BA1AC]'
                       }`}
                     >
                       <span className="truncate">{proj.name}</span>
-                      <span className="text-[10px] text-zinc-500 font-mono">{proj.id.slice(0, 8)}</span>
+                      <span className="text-[10px] text-[#7B818B] font-mono">{proj.id.slice(0, 8)}</span>
                     </button>
                   ))}
                   {projects.length === 0 && (
-                    <div className="px-3 py-3 text-xs text-zinc-500 text-center">No projects in organization</div>
+                    <div className="px-3 py-3 text-xs text-[#7B818B] text-center">No projects in organization</div>
                   )}
                 </div>
-                <div className="border-t border-zinc-800 p-1">
+                <div className="border-t border-[#1E2127] p-1">
                   <button
                     onClick={() => {
                       setProjectDropdownOpen(false);
                       setShowProjModal(true);
                     }}
-                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-white hover:bg-zinc-900 p-1.5 rounded transition-colors"
+                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5 text-[#82AAFF]" />
                     <span>Create Project</span>
                   </button>
                 </div>
@@ -254,13 +256,15 @@ export const AppLayout = ({ children }) => {
         </div>
 
         {/* Right: Socket Status, Notifications & Profile */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 sm:space-x-3">
           {/* Real-time Socket Indicator */}
-          <div className="hidden sm:flex items-center space-x-2 text-xs px-2 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-300">
+          <div className="hidden sm:flex items-center space-x-2 text-xs px-2.5 py-1 rounded bg-[#101216] border border-[#1E2127] text-[#9BA1AC]">
             <span
-              className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-white' : 'bg-zinc-600'}`}
+              className={`w-2 h-2 rounded-full ${
+                socketConnected ? 'bg-[#C3E88D] shadow-[0_0_8px_rgba(195,232,141,0.6)] animate-pulse' : 'bg-[#7B818B]'
+              }`}
             />
-            <span className="text-[11px] font-medium">{socketConnected ? 'Live' : 'Connecting'}</span>
+            <span className="text-[11px] font-mono">{socketConnected ? 'WS: LIVE' : 'WS: CONNECTING'}</span>
           </div>
 
           {/* Notifications Dropdown */}
@@ -272,45 +276,45 @@ export const AppLayout = ({ children }) => {
                 setOrgDropdownOpen(false);
                 setProjectDropdownOpen(false);
               }}
-              className="p-1.5 text-zinc-400 hover:text-white rounded hover:bg-zinc-900 transition-colors relative"
+              className="p-1.5 text-[#9BA1AC] hover:text-[#E6E8EB] rounded hover:bg-[#16181D] border border-transparent hover:border-[#1E2127] transition-all relative"
               aria-label="Security notifications"
             >
               <Bell className="w-4 h-4" />
               {liveAlerts.length > 0 && (
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-white"></span>
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#F07178] shadow-[0_0_6px_rgba(240,113,120,0.8)]"></span>
               )}
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-1.5 w-80 bg-zinc-950 border border-zinc-800 rounded-md shadow-2xl py-2 z-50">
-                <div className="px-3 py-1.5 text-xs font-semibold text-zinc-300 border-b border-zinc-800 flex items-center justify-between">
-                  <span>Security Notifications</span>
-                  <span className="text-[10px] text-zinc-500 font-mono">{liveAlerts.length} events</span>
+              <div className="absolute right-0 mt-1.5 w-80 bg-[#16181D] border border-[#2A2E37] rounded-md shadow-2xl py-2 z-50">
+                <div className="px-3 py-1.5 text-xs font-semibold text-[#E6E8EB] border-b border-[#1E2127] flex items-center justify-between">
+                  <span className="font-mono text-[11px] uppercase tracking-wider text-[#C792EA]">Live Threat Stream</span>
+                  <span className="text-[10px] text-[#7B818B] font-mono">{liveAlerts.length} buffered</span>
                 </div>
-                <div className="max-h-64 overflow-y-auto divide-y divide-zinc-800/60">
+                <div className="max-h-64 overflow-y-auto divide-y divide-[#1E2127]/60">
                   {liveAlerts.length > 0 ? (
                     liveAlerts.map((alt, idx) => (
-                      <div key={idx} className="p-3 text-xs hover:bg-zinc-900">
+                      <div key={idx} className="p-3 text-xs hover:bg-[#1E2127] transition-colors">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-white uppercase tracking-wider text-[10px]">
-                            {alt.attack_type || 'Threat Alert'}
+                          <span className="font-semibold text-[#F07178] uppercase tracking-wider text-[10px] font-mono">
+                            {alt.attack_type || 'ANOMALY'}
                           </span>
-                          <span className="text-[10px] text-zinc-500 font-mono">Recent</span>
+                          <span className="text-[10px] text-[#7B818B] font-mono">JUST NOW</span>
                         </div>
-                        <p className="text-zinc-300 truncate">{alt.reason || alt.endpoint || 'Anomaly flagged'}</p>
+                        <p className="text-[#9BA1AC] text-[11px] font-mono truncate">{alt.reason || alt.endpoint || 'Volumetric spike detected'}</p>
                       </div>
                     ))
                   ) : (
-                    <div className="p-4 text-center text-xs text-zinc-500">No new alerts received</div>
+                    <div className="p-4 text-center text-xs text-[#7B818B] font-mono">No live threat alerts</div>
                   )}
                 </div>
-                <div className="border-t border-zinc-800 p-2 text-center">
+                <div className="border-t border-[#1E2127] p-2 text-center bg-[#101216]">
                   <NavLink
                     to="/app/threats"
                     onClick={() => setNotificationsOpen(false)}
-                    className="text-xs text-zinc-300 hover:text-white hover:underline inline-flex items-center space-x-1"
+                    className="text-xs text-[#82AAFF] hover:underline inline-flex items-center space-x-1"
                   >
-                    <span>View all threat alerts</span>
+                    <span>Inspect Threat Registry</span>
                     <ExternalLink className="w-3 h-3" />
                   </NavLink>
                 </div>
@@ -327,35 +331,35 @@ export const AppLayout = ({ children }) => {
                 setOrgDropdownOpen(false);
                 setProjectDropdownOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium text-zinc-300 hover:text-white p-1 rounded hover:bg-zinc-900 transition-colors"
+              className="flex items-center space-x-1.5 text-xs font-medium text-[#9BA1AC] hover:text-[#E6E8EB] p-1 rounded hover:bg-[#16181D] border border-transparent hover:border-[#1E2127] transition-all"
             >
-              <div className="w-6 h-6 rounded bg-zinc-900 border border-zinc-800 text-zinc-200 flex items-center justify-center font-semibold text-xs uppercase font-mono">
+              <div className="w-6 h-6 rounded bg-[#16181D] border border-[#2A2E37] text-[#C792EA] flex items-center justify-center font-bold text-xs uppercase font-mono">
                 {user?.email?.charAt(0) || 'U'}
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#7B818B]" />
             </button>
 
             {userDropdownOpen && (
-              <div className="absolute right-0 mt-1.5 w-56 bg-zinc-950 border border-zinc-800 rounded-md shadow-2xl py-1 z-50">
-                <div className="px-3 py-2 border-b border-zinc-800">
-                  <p className="text-xs font-semibold text-white truncate">{user?.full_name || 'Operator'}</p>
-                  <p className="text-[11px] text-zinc-500 truncate font-mono">{user?.email}</p>
+              <div className="absolute right-0 mt-1.5 w-56 bg-[#16181D] border border-[#2A2E37] rounded-md shadow-2xl py-1 z-50">
+                <div className="px-3 py-2 border-b border-[#1E2127] bg-[#101216]">
+                  <p className="text-xs font-semibold text-[#E6E8EB] truncate">{user?.full_name || 'System Operator'}</p>
+                  <p className="text-[11px] text-[#7B818B] truncate font-mono">{user?.email}</p>
                 </div>
                 <NavLink
                   to="/app/settings"
                   onClick={() => setUserDropdownOpen(false)}
-                  className="flex items-center space-x-2 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-900 transition-colors"
+                  className="flex items-center space-x-2 px-3 py-2 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] hover:bg-[#1E2127] transition-colors"
                 >
-                  <Settings className="w-3.5 h-3.5 text-zinc-500" />
-                  <span>Account & Settings</span>
+                  <Settings className="w-3.5 h-3.5 text-[#7B818B]" />
+                  <span>Account & Keys</span>
                 </NavLink>
-                <div className="border-t border-zinc-800 my-1" />
+                <div className="border-t border-[#1E2127] my-1" />
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+                  className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-[#F07178] hover:bg-[#1E2127] transition-colors"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
+                  <span>Terminate Session</span>
                 </button>
               </div>
             )}
@@ -367,12 +371,12 @@ export const AppLayout = ({ children }) => {
       <div className="flex-1 flex overflow-hidden">
         {/* Desktop Sidebar */}
         <aside
-          className={`hidden md:flex flex-col bg-black border-r border-zinc-800 transition-all duration-150 ${
+          className={`hidden md:flex flex-col bg-[#101216] border-r border-[#1E2127] transition-all duration-150 ${
             sidebarCollapsed ? 'w-14' : 'w-56'
           }`}
         >
           {/* Navigation Items */}
-          <div className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+          <div className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
             {navigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.to;
@@ -380,27 +384,39 @@ export const AppLayout = ({ children }) => {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={`flex items-center space-x-2.5 px-2.5 py-2 rounded text-xs font-medium transition-colors ${
+                  className={`flex items-center space-x-2.5 px-2.5 py-2 rounded text-xs font-medium transition-all ${
                     isActive
-                      ? 'bg-zinc-900 text-white border border-zinc-700'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                      ? 'bg-[#16181D] text-[#E6E8EB] border-l-2 border-[#C792EA] border-t border-r border-b border-[#2A2E37] shadow-xs'
+                      : 'text-[#9BA1AC] hover:text-[#E6E8EB] hover:bg-[#16181D]/60 border border-transparent'
                   }`}
                   title={sidebarCollapsed ? item.label : undefined}
                 >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <Icon
+                    className={`w-4 h-4 flex-shrink-0 ${
+                      isActive ? 'text-[#C792EA]' : 'text-[#7B818B] group-hover:text-[#9BA1AC]'
+                    }`}
+                  />
                   {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
                 </NavLink>
               );
             })}
           </div>
 
+          {/* System Environment Footer Badge */}
+          {!sidebarCollapsed && (
+            <div className="px-3 py-2 border-t border-[#1E2127] bg-[#0A0B0D]/50 text-[10px] font-mono text-[#7B818B] flex items-center justify-between">
+              <span>ACTIVE DEFENSE</span>
+              <span className="text-[#C3E88D]">ONLINE</span>
+            </div>
+          )}
+
           {/* Collapse Toggle */}
-          <div className="p-2 border-t border-zinc-800">
+          <div className="p-2 border-t border-[#1E2127]">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="w-full flex items-center justify-center py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 rounded hover:bg-zinc-900/60 transition-colors"
+              className="w-full flex items-center justify-center py-1.5 text-[11px] font-mono text-[#7B818B] hover:text-[#E6E8EB] rounded hover:bg-[#16181D] transition-colors"
             >
-              <span>{sidebarCollapsed ? 'Expand' : 'Collapse'}</span>
+              <span>{sidebarCollapsed ? '→' : '← COLLAPSE'}</span>
             </button>
           </div>
         </aside>
@@ -409,21 +425,21 @@ export const AppLayout = ({ children }) => {
         {mobileMenuOpen && (
           <div className="md:hidden fixed inset-0 z-50 flex">
             <div
-              className="fixed inset-0 bg-black/75 backdrop-blur-xs"
+              className="fixed inset-0 bg-black/80 backdrop-blur-xs"
               onClick={() => setMobileMenuOpen(false)}
             />
-            <div className="relative w-64 bg-black border-r border-zinc-800 flex flex-col p-4 z-10">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 mb-3">
+            <div className="relative w-64 bg-[#101216] border-r border-[#1E2127] flex flex-col p-4 z-10">
+              <div className="flex items-center justify-between pb-3 border-b border-[#1E2127] mb-3">
                 <div className="flex items-center space-x-2">
-                  <Shield className="w-4 h-4 text-white" />
-                  <span className="font-semibold text-xs text-white">api-security-analytics-dashboard</span>
+                  <Shield className="w-4 h-4 text-[#C792EA]" />
+                  <span className="font-semibold text-xs text-[#E6E8EB]">API-Security-Analytics-Dashboard</span>
                 </div>
-                <button onClick={() => setMobileMenuOpen(false)} className="text-zinc-400 p-1">
+                <button onClick={() => setMobileMenuOpen(false)} className="text-[#9BA1AC] hover:text-white p-1">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="flex-1 space-y-0.5 overflow-y-auto">
+              <div className="flex-1 space-y-1 overflow-y-auto">
                 {navigationItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.to;
@@ -434,8 +450,8 @@ export const AppLayout = ({ children }) => {
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-medium ${
                         isActive
-                          ? 'bg-zinc-900 text-white border border-zinc-700'
-                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                          ? 'bg-[#16181D] text-[#E6E8EB] border-l-2 border-[#C792EA] border-t border-r border-b border-[#2A2E37]'
+                          : 'text-[#9BA1AC] hover:text-[#E6E8EB] hover:bg-[#16181D]/60'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -449,42 +465,42 @@ export const AppLayout = ({ children }) => {
         )}
 
         {/* Main Content Viewport */}
-        <main className="flex-1 overflow-y-auto bg-black p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto bg-[#0A0B0D] p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
 
       {/* Modal: Create Organization */}
       {showOrgModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-md p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-white mb-1">Create New Organization</h3>
-            <p className="text-xs text-zinc-400 mb-4">
-              Organizations provide complete boundary isolation for projects and SDK telemetry.
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Create New Organization</h3>
+            <p className="text-xs text-[#9BA1AC] mb-4">
+              Organizations provide boundary isolation for tenant telemetry, alert policies, and access tokens.
             </p>
             <form onSubmit={handleCreateOrgSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Organization Name</label>
+                <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Organization Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="Acme Corporation"
+                  placeholder="e.g. Acme Corp Infrastructure"
                   value={newOrgName}
                   onChange={(e) => setNewOrgName(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
                 />
               </div>
-              <div className="flex justify-end space-x-2.5 pt-1">
+              <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
                 <button
                   type="button"
                   onClick={() => setShowOrgModal(false)}
-                  className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded"
+                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 text-xs bg-white hover:bg-zinc-200 text-black font-semibold rounded transition-colors"
+                  className="px-3.5 py-1.5 text-xs bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold rounded transition-colors"
                 >
                   Create Organization
                 </button>
@@ -496,45 +512,45 @@ export const AppLayout = ({ children }) => {
 
       {/* Modal: Create Project */}
       {showProjModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-md p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-white mb-1">Create New Project</h3>
-            <p className="text-xs text-zinc-400 mb-4">
-              Create a project within <span className="text-white font-medium">{currentOrg?.name}</span> to collect API metrics.
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Create New Project</h3>
+            <p className="text-xs text-[#9BA1AC] mb-4">
+              Create an isolated project within <span className="text-[#E6E8EB] font-medium">{currentOrg?.name}</span> to collect API metrics.
             </p>
             <form onSubmit={handleCreateProjSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Project Name</label>
+                <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Project Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="Production API"
+                  placeholder="e.g. Production API Gateway"
                   value={newProjName}
                   onChange={(e) => setNewProjName(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Description (Optional)</label>
+                <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Description (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Core eCommerce Checkout Service"
+                  placeholder="e.g. Core microservices gateway"
                   value={newProjDesc}
                   onChange={(e) => setNewProjDesc(e.target.value)}
-                  className="w-full bg-black border border-zinc-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-white transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
                 />
               </div>
-              <div className="flex justify-end space-x-2.5 pt-1">
+              <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
                 <button
                   type="button"
                   onClick={() => setShowProjModal(false)}
-                  className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded"
+                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 text-xs bg-white hover:bg-zinc-200 text-black font-semibold rounded transition-colors"
+                  className="px-3.5 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] font-semibold rounded transition-colors"
                 >
                   Create Project
                 </button>
@@ -546,3 +562,6 @@ export const AppLayout = ({ children }) => {
     </div>
   );
 };
+
+export default AppLayout;
+

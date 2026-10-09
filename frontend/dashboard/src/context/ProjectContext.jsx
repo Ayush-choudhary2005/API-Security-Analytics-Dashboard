@@ -25,14 +25,16 @@ export const ProjectProvider = ({ children }) => {
 
       // Handle current org selection
       if (orgList.length > 0) {
-        const savedOrgId = localStorage.getItem('sentinapi_current_org_id');
+        const savedOrgId = localStorage.getItem('api_sec_current_org_id') || localStorage.getItem('sentinapi_current_org_id');
         const matched = orgList.find((o) => o.id === savedOrgId);
         const selected = matched || orgList[0];
         setCurrentOrg(selected);
-        localStorage.setItem('sentinapi_current_org_id', selected.id);
+        localStorage.setItem('api_sec_current_org_id', selected.id);
+        localStorage.removeItem('sentinapi_current_org_id');
         return orgList;
       } else {
         setCurrentOrg(null);
+        localStorage.removeItem('api_sec_current_org_id');
         localStorage.removeItem('sentinapi_current_org_id');
         return [];
       }
@@ -59,14 +61,16 @@ export const ProjectProvider = ({ children }) => {
       setProjects(projList);
 
       if (projList.length > 0) {
-        const savedProjId = localStorage.getItem('sentinapi_current_project_id');
+        const savedProjId = localStorage.getItem('api_sec_current_project_id') || localStorage.getItem('sentinapi_current_project_id');
         const matched = projList.find((p) => p.id === savedProjId);
         const selected = matched || projList[0];
         setCurrentProject(selected);
-        localStorage.setItem('sentinapi_current_project_id', selected.id);
+        localStorage.setItem('api_sec_current_project_id', selected.id);
+        localStorage.removeItem('sentinapi_current_project_id');
         return projList;
       } else {
         setCurrentProject(null);
+        localStorage.removeItem('api_sec_current_project_id');
         localStorage.removeItem('sentinapi_current_project_id');
         return [];
       }
@@ -113,7 +117,7 @@ export const ProjectProvider = ({ children }) => {
 
   const selectOrganization = (org) => {
     setCurrentOrg(org);
-    localStorage.setItem('sentinapi_current_org_id', org.id);
+    localStorage.setItem('api_sec_current_org_id', org.id);
   };
 
   const selectProject = (project) => {
@@ -121,7 +125,7 @@ export const ProjectProvider = ({ children }) => {
       leaveProjectRoom(currentProject.id);
     }
     setCurrentProject(project);
-    localStorage.setItem('sentinapi_current_project_id', project.id);
+    localStorage.setItem('api_sec_current_project_id', project.id);
   };
 
   const createOrganization = async (name, slug) => {

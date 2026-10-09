@@ -1,22 +1,45 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+@theme {
+  --color-canvas: #0A0B0D;
+  --color-surface: #101216;
+  --color-surface-elevated: #16181D;
+  --color-border-subtle: #1E2127;
+  --color-border-strong: #2A2E37;
+  --color-text-primary: #E6E8EB;
+  --color-text-secondary: #9BA1AC;
+  --color-text-tertiary: #7B818B;
+  --color-accent-purple: #C792EA;
+  --color-accent-blue: #82AAFF;
+  --color-accent-green: #C3E88D;
+  --color-accent-amber: #FFCB6B;
+  --color-accent-red: #F07178;
+}
+
 :root {
   color-scheme: dark;
-  --bg-canvas: #000000;
-  --bg-surface: #0a0a0c;
-  --bg-elevated: #121214;
-  --border-subtle: #27272a;
-  --border-muted: #3f3f46;
-  --accent-white: #ffffff;
+  --bg-canvas: #0A0B0D;
+  --bg-surface: #101216;
+  --bg-elevated: #16181D;
+  --border-subtle: #1E2127;
+  --border-strong: #2A2E37;
+  --text-primary: #E6E8EB;
+  --text-secondary: #9BA1AC;
+  --text-tertiary: #7B818B;
+  --accent-purple: #C792EA;
+  --accent-blue: #82AAFF;
+  --accent-green: #C3E88D;
+  --accent-amber: #FFCB6B;
+  --accent-red: #F07178;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #000000;
-  color: #f4f4f5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #0A0B0D;
+  color: #E6E8EB;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -24,49 +47,50 @@ body {
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #000000;
+  background: #0A0B0D;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 2px;
+  background: #1E2127;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #2A2E37;
 }
 
-/* Monospace data elements */
+/* Monospace technical data elements */
 code, pre, .font-mono {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
   font-feature-settings: "tnum" 1, "zero" 1;
 }
 
-/* Leaflet map pure grayscale styling */
+/* Leaflet map technical dark styling */
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #000000 !important;
+  background: #0A0B0D !important;
   border-radius: 0.375rem;
 }
 
 .leaflet-tile-pane {
-  filter: grayscale(100%) invert(100%) contrast(140%) brightness(70%);
+  filter: grayscale(100%) invert(100%) contrast(150%) brightness(60%);
 }
 
 .leaflet-popup-content-wrapper {
-  background: #0a0a0c !important;
-  color: #ffffff !important;
-  border: 1px solid #27272a;
-  border-radius: 4px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.9) !important;
+  background: #16181D !important;
+  color: #E6E8EB !important;
+  border: 1px solid #2A2E37;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8) !important;
 }
 
 .leaflet-popup-tip {
-  background: #0a0a0c !important;
+  background: #16181D !important;
 }
+

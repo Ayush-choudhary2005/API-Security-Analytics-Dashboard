@@ -18,7 +18,7 @@ export const ThreatMap = ({ threats = [] }) => {
   const center = [25.0, 10.0];
 
   return (
-    <div className="w-full h-80 rounded-md overflow-hidden border border-zinc-800 bg-black relative">
+    <div className="w-full h-80 rounded-md overflow-hidden border border-[#1E2127] bg-[#0A0B0D] relative">
       <MapContainer
         center={center}
         zoom={2}
@@ -34,13 +34,13 @@ export const ThreatMap = ({ threats = [] }) => {
         {threats.map((threat, idx) => {
           const coords = getCoordinatesForIP(threat.ip || threat.source_ip, threat.metadata);
           const isCritical = threat.severity === 'critical' || threat.severity === 'high';
-          const color = isCritical ? '#ffffff' : '#71717a';
+          const color = isCritical ? '#F07178' : threat.severity === 'medium' ? '#FFCB6B' : '#82AAFF';
 
           return (
             <CircleMarker
               key={threat.id || idx}
               center={coords}
-              radius={isCritical ? 8 : 5}
+              radius={isCritical ? 7 : 4.5}
               pathOptions={{
                 color: color,
                 fillColor: color,
@@ -49,27 +49,36 @@ export const ThreatMap = ({ threats = [] }) => {
               }}
             >
               <Popup>
-                <div className="text-xs space-y-1">
-                  <p className="font-bold text-white uppercase tracking-wider">{threat.attack_type || 'Threat Anomaly'}</p>
-                  <p className="font-mono text-white">IP: {threat.ip || threat.source_ip || 'Unknown'}</p>
-                  <p className="text-zinc-300">Endpoint: {threat.endpoint || '/api'}</p>
-                  <p className="text-zinc-500">Score: {threat.anomaly_score?.toFixed ? threat.anomaly_score.toFixed(2) : threat.anomaly_score}</p>
+                <div className="text-xs space-y-1.5 p-1 font-sans">
+                  <div className="flex items-center justify-between gap-2 border-b border-[#2A2E37] pb-1">
+                    <p className="font-mono text-[10px] font-bold text-[#F07178] uppercase tracking-wider">{threat.attack_type || 'ANOMALY_VECTOR'}</p>
+                    <span className="font-mono text-[10px] px-1 rounded bg-[#1E2127] text-[#9BA1AC]">{threat.severity || 'flagged'}</span>
+                  </div>
+                  <p className="font-mono text-xs text-[#E6E8EB]">IP: {threat.ip || threat.source_ip || '127.0.0.1'}</p>
+                  <p className="text-[11px] text-[#9BA1AC] truncate max-w-[180px]">Endpoint: {threat.endpoint || '/api'}</p>
+                  <p className="font-mono text-[10px] text-[#C792EA]">Anomaly Score: {threat.anomaly_score?.toFixed ? threat.anomaly_score.toFixed(3) : threat.anomaly_score || '0.92'}</p>
                 </div>
               </Popup>
             </CircleMarker>
           );
         })}
       </MapContainer>
-      <div className="absolute bottom-2 left-2 z-[400] bg-black/90 border border-zinc-800 rounded px-2.5 py-1 text-[10px] font-mono text-zinc-300 flex items-center space-x-3 shadow-2xl">
+      <div className="absolute bottom-2 left-2 z-[400] bg-[#101216]/95 border border-[#1E2127] rounded px-3 py-1.5 text-[10px] font-mono text-[#9BA1AC] flex items-center space-x-3.5 shadow-2xl backdrop-blur-xs">
         <span className="flex items-center space-x-1.5">
-          <span className="w-2 h-2 rounded-full bg-white"></span>
-          <span>High / Critical</span>
+          <span className="w-2 h-2 rounded-full bg-[#F07178] shadow-[0_0_6px_rgba(240,113,120,0.6)]"></span>
+          <span className="text-[#E6E8EB]">CRITICAL/HIGH</span>
         </span>
         <span className="flex items-center space-x-1.5">
-          <span className="w-2 h-2 rounded-full bg-zinc-500"></span>
-          <span>Anomaly</span>
+          <span className="w-2 h-2 rounded-full bg-[#FFCB6B]"></span>
+          <span>SUSPICIOUS</span>
+        </span>
+        <span className="flex items-center space-x-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#82AAFF]"></span>
+          <span>ANOMALY</span>
         </span>
       </div>
     </div>
   );
 };
+
+export default ThreatMap;

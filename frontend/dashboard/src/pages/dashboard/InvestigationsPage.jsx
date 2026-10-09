@@ -11,6 +11,8 @@ import {
   ArrowRight,
   RefreshCw,
   ExternalLink,
+  Terminal,
+  Activity,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { telemetryService, investigationService } from '../../services/api';
@@ -70,124 +72,131 @@ export const InvestigationsPage = () => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1E2127] pb-4">
         <div>
-          <h1 className="text-lg font-semibold text-white tracking-tight">Threat Investigation & Forensics</h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Autonomous threat root-cause analysis powered by Google Gemini and ML heuristics.
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">Threat Forensics & Dossier Synthesis</h1>
+            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#C792EA] border border-[#2A2E37]">
+              <span>AI_ANALYSIS</span>
+            </span>
+          </div>
+          <p className="text-xs text-[#9BA1AC] mt-1 font-mono">
+            Autonomous root-cause threat intelligence powered by Google Gemini and ML heuristics.
           </p>
         </div>
 
         {report && (
           <button
             onClick={handleExportPdf}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-white hover:bg-zinc-200 text-black text-xs font-semibold transition-colors shadow-sm self-start sm:self-auto"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs self-start sm:self-auto"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export Executive PDF</span>
+            <span>EXPORT EXECUTIVE PDF</span>
           </button>
         )}
       </div>
 
       {/* Alert Selector Bar */}
-      <div className="p-3.5 rounded bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row items-center gap-3 justify-between">
+      <div className="p-3.5 rounded bg-[#101216] border border-[#1E2127] flex flex-col sm:flex-row items-center gap-3 justify-between">
         <div className="flex items-center space-x-2.5 w-full sm:w-auto">
-          <span className="text-xs font-medium text-zinc-300 flex-shrink-0">Select Alert:</span>
+          <span className="text-xs font-mono text-[#9BA1AC] flex-shrink-0 uppercase text-[10px] tracking-wider">Target Incident:</span>
           <select
             value={selectedAlertId}
             onChange={(e) => {
               setSelectedAlertId(e.target.value);
               setSearchParams({ alert_id: e.target.value });
             }}
-            className="w-full sm:w-80 bg-black border border-zinc-800 rounded px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-white"
+            className="w-full sm:w-96 bg-[#16181D] border border-[#1E2127] rounded px-3 py-1.5 text-xs font-mono text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] transition-colors"
           >
             {alerts.map((alt) => (
               <option key={alt.id} value={alt.id}>
-                {alt.id.slice(0, 10)}... | {alt.attack_type?.toUpperCase()} (Score: {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(1) : alt.anomaly_score})
+                {alt.id.slice(0, 10)}... | {alt.attack_type?.toUpperCase()} (Score: {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(2) : alt.anomaly_score})
               </option>
             ))}
-            {alerts.length === 0 && <option value="">No alerts available</option>}
+            {alerts.length === 0 && <option value="">No incident alerts detected</option>}
           </select>
         </div>
 
         <button
           onClick={() => handleInvestigate(selectedAlertId)}
           disabled={loading || !selectedAlertId}
-          className="w-full sm:w-auto inline-flex items-center justify-center space-x-1.5 px-3.5 py-1.5 rounded bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-zinc-300 hover:text-white text-xs font-medium transition-colors border border-zinc-800"
+          className="w-full sm:w-auto inline-flex items-center justify-center space-x-1.5 px-3.5 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] disabled:opacity-50 text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-colors border border-[#1E2127]"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Re-Analyze</span>
+          <RefreshCw className={`w-3.5 h-3.5 text-[#C792EA] ${loading ? 'animate-spin' : ''}`} />
+          <span>RE-SYNTHESIZE</span>
         </button>
       </div>
 
       {/* Investigation Details Card */}
       {loading ? (
-        <div className="p-14 rounded bg-zinc-950 border border-zinc-800 text-center space-y-3">
-          <div className="w-7 h-7 mx-auto border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <div className="p-14 rounded bg-[#101216] border border-[#1E2127] text-center space-y-3">
+          <div className="w-7 h-7 mx-auto border-2 border-[#C792EA] border-t-transparent rounded-full animate-spin"></div>
           <div>
-            <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Synthesizing Threat Intelligence</h3>
-            <p className="text-[11px] text-zinc-400 mt-1">Correlating anomaly features with attack signature heuristics...</p>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Synthesizing Threat Intelligence</h3>
+            <p className="text-[11px] text-[#7B818B] font-mono mt-1">Correlating anomaly features with attack signature heuristics...</p>
           </div>
         </div>
       ) : error ? (
-        <div className="p-4 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 text-xs flex items-center space-x-2.5">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0 text-white" />
+        <div className="p-4 rounded bg-[#101216] border border-[#F07178]/30 text-[#F07178] text-xs font-mono flex items-center space-x-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#F07178]" />
           <span>{error}</span>
         </div>
       ) : report ? (
         <div className="space-y-4">
           {/* Metadata Overview Banner */}
-          <div className="p-4 rounded bg-zinc-950 border border-zinc-800 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="p-4 rounded bg-[#101216] border border-[#1E2127] grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
-              <p className="text-[10px] font-mono uppercase text-zinc-500">Incident Severity</p>
-              <p className="text-xs font-mono font-semibold text-white uppercase mt-0.5">
+              <p className="text-[10px] font-mono uppercase text-[#7B818B]">Incident Severity</p>
+              <p className="text-xs font-mono font-semibold text-[#F07178] uppercase mt-1">
                 {selectedAlert?.severity || 'HIGH'}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-mono uppercase text-zinc-500">Attack Signature</p>
-              <p className="text-xs font-mono font-semibold text-white uppercase mt-0.5">
+              <p className="text-[10px] font-mono uppercase text-[#7B818B]">Attack Signature</p>
+              <p className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase mt-1">
                 {selectedAlert?.attack_type || 'ANOMALY'}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-mono uppercase text-zinc-500">Target Endpoint</p>
-              <p className="text-xs font-mono text-zinc-300 mt-0.5 truncate">
+              <p className="text-[10px] font-mono uppercase text-[#7B818B]">Target Endpoint</p>
+              <p className="text-xs font-mono text-[#82AAFF] mt-1 truncate">
                 {selectedAlert?.endpoint || '/api/endpoint'}
               </p>
             </div>
             <div>
-              <p className="text-[10px] font-mono uppercase text-zinc-500">Attacker Address</p>
-              <p className="text-xs font-mono text-zinc-400 mt-0.5">
+              <p className="text-[10px] font-mono uppercase text-[#7B818B]">Attacker Address</p>
+              <p className="text-xs font-mono text-[#C792EA] mt-1">
                 {selectedAlert?.ip || selectedAlert?.source_ip || '127.0.0.1'}
               </p>
             </div>
           </div>
 
           {/* AI Root-Cause Report Output */}
-          <div className="p-5 rounded bg-zinc-950 border border-zinc-800 space-y-4">
-            <div className="flex items-center space-x-2 text-white font-semibold text-xs uppercase tracking-wider pb-3 border-b border-zinc-800">
-              <Cpu className="w-4 h-4 text-white" />
-              <span>Root-Cause Threat Intelligence Report</span>
+          <div className="p-5 rounded bg-[#101216] border border-[#1E2127] space-y-4">
+            <div className="flex items-center space-x-2 text-[#E6E8EB] font-mono font-semibold text-xs uppercase tracking-wider pb-3 border-b border-[#1E2127]">
+              <Cpu className="w-4 h-4 text-[#C792EA]" />
+              <span>Root-Cause Threat Intelligence Dossier</span>
             </div>
 
-            <div className="prose prose-invert max-w-none text-xs text-zinc-300 leading-relaxed">
-              <div className="bg-black p-4 rounded border border-zinc-800 whitespace-pre-wrap font-mono text-xs text-zinc-200 leading-relaxed">
+            <div className="prose prose-invert max-w-none text-xs text-[#E6E8EB] leading-relaxed">
+              <div className="bg-[#0A0B0D] p-4 rounded border border-[#1E2127] whitespace-pre-wrap font-mono text-xs text-[#E6E8EB] leading-relaxed">
                 {typeof report === 'string' ? report : report.report || JSON.stringify(report, null, 2)}
               </div>
             </div>
 
-            <div className="pt-3 border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-500">
-              <span>Security Classification: CONFIDENTIAL</span>
-              <span className="font-mono">Export format: PDF (A4)</span>
+            <div className="pt-3 border-t border-[#1E2127] flex items-center justify-between text-[11px] text-[#7B818B] font-mono">
+              <span>SECURITY CLASSIFICATION: CONFIDENTIAL</span>
+              <span>EXPORT TARGET: PDF (A4 SPEC)</span>
             </div>
           </div>
         </div>
       ) : (
-        <div className="p-14 rounded bg-zinc-950 border border-zinc-800 text-center text-zinc-500 text-xs">
-          Select an alert above to launch an autonomous threat investigation.
+        <div className="p-14 rounded bg-[#101216] border border-[#1E2127] text-center text-[#7B818B] text-xs font-mono">
+          Select an incident from the registry above to launch automated threat root-cause analysis.
         </div>
       )}
     </div>
   );
 };
+
+export default InvestigationsPage;
