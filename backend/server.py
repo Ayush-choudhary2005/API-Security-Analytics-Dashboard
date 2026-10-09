@@ -1006,6 +1006,7 @@ def create_project_key(project_id):
     return jsonify({"key": key_info}), 201
 
 
+@app.route("/api/projects/<project_id>/keys/<int:key_id>", methods=["DELETE"])
 @app.route("/api/projects/<project_id>/keys/<int:key_id>/revoke", methods=["POST"])
 @login_required
 def revoke_project_key(project_id, key_id):
@@ -1013,6 +1014,19 @@ def revoke_project_key(project_id, key_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
     ok = db.revoke_api_key(key_id, project_id)
     return jsonify({"success": ok}), 200
+
+
+@app.route("/api/projects/<project_id>/keys/<int:key_id>/rotate", methods=["POST"])
+@login_required
+def rotate_individual_project_key(project_id, key_id):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+    data = request.get_json(silent=True) or {}
+    name = data.get("name")
+    key_info = db.rotate_single_api_key(key_id, project_id, new_name=name)
+    if not key_info:
+        return jsonify({"error": "Key not found"}), 404
+    return jsonify({"key": key_info, "message": "API key rotated successfully"}), 201
 
 
 @app.route("/api/projects/<project_id>/keys/regenerate", methods=["POST"])

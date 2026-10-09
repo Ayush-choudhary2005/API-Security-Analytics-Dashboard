@@ -51,6 +51,7 @@ export const projectService = {
   get: (id) => api.get(`/api/projects/${id}`),
   delete: (id) => api.delete(`/api/projects/${id}`),
   createKey: (projectId, name) => api.post(`/api/projects/${projectId}/keys`, { name }),
+  rotateKey: (projectId, keyId, name) => api.post(`/api/projects/${projectId}/keys/${keyId}/rotate`, { name }),
   regenerateKey: (projectId) => api.post(`/api/projects/${projectId}/keys/regenerate`),
   revokeKey: (projectId, keyId) => api.delete(`/api/projects/${projectId}/keys/${keyId}`),
   downloadSdkUrl: (projectId) => `${API_BASE_URL}/api/projects/${projectId}/download-sdk`,

@@ -91,7 +91,6 @@ export const ProjectsPage = () => {
       const raw = res.data?.key?.raw_key || res.data?.raw_key;
       if (raw) {
         setNewKeyRaw(raw);
-        if (setLatestCreatedKey) setLatestCreatedKey(raw);
       } else {
         setKeyError('Key provisioned, but raw key secret was not returned.');
       }
@@ -104,20 +103,23 @@ export const ProjectsPage = () => {
     }
   };
 
-  const handleRegenerateKey = async () => {
-    if (!currentProject?.id) return;
-    if (!window.confirm('Are you sure you want to rotate this project key? The current key will be revoked immediately.')) {
-      return;
-    }
+  const handleRotateSingleKey = async (key) => {
+    if (!currentProject?.id || !key?.id) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to rotate key "${key.name || key.key_prefix}"?\n\nThe existing key will be immediately revoked and a new active key will be generated.`
+    );
+    if (!confirmed) return;
+
     setLoading(true);
     setKeyError(null);
     try {
-      const res = await projectService.regenerateKey(currentProject.id);
+      const res = await projectService.rotateKey(currentProject.id, key.id, `${key.name || 'Key'} (Rotated)`);
       const raw = res.data?.key?.raw_key || res.data?.raw_key;
       if (raw) {
         setNewKeyRaw(raw);
-        if (setLatestCreatedKey) setLatestCreatedKey(raw);
         setShowNewKeyModal(true);
+      } else {
+        alert('Key rotated, but raw secret was not returned.');
       }
       fetchKeys();
     } catch (err) {
@@ -310,16 +312,9 @@ export const ProjectsPage = () => {
                     <span>Download SDK (.zip)</span>
                   </a>
                   <button
-                    onClick={handleRegenerateKey}
-                    disabled={loading}
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-colors"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Rotate Key</span>
-                  </button>
-                  <button
                     onClick={() => {
                       setNewKeyRaw(null);
+                      setKeyError(null);
                       setShowNewKeyModal(true);
                     }}
                     className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
@@ -338,7 +333,7 @@ export const ProjectsPage = () => {
                       <th className="py-2.5 px-4">Secret Prefix</th>
                       <th className="py-2.5 px-4">Status</th>
                       <th className="py-2.5 px-4">Provisioned</th>
-                      <th className="py-2.5 px-4 text-right">Enforcement</th>
+                      <th className="py-2.5 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1E2127]/60 bg-[#101216]">
@@ -370,13 +365,29 @@ export const ProjectsPage = () => {
                           {k.created_at ? new Date(k.created_at * 1000).toLocaleDateString() : 'Active'}
                         </td>
                         <td className="py-2.5 px-4 text-right font-sans">
-                          {k.status === 'active' && (
-                            <button
-                              onClick={() => handleRevokeKey(k.id)}
-                              className="text-xs text-[#F07178] hover:underline font-mono"
-                            >
-                              Revoke
-                            </button>
+                          {k.status === 'active' ? (
+                            <div className="inline-flex items-center space-x-2">
+                              <button
+                                onClick={() => handleRotateSingleKey(k)}
+                                disabled={loading}
+                                className="inline-flex items-center space-x-1 text-xs text-[#82AAFF] hover:text-[#9bbdff] hover:underline font-mono"
+                                title="Rotate this key (revokes current key and provisions a replacement)"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                <span>Rotate</span>
+                              </button>
+                              <span className="text-[#2A2E37]">|</span>
+                              <button
+                                onClick={() => handleRevokeKey(k.id)}
+                                disabled={loading}
+                                className="text-xs text-[#F07178] hover:underline font-mono"
+                                title="Permanently revoke this key"
+                              >
+                                Revoke
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[#7B818B] font-mono">Revoked</span>
                           )}
                         </td>
                       </tr>

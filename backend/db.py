@@ -1081,6 +1081,33 @@ def revoke_api_key(key_id: int, project_id: str) -> bool:
     return affected > 0
 
 
+def rotate_single_api_key(key_id: int, project_id: str, new_name: str = None) -> dict:
+    """Revoke an individual API key and generate a fresh key replacing it."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT name FROM api_keys WHERE id = ? AND project_id = ?",
+        (key_id, project_id),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+
+    old_name = row["name"] if isinstance(row, dict) else row[0]
+    name_to_use = new_name or f"{old_name} (Rotated)"
+
+    now = time.time()
+    with _lock:
+        conn = get_conn()
+        conn.execute(
+            "UPDATE api_keys SET revoked_at = ? WHERE id = ? AND project_id = ? AND revoked_at IS NULL",
+            (now, key_id, project_id),
+        )
+        conn.commit()
+        conn.close()
+
+    return create_api_key(project_id, name=name_to_use)
+
+
 
 # ---------------------------------------------------------
 # Webhook Configurations
