@@ -63,9 +63,10 @@ export const AnalyticsPage = () => {
       }))
     : [];
 
-  const attackTypes = stats?.attack_distribution
-    ? Object.entries(stats.attack_distribution)
-        .filter(([_, count]) => count > 0)
+  const rawDist = stats?.attack_distribution || (stats && typeof stats === 'object' && !Array.isArray(stats) ? stats : null);
+  const attackTypes = rawDist
+    ? Object.entries(rawDist)
+        .filter(([key, count]) => count > 0 && key !== 'attack_distribution')
         .map(([type, count]) => ({
           type: type.replace('_', ' ').toUpperCase(),
           count,

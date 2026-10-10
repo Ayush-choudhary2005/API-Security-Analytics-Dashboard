@@ -850,13 +850,6 @@ def run_tests():
             from flask import Flask as FreshFlask, jsonify as fresh_jsonify
 
             fresh_app = FreshFlask("fresh_consumer_app")
-            
-            # Hook the extracted middleware
-            dl_module.SecurityMiddleware(
-                fresh_app,
-                collector_url="http://collector.local:5001",
-                api_key=active_dl_key
-            )
 
             @fresh_app.route("/api/v1/ping", methods=["GET"])
             def fresh_ping():
@@ -886,6 +879,13 @@ def run_tests():
                 return client.post("/ingest", json=json_data, headers=headers)
 
             with patch("requests.post", side_effect=mock_requests_post), patch("requests.Session.post", side_effect=mock_requests_post):
+                # Hook the extracted middleware inside the patch context
+                dl_module.SecurityMiddleware(
+                    fresh_app,
+                    collector_url="http://collector.local:5001",
+                    api_key=active_dl_key
+                )
+
                 # Send sample requests to the fresh application
                 res_ping = fresh_client.get("/api/v1/ping", headers={"X-Forwarded-For": "55.66.77.88"})
                 assert_test("Fresh app ping returns HTTP 200", res_ping.status_code == 200)
@@ -894,7 +894,10 @@ def run_tests():
                 assert_test("Fresh app order returns HTTP 200", res_order.status_code == 200)
 
                 # Give threads a moment to finish firing
-                time.sleep(0.2)
+                for _ in range(20):
+                    if len(captured_telemetry) >= 2:
+                        break
+                    time.sleep(0.1)
 
             assert_test("Middleware dispatched telemetry events", len(captured_telemetry) >= 2)
             assert_test("Dispatched event has Bearer ask_ key in Authorization header", captured_telemetry[0]["headers"].get("Authorization", "").startswith("Bearer ask_"))

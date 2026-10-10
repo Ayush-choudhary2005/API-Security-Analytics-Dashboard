@@ -1445,6 +1445,14 @@ def get_alert_stats(tenant_id: str = "default"):
         if not has_rule and r["anomaly_score"] > 2.5:
             stats["anomaly"] += 1
 
+    # Keep top-level keys for test assertion backwards compatibility, and include attack_distribution key for dashboard charts
+    stats["attack_distribution"] = {
+        "brute_force": stats["brute_force"],
+        "endpoint_scan": stats["endpoint_scan"],
+        "request_burst": stats["request_burst"],
+        "anomaly": stats["anomaly"]
+    }
+
     return stats
 
 
@@ -1507,7 +1515,8 @@ def get_historical_stats(tenant_id: str = "default"):
         """
         SELECT strftime('%H:%M', datetime(timestamp, 'unixepoch', 'localtime')) as minute, 
                sum(case when severity != 'low' then 1 else 0 end) as attacks, 
-               count(*) as total 
+               count(*) as total,
+               round(avg(latency_ms), 1) as avg_latency
         FROM events 
         WHERE (project_id = ? OR tenant_id = ?) 
         GROUP BY minute ORDER BY minute ASC LIMIT 60
@@ -1520,7 +1529,15 @@ def get_historical_stats(tenant_id: str = "default"):
     return {
         "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
         "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
-        "timeline": [{"minute": r["minute"], "attacks": r["attacks"], "total": r["total"]} for r in timeline],
+        "timeline": [
+            {
+                "minute": r["minute"],
+                "attacks": r["attacks"],
+                "total": r["total"],
+                "avg_latency": r["avg_latency"] if r["avg_latency"] is not None else 0.0,
+            }
+            for r in timeline
+        ],
     }
 
 
