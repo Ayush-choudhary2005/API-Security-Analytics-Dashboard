@@ -961,7 +961,7 @@ def run_tests():
         page_html = res_page.data.decode("utf-8")
         if "id=\"root\"" in page_html:
             assert_test("HTML contains React app root container", "id=\"root\"" in page_html)
-            assert_test("HTML contains SentinAPI application title", "SentinAPI" in page_html)
+            assert_test("HTML contains API-Security-Analytics-Dashboard application title", "API-Security-Analytics-Dashboard" in page_html)
         else:
             assert_test("HTML contains app-loading screen", "id=\"app-loading\"" in page_html)
             assert_test("HTML contains auth-app login card", "id=\"auth-app\"" in page_html)

@@ -196,7 +196,7 @@ def dashboard(path=None):
         return send_from_directory(DASHBOARD_DIR, "index.html")
     return """<!doctype html>
 <html>
-<head><title>SentinAPI: Build Required</title></head>
+<head><title>API-Security-Analytics-Dashboard: Build Required</title></head>
 <body style="font-family: monospace; background: #0A0B0D; color: #E6E8EB; padding: 40px; text-align: center;">
   <h2 style="color: #C792EA;">Frontend Production Build Required</h2>
   <p style="color: #9BA1AC;">The dashboard application assets have not been built yet.</p>
@@ -1830,7 +1830,7 @@ def get_alert_report(alert_id):
             )
 
             story = []
-            story.append(Paragraph("SentinAPI — Threat Intelligence Report", title_style))
+            story.append(Paragraph("API-Security-Analytics-Dashboard — Threat Intelligence Report", title_style))
             story.append(Paragraph(f"<b>Alert ID:</b> #{alert_id} &nbsp;|&nbsp; <b>Project:</b> {event_proj} &nbsp;|&nbsp; <b>Generated:</b> {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}", meta_style))
             story.append(Spacer(1, 8))
             story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#cbd5e1'), spaceAfter=12))
