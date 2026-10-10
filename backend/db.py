@@ -1491,54 +1491,78 @@ def get_all_events_count(tenant_id: str = "default"):
 def get_historical_stats(tenant_id: str = "default"):
     """Fetches aggregated historical data for the analytics dashboard tab scoped to project."""
     conn = get_conn()
-    top_endpoints = conn.execute(
-        """
-        SELECT endpoint, count(*) as count 
-        FROM events 
-        WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
-        GROUP BY endpoint ORDER BY count DESC LIMIT 5
-        """,
-        (tenant_id, tenant_id),
-    ).fetchall()
+    try:
+        top_endpoints = conn.execute(
+            """
+            SELECT endpoint, count(*) as count 
+            FROM events 
+            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
+            GROUP BY endpoint ORDER BY count DESC LIMIT 5
+            """,
+            (tenant_id, tenant_id),
+        ).fetchall()
 
-    top_ips = conn.execute(
-        """
-        SELECT ip, count(*) as count 
-        FROM events 
-        WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
-        GROUP BY ip ORDER BY count DESC LIMIT 5
-        """,
-        (tenant_id, tenant_id),
-    ).fetchall()
+        top_ips = conn.execute(
+            """
+            SELECT ip, count(*) as count 
+            FROM events 
+            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
+            GROUP BY ip ORDER BY count DESC LIMIT 5
+            """,
+            (tenant_id, tenant_id),
+        ).fetchall()
 
-    timeline = conn.execute(
-        """
-        SELECT strftime('%H:%M', datetime(timestamp, 'unixepoch', 'localtime')) as minute, 
-               sum(case when severity != 'low' then 1 else 0 end) as attacks, 
-               count(*) as total,
-               round(avg(latency_ms), 1) as avg_latency
-        FROM events 
-        WHERE (project_id = ? OR tenant_id = ?) 
-        GROUP BY minute ORDER BY minute ASC LIMIT 60
-        """,
-        (tenant_id, tenant_id),
-    ).fetchall()
+        # Execute timeline query with dialect fallback
+        is_pg = getattr(conn, "_is_pg", False) or database.is_postgres()
+        if is_pg:
+            timeline_query = """
+                SELECT to_char(to_timestamp(timestamp), 'HH24:MI') as minute, 
+                       sum(case when severity != 'low' then 1 else 0 end) as attacks, 
+                       count(*) as total,
+                       round(avg(latency_ms)::numeric, 1) as avg_latency
+                FROM events 
+                WHERE (project_id = ? OR tenant_id = ?) 
+                GROUP BY minute ORDER BY minute ASC LIMIT 60
+            """
+        else:
+            timeline_query = """
+                SELECT strftime('%H:%M', datetime(timestamp, 'unixepoch', 'localtime')) as minute, 
+                       sum(case when severity != 'low' then 1 else 0 end) as attacks, 
+                       count(*) as total,
+                       round(avg(latency_ms), 1) as avg_latency
+                FROM events 
+                WHERE (project_id = ? OR tenant_id = ?) 
+                GROUP BY minute ORDER BY minute ASC LIMIT 60
+            """
 
-    conn.close()
+        timeline = conn.execute(
+            timeline_query,
+            (tenant_id, tenant_id),
+        ).fetchall()
 
-    return {
-        "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
-        "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
-        "timeline": [
-            {
-                "minute": r["minute"],
-                "attacks": r["attacks"],
-                "total": r["total"],
-                "avg_latency": r["avg_latency"] if r["avg_latency"] is not None else 0.0,
-            }
-            for r in timeline
-        ],
-    }
+        return {
+            "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
+            "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
+            "timeline": [
+                {
+                    "minute": r["minute"],
+                    "attacks": r["attacks"],
+                    "total": r["total"],
+                    "avg_latency": float(r["avg_latency"]) if r["avg_latency"] is not None else 0.0,
+                }
+                for r in timeline
+            ],
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger("db").error(f"Error fetching historical stats for tenant {tenant_id}: {e}", exc_info=True)
+        return {
+            "top_endpoints": [],
+            "top_ips": [],
+            "timeline": [],
+        }
+    finally:
+        conn.close()
 
 
 def _row_to_dict(row):

@@ -101,8 +101,15 @@ class CursorWrapper:
             else:
                 translated_sql = clean_sql
 
-            # 2. Translate SQLite-specific keywords to Postgres
+            # 2. Translate SQLite-specific keywords and datetime functions to Postgres
             translated_sql = re.sub(r'\bINSERT\s+OR\s+IGNORE\s+INTO\b', 'INSERT INTO', translated_sql, flags=re.IGNORECASE)
+            # Translate strftime('%H:%M', datetime(timestamp, 'unixepoch', 'localtime')) -> to_char(to_timestamp(timestamp), 'HH24:MI')
+            translated_sql = re.sub(
+                r"strftime\s*\(\s*'%H:%M'\s*,\s*datetime\s*\(\s*timestamp\s*,\s*'unixepoch'\s*,\s*'localtime'\s*\)\s*\)",
+                "to_char(to_timestamp(timestamp), 'HH24:MI')",
+                translated_sql,
+                flags=re.IGNORECASE
+            )
 
             # 3. Handle lastrowid on INSERT for Postgres if table uses serial id
             is_insert = translated_sql.strip().upper().startswith("INSERT INTO")

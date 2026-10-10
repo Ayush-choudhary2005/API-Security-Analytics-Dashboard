@@ -136,18 +136,21 @@ export const OverviewPage = () => {
     }
   };
 
-  const attackDistribution = stats?.attack_distribution
-    ? Object.entries(stats.attack_distribution).map(([type, count]) => ({
-        name: type.replace('_', ' ').toUpperCase(),
-        value: count,
-      }))
+  const rawDist = stats?.attack_distribution || (stats && typeof stats === 'object' && !Array.isArray(stats) ? stats : null);
+  const attackDistribution = rawDist
+    ? Object.entries(rawDist)
+        .filter(([k, count]) => count > 0 && k !== 'attack_distribution')
+        .map(([type, count]) => ({
+          name: type.replace('_', ' ').toUpperCase(),
+          value: count,
+        }))
     : [];
 
   const trafficChartData = historyData.length > 0
     ? historyData.slice(-20).map((h, i) => ({
-        time: h.timestamp ? new Date(h.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `T-${20 - i}`,
-        requests: h.total_requests || (h.count || 1),
-        anomalies: h.anomalies_detected || 0,
+        time: h.minute || (h.timestamp ? new Date(h.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `T-${20 - i}`),
+        requests: h.total !== undefined ? h.total : (h.total_requests || h.count || 1),
+        anomalies: h.attacks !== undefined ? h.attacks : (h.anomalies_detected || 0),
         latency: Math.round(h.avg_latency || 12),
       }))
     : [];

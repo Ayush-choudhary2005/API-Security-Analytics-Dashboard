@@ -1704,7 +1704,11 @@ def history():
     project_id, err = _resolve_and_verify_project(g.current_user["id"])
     if err:
         return err
-    return jsonify(db.get_historical_stats(project_id))
+    try:
+        return jsonify(db.get_historical_stats(project_id))
+    except Exception as e:
+        logger.error(f"Error handling /history for project {project_id}: {e}", exc_info=True)
+        return jsonify({"top_endpoints": [], "top_ips": [], "timeline": []})
 
 
 @app.route("/blocked-ips", methods=["GET"])
