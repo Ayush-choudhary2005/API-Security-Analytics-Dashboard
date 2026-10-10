@@ -181,6 +181,11 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
       user_agent: request.headers.get('user-agent') || '',
       metadata: {
         host: request.headers.get('host') || '',
+        latitude: request.headers.get('x-vercel-ip-latitude'),
+        longitude: request.headers.get('x-vercel-ip-longitude'),
+        city: request.headers.get('x-vercel-ip-city'),
+        country: request.headers.get('x-vercel-ip-country'),
+        region: request.headers.get('x-vercel-ip-country-region'),
       },
     }),
   }).catch(() => {});
@@ -231,7 +236,14 @@ app.use((req, res, next) => {
         status_code: res.statusCode,
         latency_ms: Date.now() - start,
         ip: clientIp,
-        user_agent: req.headers['user-agent'] || ''
+        user_agent: req.headers['user-agent'] || '',
+        metadata: {
+          host: req.headers.host || '',
+          latitude: req.headers['x-vercel-ip-latitude'] || req.headers['cf-iplatitude'],
+          longitude: req.headers['x-vercel-ip-longitude'] || req.headers['cf-iplongitude'],
+          city: req.headers['x-vercel-ip-city'] || req.headers['cf-ipcity'],
+          country: req.headers['x-vercel-ip-country'] || req.headers['cf-ipcountry']
+        }
       })
     }).catch(() => {}); // Fire-and-forget, zero latency impact
   });

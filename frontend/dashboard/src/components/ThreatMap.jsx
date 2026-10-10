@@ -2,20 +2,32 @@ import React from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fallback lat/lng mapping for demo / simulation IPs
-const getCoordinatesForIP = (ip, metadata = {}) => {
-  if (metadata.latitude && metadata.longitude) {
-    return [metadata.latitude, metadata.longitude];
+// Resolve real or fallback coordinates for IP
+const getCoordinatesForIP = (ip, rawMetadata = {}) => {
+  let meta = rawMetadata;
+  if (typeof rawMetadata === 'string') {
+    try {
+      meta = JSON.parse(rawMetadata);
+    } catch {
+      meta = {};
+    }
   }
-  // Deterministic coordinate pseudo-hash based on IP octets for visual plotting
+
+  const lat = parseFloat(meta?.latitude);
+  const lng = parseFloat(meta?.longitude);
+  if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+    return [lat, lng];
+  }
+
+  // Deterministic coordinate pseudo-hash based on IP octets for visual plotting (fallback only)
   const parts = String(ip || '127.0.0.1').split('.').map(p => parseInt(p, 10) || 0);
-  const lat = ((parts[0] * 3 + parts[1]) % 120) - 50; // -50 to +70
-  const lng = ((parts[2] * 4 + parts[3]) % 300) - 150; // -150 to +150
-  return [lat, lng];
+  const fallbackLat = ((parts[0] * 3 + parts[1]) % 120) - 50; // -50 to +70
+  const fallbackLng = ((parts[2] * 4 + parts[3]) % 300) - 150; // -150 to +150
+  return [fallbackLat, fallbackLng];
 };
 
 export const ThreatMap = ({ threats = [] }) => {
-  const center = [25.0, 10.0];
+  const center = [22.0, 77.0]; // Centered on South Asia / Global view
 
   return (
     <div className="w-full h-80 rounded-md overflow-hidden border border-[#1E2127] bg-[#0A0B0D] relative">
@@ -32,9 +44,18 @@ export const ThreatMap = ({ threats = [] }) => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {threats.map((threat, idx) => {
-          const coords = getCoordinatesForIP(threat.ip || threat.source_ip, threat.metadata);
+          let meta = threat.metadata || {};
+          if (typeof meta === 'string') {
+            try {
+              meta = JSON.parse(meta);
+            } catch {
+              meta = {};
+            }
+          }
+          const coords = getCoordinatesForIP(threat.ip || threat.source_ip, meta);
           const isCritical = threat.severity === 'critical' || threat.severity === 'high';
           const color = isCritical ? '#F07178' : threat.severity === 'medium' ? '#FFCB6B' : '#82AAFF';
+          const locationLabel = [meta.city, meta.region, meta.country].filter(Boolean).join(', ');
 
           return (
             <CircleMarker
@@ -55,6 +76,9 @@ export const ThreatMap = ({ threats = [] }) => {
                     <span className="font-mono text-[10px] px-1 rounded bg-[#1E2127] text-[#9BA1AC]">{threat.severity || 'flagged'}</span>
                   </div>
                   <p className="font-mono text-xs text-[#E6E8EB]">IP: {threat.ip || threat.source_ip || '127.0.0.1'}</p>
+                  {locationLabel && (
+                    <p className="text-[11px] text-[#C3E88D] font-mono">📍 {locationLabel}</p>
+                  )}
                   <p className="text-[11px] text-[#9BA1AC] truncate max-w-[180px]">Endpoint: {threat.endpoint || '/api'}</p>
                   <p className="font-mono text-[10px] text-[#C792EA]">Anomaly Score: {threat.anomaly_score?.toFixed ? threat.anomaly_score.toFixed(3) : threat.anomaly_score || '0.92'}</p>
                 </div>

@@ -373,7 +373,7 @@ export const OverviewPage = () => {
             SOURCE: LIVE_TELEMETRY
           </span>
         </div>
-        <ThreatMap threats={alerts} />
+        <ThreatMap threats={alerts.length > 0 ? alerts : events} />
       </div>
 
       {/* LIVE TABLES ROW */}

@@ -138,6 +138,57 @@ def sanitize_ip(ip_str: Optional[str], fallback: str = "127.0.0.1") -> str:
         return fallback
 
 
+_GEO_CACHE: Dict[str, Dict[str, Any]] = {}
+_GEO_LOCK = threading.Lock()
+
+def resolve_geoip(ip: str) -> Dict[str, Any]:
+    """
+    Resolve real-world geolocation (latitude, longitude, country, city) for public IPs.
+    Thread-safe with in-memory caching. Never blocks or raises exceptions.
+    """
+    if not ip or ip in ("127.0.0.1", "localhost", "::1"):
+        return {}
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved:
+            return {}
+    except ValueError:
+        return {}
+
+    with _GEO_LOCK:
+        if ip in _GEO_CACHE:
+            return _GEO_CACHE[ip]
+
+    geo_data = {}
+    try:
+        import urllib.request
+        import json
+        req = urllib.request.Request(
+            f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,lat,lon",
+            headers={"User-Agent": "ml-o11y-geoip/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=1.2) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if data.get("status") == "success":
+                geo_data = {
+                    "latitude": data.get("lat"),
+                    "longitude": data.get("lon"),
+                    "country": data.get("country"),
+                    "region": data.get("regionName"),
+                    "city": data.get("city"),
+                }
+    except Exception:
+        geo_data = {}
+
+    with _GEO_LOCK:
+        if len(_GEO_CACHE) > 5000:
+            _GEO_CACHE.clear()
+        _GEO_CACHE[ip] = geo_data
+
+    return geo_data
+
+
 # ---------------------------------------------------------
 # De-duplication & Replay Cache
 # ---------------------------------------------------------
@@ -339,6 +390,16 @@ def validate_and_sanitize_event(
     # 13. Metadata DLP Scrubbing
     meta_raw = raw_payload.get("metadata", {})
     metadata = sanitize_metadata(meta_raw)
+
+    # 14. Geolocation Resolution: Use client-forwarded lat/lon if provided, else resolve via public IP GeoIP
+    if not (metadata.get("latitude") and metadata.get("longitude")):
+        geo_info = resolve_geoip(ip)
+        if geo_info:
+            metadata.setdefault("latitude", geo_info.get("latitude"))
+            metadata.setdefault("longitude", geo_info.get("longitude"))
+            metadata.setdefault("country", geo_info.get("country"))
+            metadata.setdefault("city", geo_info.get("city"))
+            metadata.setdefault("region", geo_info.get("region"))
 
     # Whitelist and construct the clean canonical event object.
     # CRITICAL: strictly overrides project_id and tenant_id with the authenticated project.
