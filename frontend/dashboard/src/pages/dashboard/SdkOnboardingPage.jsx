@@ -139,74 +139,247 @@ export const SdkOnboardingPage = () => {
   };
 
   const zipInstallCommand = 'pip install .';
-  const gitInstallCommand = 'pip install git+https://github.com/Ayush-choudhary2005/API-Security-Analytics-Dashboard.git#subdirectory=sdk';
+  const gitInstallCommand = 'pip install "git+https://github.com/Ayush-choudhary2005/API-Security-Analytics-Dashboard.git@auth#subdirectory=sdk"';
   const envExportCommand = `export SECURITY_SDK_API_KEY="${effectiveKey}"\nexport SECURITY_SDK_COLLECTOR_URL="${collectorUrl}"`;
 
-  const snippetCode = {
-    flask: `# Add to your Flask application (app.py):
-from flask import Flask
-from security_sdk import SecurityMiddleware
+  const frameworkGuides = {
+    nextjs: {
+      label: 'Next.js / Vercel',
+      badge: 'Zero-Dependency Native Middleware',
+      targetFile: 'middleware.ts (in root of your Next.js project)',
+      instructions: 'Create a middleware.ts file in your project root. It intercepts requests on the Edge and forwards telemetry without slowing down client responses.',
+      code: `// middleware.ts (Root of Next.js project)
+import { NextResponse } from 'next/server';
+import type { NextRequest, NextFetchEvent } from 'next/server';
 
-app = Flask(__name__)
+export async function middleware(request: NextRequest, event: NextFetchEvent) {
+  const start = Date.now();
+  const response = NextResponse.next();
+  const latencyMs = Date.now() - start;
 
-# Initialize security telemetry middleware
-SecurityMiddleware(
-    app,
-    api_key="${effectiveKey}",
-    collector_url="${collectorUrl}"
-)
+  const collectorUrl = '${collectorUrl}/ingest';
+  const apiKey = '${effectiveKey}';
 
-@app.route("/api/v1/resource", methods=["GET"])
-def get_resource():
-    return {"status": "success", "data": []}, 200`,
-    fastapi: `# Add to your FastAPI application (main.py):
-from fastapi import FastAPI
-from security_sdk.fastapi import SecurityMiddleware
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    request.headers.get('x-real-ip') ||
+    '127.0.0.1';
 
-app = FastAPI()
+  // Asynchronous telemetry forwarder
+  const telemetryPromise = fetch(collectorUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': \`Bearer \${apiKey}\`,
+    },
+    body: JSON.stringify({
+      endpoint: request.nextUrl.pathname,
+      method: request.method,
+      status_code: response.status,
+      latency_ms: latencyMs,
+      ip: clientIp,
+      user_agent: request.headers.get('user-agent') || '',
+      metadata: {
+        host: request.headers.get('host') || '',
+      },
+    }),
+  }).catch(() => {});
 
-# Attach ASGI telemetry middleware
-app.add_middleware(
-    SecurityMiddleware,
-    api_key="${effectiveKey}",
-    collector_url="${collectorUrl}"
-)
+  if (event?.waitUntil) {
+    event.waitUntil(telemetryPromise);
+  }
 
-@app.get("/api/v1/resource")
-async def get_resource():
-    return {"status": "success", "data": []}`,
-    django: `# Add to your Django settings.py:
-MIDDLEWARE = [
-    'security_sdk.django.SecurityMiddleware',
-    # ... other standard middleware
-]
+  return response;
+}
 
-SECURITY_SDK_API_KEY = "${effectiveKey}"
-SECURITY_SDK_COLLECTOR_URL = "${collectorUrl}"`,
-    node: `// Native Node.js Express telemetry forwarder:
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};`
+    },
+    node: {
+      label: 'Node.js Express',
+      badge: 'Zero-Dependency Native Forwarder',
+      targetFile: 'securityTelemetry.js (or directly in server.js / app.js)',
+      instructions: 'Mount this middleware right after initializing express(), before your application routes. Uses native fetch (Node 18+).',
+      code: `// Native Node.js Express telemetry forwarder (Node 18+):
 const express = require('express');
 const app = express();
 
+const COLLECTOR_URL = '${collectorUrl}/ingest';
+const API_KEY = '${effectiveKey}';
+
+// 1. Mount telemetry middleware BEFORE your routes:
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
-    fetch('${collectorUrl}/ingest', {
+    const clientIp = (
+      req.headers['x-forwarded-for'] ||
+      req.headers['x-real-ip'] ||
+      req.socket.remoteAddress ||
+      '127.0.0.1'
+    ).split(',')[0].trim();
+
+    fetch(COLLECTOR_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${effectiveKey}'
+        'Authorization': \`Bearer \${API_KEY}\`
       },
       body: JSON.stringify({
-        endpoint: req.path,
+        endpoint: req.originalUrl || req.url,
         method: req.method,
         status_code: res.statusCode,
         latency_ms: Date.now() - start,
-        ip: req.ip || '127.0.0.1'
+        ip: clientIp,
+        user_agent: req.headers['user-agent'] || ''
       })
-    }).catch(() => {});
+    }).catch(() => {}); // Fire-and-forget, zero latency impact
   });
   next();
-});`,
+});
+
+// 2. Normal application routes:
+app.use(express.json());
+app.get('/api/users', (req, res) => res.json({ status: 'ok' }));`
+    },
+    fastapi: {
+      label: 'FastAPI / ASGI',
+      badge: 'Native Async Middleware',
+      targetFile: 'main.py',
+      instructions: 'Add this ASGI middleware to your FastAPI app. Works out of the box with Python standard library urllib.',
+      code: `# Add to your FastAPI application (main.py):
+import time
+import json
+import urllib.request
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+COLLECTOR_URL = "${collectorUrl}/ingest"
+API_KEY = "${effectiveKey}"
+
+@app.middleware("http")
+async def security_observability_middleware(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    latency_ms = (time.time() - start) * 1000.0
+
+    # Non-blocking telemetry forward
+    try:
+        payload = json.dumps({
+            "endpoint": request.url.path,
+            "method": request.method,
+            "status_code": response.status_code,
+            "latency_ms": latency_ms,
+            "ip": request.client.host if request.client else "127.0.0.1",
+            "user_agent": request.headers.get("user-agent", "")
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            COLLECTOR_URL,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {API_KEY}"
+            }
+        )
+        urllib.request.urlopen(req, timeout=1.0)
+    except Exception:
+        pass  # Never interrupt host request processing
+
+    return response`
+    },
+    flask: {
+      label: 'Flask / WSGI',
+      badge: 'Native Request Hooks',
+      targetFile: 'app.py',
+      instructions: 'Add before_request and after_request hooks to your Flask app. No external pip package required.',
+      code: `# Add to your Flask application (app.py):
+import time
+import json
+import urllib.request
+from flask import Flask, request, g
+
+app = Flask(__name__)
+
+COLLECTOR_URL = "${collectorUrl}/ingest"
+API_KEY = "${effectiveKey}"
+
+@app.before_request
+def start_request_timer():
+    g.telemetry_start = time.time()
+
+@app.after_request
+def forward_security_telemetry(response):
+    start = getattr(g, "telemetry_start", time.time())
+    latency_ms = (time.time() - start) * 1000.0
+
+    try:
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+        payload = json.dumps({
+            "endpoint": request.path,
+            "method": request.method,
+            "status_code": response.status_code,
+            "latency_ms": latency_ms,
+            "ip": client_ip,
+            "user_agent": request.headers.get("User-Agent", "")
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            COLLECTOR_URL,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {API_KEY}"
+            }
+        )
+        urllib.request.urlopen(req, timeout=1.0)
+    except Exception:
+        pass  # Silent non-blocking failover
+
+    return response`
+    },
+    django: {
+      label: 'Django',
+      badge: 'Middleware Class',
+      targetFile: 'middleware.py (and register in settings.py MIDDLEWARE)',
+      instructions: 'Place in middleware.py and append to MIDDLEWARE in settings.py.',
+      code: `# middleware.py in your Django project:
+import time
+import json
+import urllib.request
+
+class ApiSecurityMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        start = time.time()
+        response = self.get_response(request)
+        latency_ms = (time.time() - start) * 1000.0
+
+        try:
+            ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1')).split(',')[0].strip()
+            payload = json.dumps({
+                "endpoint": request.path,
+                "method": request.method,
+                "status_code": response.status_code,
+                "latency_ms": latency_ms,
+                "ip": ip,
+                "user_agent": request.META.get('HTTP_USER_AGENT', '')
+            }).encode('utf-8')
+            req = urllib.request.Request(
+                "${collectorUrl}/ingest",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer ${effectiveKey}"
+                }
+            )
+            urllib.request.urlopen(req, timeout=1.0)
+        except Exception:
+            pass
+
+        return response`
+    }
   };
 
   if (!currentProject) {
@@ -295,20 +468,21 @@ app.use((req, res, next) => {
             <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               1
             </span>
-            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Select Web Framework</h3>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Select Web Framework / Runtime</h3>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 ml-7.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 ml-7.5">
             {[
-              { id: 'flask', label: 'Flask' },
-              { id: 'fastapi', label: 'FastAPI' },
-              { id: 'django', label: 'Django' },
-              { id: 'node', label: 'Node.js Express' },
+              { id: 'nextjs', label: 'Next.js / Vercel', tag: 'TypeScript / Edge' },
+              { id: 'node', label: 'Node.js Express', tag: 'Native Forwarder' },
+              { id: 'fastapi', label: 'FastAPI', tag: 'Async ASGI' },
+              { id: 'flask', label: 'Flask', tag: 'Python WSGI' },
+              { id: 'django', label: 'Django', tag: 'Middleware Class' },
             ].map((fw) => (
               <button
                 key={fw.id}
                 onClick={() => handleSelectFramework(fw.id)}
-                className={`p-3 rounded border text-xs text-left transition-colors font-mono ${
+                className={`p-3 rounded border text-xs text-left transition-colors font-mono cursor-pointer ${
                   framework === fw.id
                     ? 'bg-[#16181D] border-[#82AAFF] text-[#E6E8EB]'
                     : 'bg-[#0A0B0D] border-[#1E2127] text-[#7B818B] hover:text-[#E6E8EB] hover:border-[#2A2E37]'
@@ -319,79 +493,25 @@ app.use((req, res, next) => {
                   {framework === fw.id && <CheckCircle2 className="w-3.5 h-3.5 text-[#82AAFF]" />}
                 </div>
                 <span className="text-[10px] text-[#7B818B]">
-                  {fw.id === 'node' ? 'Native Forwarder' : 'Python Package'}
+                  {fw.tag}
                 </span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* STEP 2: Install Package */}
+        {/* STEP 2: Configure Secret Key */}
         <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center space-x-2.5 mb-2">
             <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               2
             </span>
-            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Install SDK Package</h3>
-          </div>
-          
-          <div className="ml-7.5 space-y-3">
-            {/* Option A: Preconfigured ZIP */}
-            <div className="p-3.5 rounded bg-[#0A0B0D] border border-[#1E2127] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#82AAFF] font-mono">Option A: Preconfigured SDK Archive (Recommended)</span>
-                <a
-                  href={getDownloadSdkUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#82AAFF]/10 hover:bg-[#82AAFF]/20 border border-[#82AAFF]/30 text-[#82AAFF] text-[11px] font-mono font-semibold transition-colors"
-                >
-                  <Download className="w-3 h-3" />
-                  <span>Download .zip</span>
-                </a>
-              </div>
-              <p className="text-[11px] text-[#9BA1AC] font-mono">
-                Extract the downloaded ZIP into your application directory and install locally:
-              </p>
-              <div className="flex items-center justify-between p-2 rounded bg-[#16181D] border border-[#1E2127] font-mono text-xs text-[#E6E8EB]">
-                <code>{zipInstallCommand}</code>
-                <button
-                  onClick={() => copyText(zipInstallCommand, 21)}
-                  className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1"
-                >
-                  {copiedIndex === 21 ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Option B: Git pip install */}
-            <div className="p-3.5 rounded bg-[#0A0B0D] border border-[#1E2127] space-y-2">
-              <span className="text-xs font-semibold text-[#9BA1AC] font-mono">Option B: Direct pip installation via Git</span>
-              <div className="flex items-center justify-between p-2 rounded bg-[#16181D] border border-[#1E2127] font-mono text-xs text-[#E6E8EB]">
-                <code className="text-[11px] break-all">{gitInstallCommand}</code>
-                <button
-                  onClick={() => copyText(gitInstallCommand, 22)}
-                  className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1 ml-2 shrink-0"
-                >
-                  {copiedIndex === 22 ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* STEP 3: Configure Environment Variable */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
-          <div className="flex items-center space-x-2.5 mb-2">
-            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
-              3
-            </span>
-            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Configure Ingestion Key</h3>
+            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Project Ingestion Credentials</h3>
           </div>
           
           <div className="ml-7.5 space-y-3">
             <p className="text-xs text-[#9BA1AC] font-mono">
-              Export the scoped project credentials or load them via <span className="text-[#C792EA]">.env</span>:
+              Your API key and live telemetry endpoint are automatically embedded into the integration snippet below.
             </p>
 
             <div className="flex items-center justify-between p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF]">
@@ -400,7 +520,7 @@ app.use((req, res, next) => {
               </pre>
               <button
                 onClick={() => copyText(envExportCommand, 3)}
-                className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1 shrink-0 ml-3"
+                className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1 shrink-0 ml-3 cursor-pointer"
               >
                 {copiedIndex === 3 ? <Check className="w-4 h-4 text-[#C3E88D]" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -411,7 +531,7 @@ app.use((req, res, next) => {
               <div className="p-3 rounded bg-[#16181D] border border-[#E5C07B]/30 space-y-2">
                 <div className="flex items-center space-x-1.5 text-xs text-[#E5C07B] font-mono">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-[#E5C07B]" />
-                  <span>Custom / Secret Key: Paste your raw key below to update the snippets in real time:</span>
+                  <span>Custom / Secret Key: Paste your key below to auto-fill the snippet in real time:</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
@@ -424,69 +544,111 @@ app.use((req, res, next) => {
                   {userCustomKey && (
                     <button
                       onClick={() => setUserCustomKey('')}
-                      className="text-xs text-[#7B818B] hover:text-[#E6E8EB] font-mono px-2 py-1"
+                      className="text-xs text-[#7B818B] hover:text-[#E6E8EB] font-mono px-2 py-1 cursor-pointer"
                     >
                       Clear
                     </button>
                   )}
                 </div>
-                <p className="text-[10px] text-[#7B818B] font-mono">
-                  Tip: If you downloaded the preconfigured ZIP above, your raw key is already pre-injected into <span className="text-[#82AAFF]">config.py</span>.
-                </p>
               </div>
             ) : (
               <div className="flex items-center space-x-2 text-[11px] text-[#C3E88D] font-mono">
                 <Check className="w-3.5 h-3.5 text-[#C3E88D]" />
-                <span>Active secret key successfully attached to integration snippet.</span>
+                <span>Active secret key successfully embedded into the drop-in integration snippet.</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* STEP 4: Add Integration Code */}
+        {/* STEP 3: Drop-in Integration Code */}
         <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2.5">
               <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
-                4
+                3
               </span>
-              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Attach Telemetry Middleware</h3>
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
+                Drop-in Middleware ({frameworkGuides[framework]?.label || 'Host App'})
+              </h3>
             </div>
             <button
-              onClick={() => copyText(snippetCode[framework], 4)}
-              className="inline-flex items-center space-x-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] px-2.5 py-1 rounded font-mono transition-colors"
+              onClick={() => copyText(frameworkGuides[framework]?.code || '', 4)}
+              className="inline-flex items-center space-x-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] px-2.5 py-1 rounded font-mono transition-colors cursor-pointer"
             >
               {copiedIndex === 4 ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
               <span>Copy Code</span>
             </button>
           </div>
-          <p className="text-xs text-[#9BA1AC] mb-3 ml-7.5 font-mono">
-            Integrate the middleware into your host application entrypoint:
-          </p>
-          <div className="ml-7.5 p-4 rounded bg-[#0A0B0D] border border-[#1E2127] overflow-x-auto">
-            <pre className="text-xs font-mono text-[#E6E8EB] leading-relaxed">
-              <code>{snippetCode[framework]}</code>
-            </pre>
+          
+          <div className="ml-7.5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded bg-[#0A0B0D] border border-[#1E2127] text-xs font-mono">
+              <span className="text-[#82AAFF]">
+                📁 File location: <code className="text-[#E6E8EB] font-semibold">{frameworkGuides[framework]?.targetFile}</code>
+              </span>
+              <span className="text-[10px] text-[#C3E88D] bg-[#C3E88D]/10 px-2 py-0.5 rounded border border-[#C3E88D]/20 self-start sm:self-auto">
+                {frameworkGuides[framework]?.badge}
+              </span>
+            </div>
+
+            <p className="text-xs text-[#9BA1AC] font-mono">
+              {frameworkGuides[framework]?.instructions}
+            </p>
+
+            <div className="p-4 rounded bg-[#0A0B0D] border border-[#1E2127] overflow-x-auto">
+              <pre className="text-xs font-mono text-[#E6E8EB] leading-relaxed">
+                <code>{frameworkGuides[framework]?.code}</code>
+              </pre>
+            </div>
+
+            {/* Optional / Advanced Python SDK Archive */}
+            {(framework === 'flask' || framework === 'fastapi' || framework === 'django') && (
+              <div className="mt-4 p-3 rounded bg-[#16181D]/60 border border-[#1E2127] space-y-2 text-xs font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#9BA1AC] text-[11px]">
+                    Alternative: Prefer the full packaged Python SDK with background thread queuing?
+                  </span>
+                  <a
+                    href={getDownloadSdkUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1 text-[#82AAFF] hover:underline text-[11px]"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Download .zip</span>
+                  </a>
+                </div>
+                <div className="p-2 rounded bg-[#0A0B0D] border border-[#1E2127] text-[11px] text-[#7B818B] flex items-center justify-between">
+                  <code>{gitInstallCommand}</code>
+                  <button
+                    onClick={() => copyText(gitInstallCommand, 22)}
+                    className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] shrink-0 cursor-pointer"
+                    title="Copy pip git install command"
+                  >
+                    {copiedIndex === 22 ? <Check className="w-3 h-3 text-[#C3E88D]" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* STEP 5: Start, Test & Verify */}
+        {/* STEP 4: Ingest Verification Event */}
         <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
           <div className="flex items-center space-x-2.5 mb-2">
             <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
-              5
+              4
             </span>
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Deploy Host API & Ingest Verification Event</h3>
           </div>
           <p className="text-xs text-[#9BA1AC] mb-4 ml-7.5 font-mono">
-            Launch your web server and dispatch an HTTP request, or trigger a synthetic verification probe right here:
+            Deploy or start your web server and click an endpoint, or trigger a synthetic verification probe right here:
           </p>
 
           <div className="ml-7.5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <button
               onClick={handleSendTestEvent}
               disabled={testSending}
-              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbdff] disabled:opacity-50 text-xs font-semibold font-mono text-[#0A0B0D] transition-colors shadow-xs"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbdff] disabled:opacity-50 text-xs font-semibold font-mono text-[#0A0B0D] transition-colors shadow-xs cursor-pointer"
             >
               <Send className={`w-3.5 h-3.5 ${testSending ? 'animate-spin' : ''}`} />
               <span>{testSending ? 'TRANSMITTING TELEMETRY...' : 'DISPATCH TEST TELEMETRY PROBE'}</span>
