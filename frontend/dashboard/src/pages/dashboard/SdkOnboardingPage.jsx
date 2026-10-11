@@ -33,7 +33,13 @@ export const SdkOnboardingPage = () => {
   const [testSending, setTestSending] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
 
-  const collectorUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001';
+  const PRODUCTION_COLLECTOR_URL = 'https://api-security-analytics-dashboard-vyfe.onrender.com';
+  const collectorUrl =
+    import.meta.env.VITE_COLLECTOR_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+      ? window.location.origin
+      : PRODUCTION_COLLECTOR_URL);
 
   const fetchOnboardingState = async () => {
     if (!currentProject?.id) return;
