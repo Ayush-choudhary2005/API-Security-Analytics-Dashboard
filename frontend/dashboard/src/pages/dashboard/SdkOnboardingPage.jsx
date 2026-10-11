@@ -147,30 +147,73 @@ export const SdkOnboardingPage = () => {
       label: 'Next.js / Vercel',
       badge: 'Zero-Dependency Native Middleware',
       targetFile: 'middleware.ts (in root of your Next.js project)',
-      instructions: 'Create a middleware.ts file in your project root. It intercepts requests on the Edge and forwards telemetry without slowing down client responses.',
+      instructions: 'Create a middleware.ts file in your project root. It intercepts requests on the Edge, blocks prohibited IPs in sub-milliseconds from an in-memory cache, and forwards telemetry.',
       code: `// middleware.ts (Root of Next.js project)
 import { NextResponse } from 'next/server';
 import type { NextRequest, NextFetchEvent } from 'next/server';
 
+const COLLECTOR_URL = '${collectorUrl}';
+const API_KEY = '${effectiveKey}';
+
+// In-memory cache of blocked IPs synced from dashboard
+let blockedIpsCache: Set<string> = new Set();
+let lastSyncTime = 0;
+const SYNC_INTERVAL_MS = 30000; // Check for updated blocked IPs every 30s
+
+async function syncBlockedIps() {
+  const now = Date.now();
+  if (now - lastSyncTime < SYNC_INTERVAL_MS) return;
+  lastSyncTime = now;
+  try {
+    const res = await fetch(\`\${COLLECTOR_URL}/api/v1/blocked-ips\`, {
+      headers: { Authorization: \`Bearer \${API_KEY}\` },
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.blocked_ips)) {
+        blockedIpsCache = new Set(data.blocked_ips);
+      }
+    }
+  } catch {
+    // Fail-open: network glitch to collector never breaks news website
+  }
+}
+
 export async function middleware(request: NextRequest, event: NextFetchEvent) {
-  const start = Date.now();
-  const response = NextResponse.next();
-  const latencyMs = Date.now() - start;
-
-  const collectorUrl = '${collectorUrl}/ingest';
-  const apiKey = '${effectiveKey}';
-
   const clientIp =
     request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
     request.headers.get('x-real-ip') ||
     '127.0.0.1';
 
-  // Asynchronous telemetry forwarder
-  const telemetryPromise = fetch(collectorUrl, {
+  // 1. Trigger background sync if needed (zero latency penalty)
+  if (event?.waitUntil) {
+    event.waitUntil(syncBlockedIps());
+  } else {
+    syncBlockedIps().catch(() => {});
+  }
+
+  // 2. Active Enforcement: Return 403 immediately if client IP is blocked
+  if (blockedIpsCache.has(clientIp)) {
+    return new NextResponse(
+      JSON.stringify({
+        error: 'Forbidden',
+        message: 'Your IP has been blocked by security policy.',
+      }),
+      { status: 403, headers: { 'content-type': 'application/json' } }
+    );
+  }
+
+  const start = Date.now();
+  const response = NextResponse.next();
+  const latencyMs = Date.now() - start;
+
+  // 3. Asynchronous telemetry forwarder
+  const telemetryPromise = fetch(\`\${COLLECTOR_URL}/ingest\`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': \`Bearer \${apiKey}\`,
+      Authorization: \`Bearer \${API_KEY}\`,
     },
     body: JSON.stringify({
       endpoint: request.nextUrl.pathname,
@@ -205,26 +248,55 @@ export const config = {
       label: 'Node.js Express',
       badge: 'Zero-Dependency Native Forwarder',
       targetFile: 'securityTelemetry.js (or directly in server.js / app.js)',
-      instructions: 'Mount this middleware right after initializing express(), before your application routes. Uses native fetch (Node 18+).',
-      code: `// Native Node.js Express telemetry forwarder (Node 18+):
+      instructions: 'Mount this middleware right after initializing express(). Enforces blocked IPs in sub-milliseconds and forwards telemetry.',
+      code: `// Native Node.js Express telemetry & IP enforcement (Node 18+):
 const express = require('express');
 const app = express();
 
-const COLLECTOR_URL = '${collectorUrl}/ingest';
+const COLLECTOR_URL = '${collectorUrl}';
 const API_KEY = '${effectiveKey}';
 
-// 1. Mount telemetry middleware BEFORE your routes:
+// In-memory blocklist cache
+let blockedIps = new Set();
+
+async function refreshBlocklist() {
+  try {
+    const res = await fetch(\`\${COLLECTOR_URL}/api/v1/blocked-ips\`, {
+      headers: { Authorization: \`Bearer \${API_KEY}\` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.blocked_ips)) {
+        blockedIps = new Set(data.blocked_ips);
+      }
+    }
+  } catch {}
+}
+
+// Sync blocked IPs every 30 seconds
+setInterval(refreshBlocklist, 30000);
+refreshBlocklist();
+
+// 1. Active Enforcement & Telemetry Middleware:
 app.use((req, res, next) => {
+  const clientIp = (
+    req.headers['x-forwarded-for'] ||
+    req.headers['x-real-ip'] ||
+    req.socket.remoteAddress ||
+    '127.0.0.1'
+  ).split(',')[0].trim();
+
+  // Active check: reject blocked IP immediately with 403
+  if (blockedIps.has(clientIp)) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Your IP has been blocked by security policy.'
+    });
+  }
+
   const start = Date.now();
   res.on('finish', () => {
-    const clientIp = (
-      req.headers['x-forwarded-for'] ||
-      req.headers['x-real-ip'] ||
-      req.socket.remoteAddress ||
-      '127.0.0.1'
-    ).split(',')[0].trim();
-
-    fetch(COLLECTOR_URL, {
+    fetch(\`\${COLLECTOR_URL}/ingest\`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -245,7 +317,7 @@ app.use((req, res, next) => {
           country: req.headers['x-vercel-ip-country'] || req.headers['cf-ipcountry']
         }
       })
-    }).catch(() => {}); // Fire-and-forget, zero latency impact
+    }).catch(() => {});
   });
   next();
 });

@@ -1720,6 +1720,29 @@ def blocked_ips():
     return jsonify(rate_limiter.get_blocked_ips(project_id=project_id))
 
 
+@app.route("/api/v1/blocked-ips", methods=["GET"])
+def sdk_blocked_ips():
+    """
+    Lightweight, fast endpoint for client middleware (Next.js, Node, Python)
+    to sync active blocked IPs using their SDK Bearer API token.
+    """
+    project = _get_project_from_auth()
+    if not project:
+        return jsonify({"error": "Unauthorized", "message": "Missing or invalid Bearer API token"}), 401
+
+    project_id = project["id"]
+    blocked_list = rate_limiter.get_blocked_ips(project_id=project_id)
+    # Return both array of IP strings (for instant Set lookups) and detailed objects
+    ips = [item["ip"] for item in blocked_list]
+    return jsonify({
+        "project_id": project_id,
+        "blocked_ips": ips,
+        "details": blocked_list,
+        "count": len(ips),
+        "timestamp": time.time()
+    }), 200
+
+
 @app.route("/block-ip", methods=["POST"])
 @login_required
 def block_ip():
