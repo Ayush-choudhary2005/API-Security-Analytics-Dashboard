@@ -334,140 +334,241 @@ app.get('/api/users', (req, res) => res.json({ status: 'ok' }));`
     },
     fastapi: {
       label: 'FastAPI / ASGI',
-      badge: 'Native Async Middleware',
+      badge: 'Native Async Middleware & IP Firewall',
       targetFile: 'main.py',
-      instructions: 'Add this ASGI middleware to your FastAPI app. Works out of the box with Python standard library urllib.',
+      instructions: 'Add this ASGI middleware to your FastAPI app. Intercepts and blocks prohibited IPs in sub-milliseconds and forwards telemetry.',
       code: `# Add to your FastAPI application (main.py):
 import time
 import json
+import threading
 import urllib.request
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-COLLECTOR_URL = "${collectorUrl}/ingest"
+COLLECTOR_URL = "${collectorUrl}"
 API_KEY = "${effectiveKey}"
 
+# In-memory blocked IPs cache
+blocked_ips = set()
+
+def refresh_blocklist():
+    global blocked_ips
+    try:
+        req = urllib.request.Request(
+            f"{COLLECTOR_URL}/api/v1/blocked-ips",
+            headers={"Authorization": f"Bearer {API_KEY}"}
+        )
+        with urllib.request.urlopen(req, timeout=3.0) as res:
+            data = json.loads(res.read().decode('utf-8'))
+            if isinstance(data.get("blocked_ips"), list):
+                blocked_ips = set(data["blocked_ips"])
+    except Exception:
+        pass  # Fail-open: collector outage never breaks application
+
+def sync_loop():
+    while True:
+        refresh_blocklist()
+        time.sleep(30)
+
+# Start background sync daemon
+threading.Thread(target=sync_loop, daemon=True).start()
+
 @app.middleware("http")
-async def security_observability_middleware(request: Request, call_next):
+async def security_middleware(request: Request, call_next):
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "127.0.0.1")
+
+    # 1. Active Enforcement: Reject blocked IP immediately with 403
+    if client_ip in blocked_ips:
+        return JSONResponse(
+            status_code=403,
+            content={"error": "Forbidden", "message": "Your IP has been blocked by security policy."}
+        )
+
     start = time.time()
     response = await call_next(request)
     latency_ms = (time.time() - start) * 1000.0
 
-    # Non-blocking telemetry forward
-    try:
-        payload = json.dumps({
-            "endpoint": request.url.path,
-            "method": request.method,
-            "status_code": response.status_code,
-            "latency_ms": latency_ms,
-            "ip": request.client.host if request.client else "127.0.0.1",
-            "user_agent": request.headers.get("user-agent", "")
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            COLLECTOR_URL,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {API_KEY}"
-            }
-        )
-        urllib.request.urlopen(req, timeout=1.0)
-    except Exception:
-        pass  # Never interrupt host request processing
+    # 2. Non-blocking telemetry forward (Fire-and-forget in background thread)
+    def dispatch_telemetry():
+        try:
+            payload = json.dumps({
+                "endpoint": request.url.path,
+                "method": request.method,
+                "status_code": response.status_code,
+                "latency_ms": round(latency_ms, 2),
+                "ip": client_ip,
+                "user_agent": request.headers.get("user-agent", "")
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"{COLLECTOR_URL}/ingest",
+                data=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
+            )
+            urllib.request.urlopen(req, timeout=2.0)
+        except Exception:
+            pass
 
+    threading.Thread(target=dispatch_telemetry, daemon=True).start()
     return response`
     },
     flask: {
       label: 'Flask / WSGI',
-      badge: 'Native Request Hooks',
+      badge: 'Native Request Hooks & IP Firewall',
       targetFile: 'app.py',
-      instructions: 'Add before_request and after_request hooks to your Flask app. No external pip package required.',
+      instructions: 'Add before_request and after_request hooks to your Flask app. Blocks prohibited IPs and forwards telemetry without external pip dependencies.',
       code: `# Add to your Flask application (app.py):
 import time
 import json
+import threading
 import urllib.request
-from flask import Flask, request, g
+from flask import Flask, request, g, jsonify
 
 app = Flask(__name__)
 
-COLLECTOR_URL = "${collectorUrl}/ingest"
+COLLECTOR_URL = "${collectorUrl}"
 API_KEY = "${effectiveKey}"
 
+# In-memory blocked IPs cache
+blocked_ips = set()
+
+def refresh_blocklist():
+    global blocked_ips
+    try:
+        req = urllib.request.Request(
+            f"{COLLECTOR_URL}/api/v1/blocked-ips",
+            headers={"Authorization": f"Bearer {API_KEY}"}
+        )
+        with urllib.request.urlopen(req, timeout=3.0) as res:
+            data = json.loads(res.read().decode('utf-8'))
+            if isinstance(data.get("blocked_ips"), list):
+                blocked_ips = set(data["blocked_ips"])
+    except Exception:
+        pass
+
+def sync_loop():
+    while True:
+        refresh_blocklist()
+        time.sleep(30)
+
+threading.Thread(target=sync_loop, daemon=True).start()
+
 @app.before_request
-def start_request_timer():
+def check_ip_and_start_timer():
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+    # 1. Active Enforcement: Reject blocked IP immediately with 403
+    if client_ip in blocked_ips:
+        return jsonify({"error": "Forbidden", "message": "Your IP has been blocked by security policy."}), 403
     g.telemetry_start = time.time()
 
 @app.after_request
 def forward_security_telemetry(response):
     start = getattr(g, "telemetry_start", time.time())
     latency_ms = (time.time() - start) * 1000.0
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
 
-    try:
-        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
-        payload = json.dumps({
-            "endpoint": request.path,
-            "method": request.method,
-            "status_code": response.status_code,
-            "latency_ms": latency_ms,
-            "ip": client_ip,
-            "user_agent": request.headers.get("User-Agent", "")
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            COLLECTOR_URL,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {API_KEY}"
-            }
-        )
-        urllib.request.urlopen(req, timeout=1.0)
-    except Exception:
-        pass  # Silent non-blocking failover
+    # 2. Non-blocking telemetry forward
+    def dispatch_telemetry():
+        try:
+            payload = json.dumps({
+                "endpoint": request.path,
+                "method": request.method,
+                "status_code": response.status_code,
+                "latency_ms": round(latency_ms, 2),
+                "ip": client_ip,
+                "user_agent": request.headers.get("User-Agent", "")
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"{COLLECTOR_URL}/ingest",
+                data=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
+            )
+            urllib.request.urlopen(req, timeout=2.0)
+        except Exception:
+            pass
 
+    threading.Thread(target=dispatch_telemetry, daemon=True).start()
     return response`
     },
     django: {
       label: 'Django',
-      badge: 'Middleware Class',
+      badge: 'Middleware Class & IP Firewall',
       targetFile: 'middleware.py (and register in settings.py MIDDLEWARE)',
-      instructions: 'Place in middleware.py and append to MIDDLEWARE in settings.py.',
+      instructions: 'Place in middleware.py and append to MIDDLEWARE in settings.py. Blocks prohibited IPs in sub-milliseconds and streams telemetry.',
       code: `# middleware.py in your Django project:
 import time
 import json
+import threading
 import urllib.request
+from django.http import JsonResponse
+
+COLLECTOR_URL = "${collectorUrl}"
+API_KEY = "${effectiveKey}"
+
+# In-memory blocked IPs cache
+blocked_ips = set()
+
+def refresh_blocklist():
+    global blocked_ips
+    try:
+        req = urllib.request.Request(
+            f"{COLLECTOR_URL}/api/v1/blocked-ips",
+            headers={"Authorization": f"Bearer {API_KEY}"}
+        )
+        with urllib.request.urlopen(req, timeout=3.0) as res:
+            data = json.loads(res.read().decode('utf-8'))
+            if isinstance(data.get("blocked_ips"), list):
+                blocked_ips = set(data["blocked_ips"])
+    except Exception:
+        pass
+
+def sync_loop():
+    while True:
+        refresh_blocklist()
+        time.sleep(30)
+
+threading.Thread(target=sync_loop, daemon=True).start()
 
 class ApiSecurityMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
+        ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1')).split(',')[0].strip()
+
+        # 1. Active Enforcement: Reject blocked IP immediately with 403
+        if ip in blocked_ips:
+            return JsonResponse(
+                {"error": "Forbidden", "message": "Your IP has been blocked by security policy."},
+                status=403
+            )
+
         start = time.time()
         response = self.get_response(request)
         latency_ms = (time.time() - start) * 1000.0
 
-        try:
-            ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '127.0.0.1')).split(',')[0].strip()
-            payload = json.dumps({
-                "endpoint": request.path,
-                "method": request.method,
-                "status_code": response.status_code,
-                "latency_ms": latency_ms,
-                "ip": ip,
-                "user_agent": request.META.get('HTTP_USER_AGENT', '')
-            }).encode('utf-8')
-            req = urllib.request.Request(
-                "${collectorUrl}/ingest",
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer ${effectiveKey}"
-                }
-            )
-            urllib.request.urlopen(req, timeout=1.0)
-        except Exception:
-            pass
+        # 2. Non-blocking telemetry forward
+        def dispatch_telemetry():
+            try:
+                payload = json.dumps({
+                    "endpoint": request.path,
+                    "method": request.method,
+                    "status_code": response.status_code,
+                    "latency_ms": round(latency_ms, 2),
+                    "ip": ip,
+                    "user_agent": request.META.get('HTTP_USER_AGENT', '')
+                }).encode('utf-8')
+                req = urllib.request.Request(
+                    f"{COLLECTOR_URL}/ingest",
+                    data=payload,
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
+                )
+                urllib.request.urlopen(req, timeout=2.0)
+            except Exception:
+                pass
 
+        threading.Thread(target=dispatch_telemetry, daemon=True).start()
         return response`
     }
   };

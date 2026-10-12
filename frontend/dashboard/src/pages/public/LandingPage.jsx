@@ -26,7 +26,7 @@ export const LandingPage = () => {
   const [searchParams] = useSearchParams();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [copiedSnippet, setCopiedSnippet] = useState(false);
-  const [activeFramework, setActiveFramework] = useState('flask');
+  const [activeFramework, setActiveFramework] = useState('nextjs');
 
   useEffect(() => {
     const oauthError = searchParams.get('error');
@@ -45,61 +45,202 @@ export const LandingPage = () => {
   };
 
   const codeSnippets = {
-    flask: `# 1. Install package: pip install mlo11y
-from flask import Flask
-from security_sdk import SecurityMiddleware
+    nextjs: `// middleware.ts (Root of Next.js project)
+import { NextResponse } from 'next/server';
+import type { NextRequest, NextFetchEvent } from 'next/server';
 
-app = Flask(__name__)
+const COLLECTOR_URL = 'https://api-security-analytics-dashboard-vyfe.onrender.com';
+const API_KEY = 'ask_prod_your_api_key_here';
 
-# 2. Attach middleware (runs non-blocking async telemetry queue)
-SecurityMiddleware(
-    app,
-    api_key="ask_prod_your_api_key_here",
-    collector_url="/ingest"
-)
+let blockedIps = new Set();
+let lastSync = 0;
 
-@app.route("/api/v1/checkout", methods=["POST"])
-def checkout():
-    return {"status": "success"}, 200
+async function syncBlockedIps() {
+  if (Date.now() - lastSync < 30000) return;
+  lastSync = Date.now();
+  try {
+    const res = await fetch(\`\${COLLECTOR_URL}/api/v1/blocked-ips\`, {
+      headers: { Authorization: \`Bearer \${API_KEY}\` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      blockedIps = new Set(data.blocked_ips || []);
+    }
+  } catch {}
+}
 
-if __name__ == "__main__":
-    app.run(port=5000)`,
-    fastapi: `# 1. Install package: pip install mlo11y
-from fastapi import FastAPI
-from security_sdk.fastapi import SecurityMiddleware
+export async function middleware(request: NextRequest, event: NextFetchEvent) {
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
 
-app = FastAPI()
+  // 1. Sync in-memory blocklist (zero latency penalty)
+  if (event?.waitUntil) event.waitUntil(syncBlockedIps());
+  else syncBlockedIps().catch(() => {});
 
-# 2. Attach ASGI telemetry middleware
-app.add_middleware(
-    SecurityMiddleware,
-    api_key="ask_prod_your_api_key_here",
-    collector_url="/ingest"
-)
+  // 2. Active Ingress Rejection: 403 Forbidden
+  if (blockedIps.has(clientIp)) {
+    return new NextResponse(JSON.stringify({ error: 'Forbidden', message: 'IP Blocked' }), {
+      status: 403,
+      headers: { 'content-type': 'application/json' }
+    });
+  }
 
-@app.post("/api/v1/checkout")
-async def checkout():
-    return {"status": "success"}`,
-    django: `# In your django settings.py:
-MIDDLEWARE = [
-    'security_sdk.django.SecurityMiddleware',
-    # ... other standard middlewares
-]
+  const start = Date.now();
+  const response = NextResponse.next();
 
-SECURITY_API_KEY = "ask_prod_your_api_key_here"
-SECURITY_COLLECTOR_URL = "/ingest"`,
-    node: `// 1. Install package: npm install @security-analytics/node-sdk
+  // 3. Fire-and-forget telemetry ingestion
+  const telemetry = fetch(\`\${COLLECTOR_URL}/ingest\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: \`Bearer \${API_KEY}\` },
+    body: JSON.stringify({
+      endpoint: request.nextUrl.pathname,
+      method: request.method,
+      status_code: response.status,
+      latency_ms: Date.now() - start,
+      ip: clientIp
+    })
+  }).catch(() => {});
+
+  if (event?.waitUntil) event.waitUntil(telemetry);
+  return response;
+}`,
+    node: `// Express Security & Telemetry Middleware (Node 18+)
 const express = require('express');
-const { securityMiddleware } = require('@security-analytics/node-sdk');
-
 const app = express();
 
-app.use(securityMiddleware({
-  apiKey: 'ask_prod_your_api_key_here',
-  collectorUrl: '/ingest'
-}));
+const COLLECTOR_URL = 'https://api-security-analytics-dashboard-vyfe.onrender.com';
+const API_KEY = 'ask_prod_your_api_key_here';
 
-app.listen(3000);`
+let blockedIps = new Set();
+async function syncBlocklist() {
+  try {
+    const res = await fetch(\`\${COLLECTOR_URL}/api/v1/blocked-ips\`, {
+      headers: { Authorization: \`Bearer \${API_KEY}\` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      blockedIps = new Set(data.blocked_ips || []);
+    }
+  } catch {}
+}
+setInterval(syncBlocklist, 30000);
+syncBlocklist();
+
+// 1. Pre-route IP enforcement:
+app.use((req, res, next) => {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1').split(',')[0].trim();
+  if (blockedIps.has(ip)) {
+    return res.status(403).json({ error: 'Forbidden', message: 'IP Blocked' });
+  }
+
+  // 2. Asynchronous telemetry on response finish:
+  const start = Date.now();
+  res.on('finish', () => {
+    fetch(\`\${COLLECTOR_URL}/ingest\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: \`Bearer \${API_KEY}\` },
+      body: JSON.stringify({
+        endpoint: req.originalUrl || req.url,
+        method: req.method,
+        status_code: res.statusCode,
+        latency_ms: Date.now() - start,
+        ip
+      })
+    }).catch(() => {});
+  });
+  next();
+});`,
+    fastapi: `# FastAPI ASGI Security & Ingress Firewall
+import time, json, threading, urllib.request
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+COLLECTOR_URL = "https://api-security-analytics-dashboard-vyfe.onrender.com"
+API_KEY = "ask_prod_your_api_key_here"
+
+blocked_ips = set()
+def sync_blocklist():
+    global blocked_ips
+    try:
+        req = urllib.request.Request(f"{COLLECTOR_URL}/api/v1/blocked-ips", headers={"Authorization": f"Bearer {API_KEY}"})
+        with urllib.request.urlopen(req, timeout=3.0) as r:
+            data = json.loads(r.read().decode())
+            blocked_ips = set(data.get("blocked_ips", []))
+    except Exception:
+        pass
+
+def sync_loop():
+    while True:
+        sync_blocklist()
+        time.sleep(30)
+threading.Thread(target=sync_loop, daemon=True).start()
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "127.0.0.1")
+    if ip in blocked_ips:
+        return JSONResponse(status_code=403, content={"error": "Forbidden", "message": "IP Blocked"})
+
+    start = time.time()
+    response = await call_next(request)
+    latency_ms = (time.time() - start) * 1000.0
+
+    def send_telemetry():
+        try:
+            payload = json.dumps({"endpoint": request.url.path, "method": request.method, "status_code": response.status_code, "latency_ms": round(latency_ms, 2), "ip": ip}).encode()
+            req = urllib.request.Request(f"{COLLECTOR_URL}/ingest", data=payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"})
+            urllib.request.urlopen(req, timeout=2.0)
+        except Exception:
+            pass
+    threading.Thread(target=send_telemetry, daemon=True).start()
+    return response`,
+    flask: `# Flask WSGI Security & Ingress Firewall
+import time, json, threading, urllib.request
+from flask import Flask, request, g, jsonify
+
+app = Flask(__name__)
+COLLECTOR_URL = "https://api-security-analytics-dashboard-vyfe.onrender.com"
+API_KEY = "ask_prod_your_api_key_here"
+
+blocked_ips = set()
+def sync_blocklist():
+    global blocked_ips
+    try:
+        req = urllib.request.Request(f"{COLLECTOR_URL}/api/v1/blocked-ips", headers={"Authorization": f"Bearer {API_KEY}"})
+        with urllib.request.urlopen(req, timeout=3.0) as r:
+            data = json.loads(r.read().decode())
+            blocked_ips = set(data.get("blocked_ips", []))
+    except Exception:
+        pass
+
+def sync_loop():
+    while True:
+        sync_blocklist()
+        time.sleep(30)
+threading.Thread(target=sync_loop, daemon=True).start()
+
+@app.before_request
+def check_ip():
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+    if ip in blocked_ips:
+        return jsonify({"error": "Forbidden", "message": "IP Blocked"}), 403
+    g.telemetry_start = time.time()
+
+@app.after_request
+def send_telemetry(response):
+    start = getattr(g, "telemetry_start", time.time())
+    latency_ms = (time.time() - start) * 1000.0
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+
+    def dispatch():
+        try:
+            payload = json.dumps({"endpoint": request.path, "method": request.method, "status_code": response.status_code, "latency_ms": round(latency_ms, 2), "ip": ip}).encode()
+            req = urllib.request.Request(f"{COLLECTOR_URL}/ingest", data=payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"})
+            urllib.request.urlopen(req, timeout=2.0)
+        except Exception:
+            pass
+    threading.Thread(target=dispatch, daemon=True).start()
+    return response`
   };
 
   return (
@@ -388,7 +529,7 @@ app.listen(3000);`
             {/* Framework Selector Tabs */}
             <div className="flex items-center justify-between bg-[#0A0B0D] px-4 py-2 border-b border-[#1E2127]">
               <div className="flex items-center space-x-1">
-                {['flask', 'fastapi', 'django', 'node'].map((fw) => (
+                {['nextjs', 'node', 'fastapi', 'flask'].map((fw) => (
                   <button
                     key={fw}
                     onClick={() => setActiveFramework(fw)}
