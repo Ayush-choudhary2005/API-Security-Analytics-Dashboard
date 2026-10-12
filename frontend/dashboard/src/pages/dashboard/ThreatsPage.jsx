@@ -112,8 +112,8 @@ export const ThreatsPage = () => {
 
   if (!currentProject) {
     return (
-      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
-        <div className="w-12 h-12 rounded-full bg-[#F07178]/10 border border-[#F07178]/30 flex items-center justify-center mx-auto text-[#F07178]">
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-3xl p-8 max-w-xl mx-auto mt-8 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-[#F07178]/10 border border-[#F07178]/30 flex items-center justify-center mx-auto text-[#F07178]">
           <ShieldAlert className="w-6 h-6" />
         </div>
         <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
@@ -124,14 +124,14 @@ export const ThreatsPage = () => {
           {currentOrg ? (
             <button
               onClick={openCreateProjModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Project</span>
             </button>
           ) : (
             <button
               onClick={openCreateOrgModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Workspace</span>
             </button>
@@ -148,7 +148,7 @@ export const ThreatsPage = () => {
         <div>
           <div className="flex items-center space-x-2.5">
             <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">Threat Registry & Active Defense</h1>
-            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#F07178] border border-[#2A2E37]">
+            <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#16181D] text-[#F07178] border border-[#2A2E37]">
               <span>ACTIVE_FIREWALL</span>
             </span>
           </div>
@@ -161,14 +161,14 @@ export const ThreatsPage = () => {
           <button
             onClick={handleSimulateAttack}
             disabled={simulatingAttack}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#FFCB6B]/40 text-[#FFCB6B] text-xs font-mono font-medium transition-colors"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#FFCB6B]/40 text-[#FFCB6B] text-xs font-mono font-medium transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
             <Zap className="w-3.5 h-3.5 fill-current" />
             <span>{simulatingAttack ? 'INJECTING PROBE...' : 'SIMULATE ATTACK'}</span>
           </button>
           <button
             onClick={() => setShowBlockModal(true)}
-            className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] text-xs font-semibold transition-colors shadow-xs"
+            className="inline-flex items-center space-x-1 px-4 py-1.5 rounded-full bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] text-xs font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Block IP Address</span>
@@ -177,7 +177,7 @@ export const ThreatsPage = () => {
       </div>
 
       {/* Filter Row */}
-      <div className="p-3 rounded bg-[#101216] border border-[#1E2127] flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div className="p-3.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
         <div className="relative w-full sm:w-80">
           <Search className="w-3.5 h-3.5 text-[#7B818B] absolute left-3 top-2.5" />
           <input
@@ -185,7 +185,7 @@ export const ThreatsPage = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by vector, IP, or endpoint..."
-            className="w-full bg-[#16181D] border border-[#1E2127] rounded pl-8 pr-3 py-1.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
+            className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
           />
         </div>
 
@@ -193,7 +193,7 @@ export const ThreatsPage = () => {
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
-            className="bg-[#16181D] border border-[#1E2127] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
+            className="bg-[#16181D] border border-[#1E2127] rounded-xl px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
           >
             <option value="ALL">SEVERITY: ALL</option>
             <option value="critical">CRITICAL</option>
@@ -205,7 +205,7 @@ export const ThreatsPage = () => {
       </div>
 
       {/* Alerts Table */}
-      <div className="rounded bg-[#101216] border border-[#1E2127] overflow-hidden">
+      <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 overflow-hidden shadow-sm">
         <div className="p-3.5 border-b border-[#1E2127] flex items-center justify-between bg-[#16181D]">
           <div className="flex items-center space-x-2">
             <ShieldAlert className="w-4 h-4 text-[#F07178]" />
@@ -276,37 +276,37 @@ export const ThreatsPage = () => {
       </div>
 
       {/* Blocked IP Table */}
-      <div className="rounded bg-[#101216] border border-[#1E2127] p-4">
+      <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
           <div className="flex items-center space-x-2">
             <Lock className="w-4 h-4 text-[#FFCB6B]" />
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Active IP Defense Deny-List</h3>
           </div>
-          <span className="text-[10px] font-mono text-[#7B818B]">{blockedIPs.length} ENFORCED RULES</span>
+          <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">{blockedIPs.length} ENFORCED RULES</span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-[#16181D] text-[#7B818B] text-[10px] uppercase border-b border-[#1E2127]">
               <tr>
-                <th className="py-2 px-3">IP Address</th>
-                <th className="py-2 px-3">Reason / Vector</th>
-                <th className="py-2 px-3">Blocked Timestamp</th>
-                <th className="py-2 px-3 text-right">Enforcement Action</th>
+                <th className="py-2.5 px-3">IP Address</th>
+                <th className="py-2.5 px-3">Reason / Vector</th>
+                <th className="py-2.5 px-3">Blocked Timestamp</th>
+                <th className="py-2.5 px-3 text-right">Enforcement Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1E2127]/60">
               {blockedIPs.map((b) => (
                 <tr key={b.ip} className="hover:bg-[#16181D]/60 transition-colors">
-                  <td className="py-2 px-3 text-[#F07178] font-bold">{b.ip}</td>
-                  <td className="py-2 px-3 text-[#9BA1AC] font-sans">{b.reason || 'Threshold breach'}</td>
-                  <td className="py-2 px-3 text-[#7B818B]">
+                  <td className="py-2.5 px-3 text-[#F07178] font-bold">{b.ip}</td>
+                  <td className="py-2.5 px-3 text-[#9BA1AC] font-sans">{b.reason || 'Threshold breach'}</td>
+                  <td className="py-2.5 px-3 text-[#7B818B]">
                     {b.blocked_at ? new Date(b.blocked_at * 1000).toLocaleString() : 'Active'}
                   </td>
-                  <td className="py-2 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right">
                     <button
                       onClick={() => handleUnblock(b.ip)}
-                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono border border-[#1E2127] transition-colors"
+                      className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                     >
                       <Unlock className="w-3 h-3 text-[#C3E88D]" />
                       <span>Unblock</span>
@@ -329,7 +329,7 @@ export const ThreatsPage = () => {
       {/* Modal: Block IP */}
       {showBlockModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-[#101216] border border-[#2A2E37] rounded-3xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Manually Block IP Address</h3>
             <p className="text-xs text-[#9BA1AC] mb-4">
               Requests matching this IP address will immediately receive HTTP 429 and be blocked at ingestion.
@@ -343,7 +343,7 @@ export const ThreatsPage = () => {
                   placeholder="e.g. 198.51.100.45"
                   value={blockIpInput}
                   onChange={(e) => setBlockIpInput(e.target.value)}
-                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded px-3 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded-xl px-3.5 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
               <div>
@@ -353,21 +353,21 @@ export const ThreatsPage = () => {
                   placeholder="e.g. Suspected credential stuffing probe"
                   value={blockReasonInput}
                   onChange={(e) => setBlockReasonInput(e.target.value)}
-                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded-xl px-3.5 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
-              <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
+              <div className="flex justify-end space-x-2.5 pt-3 border-t border-[#1E2127]">
                 <button
                   type="button"
                   onClick={() => setShowBlockModal(false)}
-                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
+                  className="px-4 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded-full transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={blockLoading}
-                  className="px-3.5 py-1.5 text-xs bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] font-semibold rounded transition-colors shadow-xs"
+                  className="px-4 py-1.5 text-xs bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] font-semibold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                 >
                   {blockLoading ? 'Applying...' : 'Enforce Deny Rule'}
                 </button>

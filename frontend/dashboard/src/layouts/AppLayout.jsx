@@ -138,7 +138,7 @@ export const AppLayout = ({ children }) => {
           </button>
 
           <NavLink to="/app" className="flex items-center space-x-2.5 group">
-            <div className="w-7 h-7 rounded bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA] group-hover:border-[#C792EA]/60 transition-colors shadow-xs">
+            <div className="w-7 h-7 rounded-lg bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA] group-hover:border-[#C792EA]/60 transition-colors shadow-xs">
               <Shield className="w-4 h-4" />
             </div>
             <span className="hidden sm:inline-block text-xs font-semibold tracking-tight text-[#E6E8EB] group-hover:text-white transition-colors">
@@ -157,7 +157,7 @@ export const AppLayout = ({ children }) => {
                 setUserDropdownOpen(false);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-2.5 py-1.5 rounded border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
+              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
             >
               <span className="text-[#7B818B] font-mono text-[11px]">org:</span>
               <span className="truncate">{currentOrg ? currentOrg.name : 'Select Org'}</span>
@@ -165,11 +165,11 @@ export const AppLayout = ({ children }) => {
             </button>
 
             {orgDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-60 bg-[#16181D] border border-[#2A2E37] rounded-md shadow-2xl py-1 z-50">
-                <div className="px-3 py-1.5 text-[10px] font-mono font-medium text-[#7B818B] uppercase tracking-wider border-b border-[#1E2127]">
+              <div className="absolute left-0 mt-2 w-60 bg-[#16181D]/95 backdrop-blur-md border border-[#2A2E37] rounded-2xl shadow-2xl py-1.5 z-50 overflow-hidden">
+                <div className="px-3.5 py-1.5 text-[10px] font-mono font-medium text-[#7B818B] uppercase tracking-wider border-b border-[#1E2127]">
                   Organizations
                 </div>
-                <div className="max-h-48 overflow-y-auto py-1">
+                <div className="max-h-48 overflow-y-auto py-1 px-1 space-y-0.5">
                   {organizations.map((org) => (
                     <button
                       key={org.id}
@@ -177,8 +177,8 @@ export const AppLayout = ({ children }) => {
                         selectOrganization(org);
                         setOrgDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-[#1E2127] ${
-                        currentOrg?.id === org.id ? 'text-[#C792EA] bg-[#101216] font-semibold' : 'text-[#9BA1AC]'
+                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors ${
+                        currentOrg?.id === org.id ? 'text-[#C792EA] bg-[#101216] font-semibold border border-[#C792EA]/30' : 'text-[#9BA1AC]'
                       }`}
                     >
                       <span className="truncate">{org.name}</span>
@@ -186,13 +186,13 @@ export const AppLayout = ({ children }) => {
                     </button>
                   ))}
                 </div>
-                <div className="border-t border-[#1E2127] p-1">
+                <div className="border-t border-[#1E2127] p-1.5">
                   <button
                     onClick={() => {
                       setOrgDropdownOpen(false);
                       setShowCreateOrgModal(true);
                     }}
-                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded transition-colors"
+                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5 text-[#C792EA]" />
                     <span>Create Organization</span>
@@ -211,7 +211,7 @@ export const AppLayout = ({ children }) => {
                 setUserDropdownOpen(false);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-2.5 py-1.5 rounded border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
+              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
             >
               <span className="text-[#7B818B] font-mono text-[11px]">proj:</span>
               <span className="truncate">{currentProject ? currentProject.name : 'Select Project'}</span>
@@ -219,11 +219,11 @@ export const AppLayout = ({ children }) => {
             </button>
 
             {projectDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-64 bg-[#16181D] border border-[#2A2E37] rounded-md shadow-2xl py-1 z-50">
-                <div className="px-3 py-1.5 text-[10px] font-mono font-medium text-[#7B818B] uppercase tracking-wider border-b border-[#1E2127]">
+              <div className="absolute left-0 mt-2 w-64 bg-[#16181D]/95 backdrop-blur-md border border-[#2A2E37] rounded-2xl shadow-2xl py-1.5 z-50 overflow-hidden">
+                <div className="px-3.5 py-1.5 text-[10px] font-mono font-medium text-[#7B818B] uppercase tracking-wider border-b border-[#1E2127]">
                   Projects ({currentOrg?.name || 'Active'})
                 </div>
-                <div className="max-h-48 overflow-y-auto py-1">
+                <div className="max-h-48 overflow-y-auto py-1 px-1 space-y-0.5">
                   {projects.map((proj) => (
                     <button
                       key={proj.id}
@@ -231,8 +231,8 @@ export const AppLayout = ({ children }) => {
                         selectProject(proj);
                         setProjectDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-[#1E2127] ${
-                        currentProject?.id === proj.id ? 'text-[#82AAFF] bg-[#101216] font-semibold' : 'text-[#9BA1AC]'
+                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors ${
+                        currentProject?.id === proj.id ? 'text-[#82AAFF] bg-[#101216] font-semibold border border-[#82AAFF]/30' : 'text-[#9BA1AC]'
                       }`}
                     >
                       <span className="truncate">{proj.name}</span>
@@ -243,13 +243,13 @@ export const AppLayout = ({ children }) => {
                     <div className="px-3 py-3 text-xs text-[#7B818B] text-center">No projects in organization</div>
                   )}
                 </div>
-                <div className="border-t border-[#1E2127] p-1">
+                <div className="border-t border-[#1E2127] p-1.5">
                   <button
                     onClick={() => {
                       setProjectDropdownOpen(false);
                       setShowCreateProjModal(true);
                     }}
-                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded transition-colors"
+                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5 text-[#82AAFF]" />
                     <span>Create Project</span>
@@ -263,7 +263,7 @@ export const AppLayout = ({ children }) => {
         {/* Right: Socket Status, Notifications & Profile */}
         <div className="flex items-center space-x-2.5 sm:space-x-3">
           {/* Real-time Socket Indicator */}
-          <div className="hidden sm:flex items-center space-x-2 text-xs px-2.5 py-1 rounded bg-[#101216] border border-[#1E2127] text-[#9BA1AC]">
+          <div className="hidden sm:flex items-center space-x-2 text-xs px-3 py-1 rounded-full bg-[#101216] border border-[#1E2127] text-[#9BA1AC]">
             <span
               className={`w-2 h-2 rounded-full ${
                 socketConnected ? 'bg-[#C3E88D] shadow-[0_0_8px_rgba(195,232,141,0.6)] animate-pulse' : 'bg-[#7B818B]'
@@ -389,15 +389,15 @@ export const AppLayout = ({ children }) => {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={`flex items-center space-x-2.5 px-2.5 py-2 rounded text-xs font-medium transition-all ${
+                  className={`flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 group ${
                     isActive
-                      ? 'bg-[#16181D] text-[#E6E8EB] border-l-2 border-[#C792EA] border-t border-r border-b border-[#2A2E37] shadow-xs'
-                      : 'text-[#9BA1AC] hover:text-[#E6E8EB] hover:bg-[#16181D]/60 border border-transparent'
+                      ? 'bg-[#16181D] text-[#E6E8EB] border border-[#C792EA]/40 shadow-xs shadow-[#C792EA]/10 font-semibold'
+                      : 'text-[#9BA1AC] hover:text-[#E6E8EB] hover:bg-[#16181D]/70 border border-transparent hover:border-[#1E2127]'
                   }`}
                   title={sidebarCollapsed ? item.label : undefined}
                 >
                   <Icon
-                    className={`w-4 h-4 flex-shrink-0 ${
+                    className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-105 ${
                       isActive ? 'text-[#C792EA]' : 'text-[#7B818B] group-hover:text-[#9BA1AC]'
                     }`}
                   />
@@ -409,9 +409,12 @@ export const AppLayout = ({ children }) => {
 
           {/* System Environment Footer Badge */}
           {!sidebarCollapsed && (
-            <div className="px-3 py-2 border-t border-[#1E2127] bg-[#0A0B0D]/50 text-[10px] font-mono text-[#7B818B] flex items-center justify-between">
+            <div className="px-3 py-2.5 border-t border-[#1E2127] bg-[#0A0B0D]/50 text-[10px] font-mono text-[#7B818B] flex items-center justify-between">
               <span>ACTIVE DEFENSE</span>
-              <span className="text-[#C3E88D]">ONLINE</span>
+              <span className="inline-flex items-center space-x-1 text-[#C3E88D]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#C3E88D] animate-pulse"></span>
+                <span>ONLINE</span>
+              </span>
             </div>
           )}
 
@@ -419,7 +422,7 @@ export const AppLayout = ({ children }) => {
           <div className="p-2 border-t border-[#1E2127]">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="w-full flex items-center justify-center py-1.5 text-[11px] font-mono text-[#7B818B] hover:text-[#E6E8EB] rounded hover:bg-[#16181D] transition-colors"
+              className="w-full flex items-center justify-center py-1.5 text-[11px] font-mono text-[#7B818B] hover:text-[#E6E8EB] rounded-lg hover:bg-[#16181D] transition-colors"
             >
               <span>{sidebarCollapsed ? '→' : '← COLLAPSE'}</span>
             </button>

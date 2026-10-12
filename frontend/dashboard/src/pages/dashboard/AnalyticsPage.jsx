@@ -82,8 +82,8 @@ export const AnalyticsPage = () => {
 
   if (!currentProject) {
     return (
-      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
-        <div className="w-12 h-12 rounded-full bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-3xl p-8 max-w-xl mx-auto mt-8 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
           <BarChart3 className="w-6 h-6" />
         </div>
         <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
@@ -94,14 +94,14 @@ export const AnalyticsPage = () => {
           {currentOrg ? (
             <button
               onClick={openCreateProjModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Project</span>
             </button>
           ) : (
             <button
               onClick={openCreateOrgModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Workspace First</span>
             </button>
@@ -118,7 +118,7 @@ export const AnalyticsPage = () => {
         <div>
           <div className="flex items-center space-x-2.5">
             <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">Telemetry & Risk Analytics</h1>
-            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#82AAFF] border border-[#2A2E37]">
+            <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#16181D] text-[#82AAFF] border border-[#2A2E37]">
               <span>PROJECT_TELEMETRY</span>
             </span>
           </div>
@@ -131,7 +131,7 @@ export const AnalyticsPage = () => {
           <button
             onClick={fetchAnalytics}
             disabled={loading}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-xs font-mono text-[#E6E8EB] transition-colors"
+            className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#82AAFF] ${loading ? 'animate-spin' : ''}`} />
             <span>SYNC DATA</span>
@@ -139,47 +139,51 @@ export const AnalyticsPage = () => {
         </div>
       </div>
 
-      {/* Summary Stat Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-[#101216] border border-[#1E2127] rounded p-3 flex flex-col justify-between">
+      {/* Summary Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#82AAFF]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Aggregated Requests</span>
             <Activity className="w-3.5 h-3.5 text-[#82AAFF]" />
           </div>
-          <div className="mt-2 flex items-baseline space-x-2">
+          <div className="mt-2.5 flex items-baseline space-x-2">
             <span className="text-xl font-bold font-mono text-[#E6E8EB]">{totalVol.toLocaleString()}</span>
             <span className="text-[10px] font-mono text-[#9BA1AC]">reqs</span>
           </div>
         </div>
 
-        <div className="bg-[#101216] border border-[#1E2127] rounded p-3 flex flex-col justify-between">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#F07178]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Flagged Anomalies</span>
             <ShieldAlert className="w-3.5 h-3.5 text-[#F07178]" />
           </div>
-          <div className="mt-2 flex items-baseline space-x-2">
+          <div className="mt-2.5 flex items-baseline space-x-2">
             <span className="text-xl font-bold font-mono text-[#F07178]">{totalAnom.toLocaleString()}</span>
             <span className="text-[10px] font-mono text-[#9BA1AC]">events</span>
           </div>
         </div>
 
-        <div className="bg-[#101216] border border-[#1E2127] rounded p-3 flex flex-col justify-between">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C792EA]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Mean Latency</span>
             <Clock className="w-3.5 h-3.5 text-[#C792EA]" />
           </div>
-          <div className="mt-2 flex items-baseline space-x-2">
+          <div className="mt-2.5 flex items-baseline space-x-2">
             <span className="text-xl font-bold font-mono text-[#C792EA]">{avgLat}</span>
             <span className="text-[10px] font-mono text-[#9BA1AC]">ms</span>
           </div>
         </div>
 
-        <div className="bg-[#101216] border border-[#1E2127] rounded p-3 flex flex-col justify-between">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#FFCB6B]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Anomaly Ratio</span>
             <Zap className="w-3.5 h-3.5 text-[#FFCB6B]" />
           </div>
-          <div className="mt-2 flex items-baseline space-x-2">
+          <div className="mt-2.5 flex items-baseline space-x-2">
             <span className="text-xl font-bold font-mono text-[#FFCB6B]">{breachRate}%</span>
             <span className="text-[10px] font-mono text-[#9BA1AC]">of traffic</span>
           </div>
@@ -187,7 +191,7 @@ export const AnalyticsPage = () => {
       </div>
 
       {/* Latency & Requests Trends */}
-      <div className="p-4 rounded bg-[#101216] border border-[#1E2127]">
+      <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
         <div className="flex items-center justify-between mb-4 border-b border-[#1E2127] pb-3">
           <div>
             <div className="flex items-center space-x-2">
@@ -196,7 +200,7 @@ export const AnalyticsPage = () => {
             </div>
             <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">High-frequency ingestion volume plotted against ML threshold breaches</p>
           </div>
-          <span className="text-[10px] font-mono text-[#7B818B]">TIME-SERIES DUAL-AXIS</span>
+          <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">TIME-SERIES DUAL-AXIS</span>
         </div>
         <div className="h-64">
           {chartData.length > 0 ? (
@@ -216,7 +220,7 @@ export const AnalyticsPage = () => {
                 <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
                 <YAxis stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
+                  contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', fontFamily: 'monospace', paddingTop: '10px' }} />
                 <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="url(#reqGradient)" name="Total Requests" />
@@ -237,7 +241,7 @@ export const AnalyticsPage = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Latency Profile */}
-        <div className="p-4 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="mb-4 border-b border-[#1E2127] pb-3 flex items-center justify-between">
             <div>
               <div className="flex items-center space-x-2">
@@ -246,7 +250,7 @@ export const AnalyticsPage = () => {
               </div>
               <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Response latency in milliseconds across observation windows</p>
             </div>
-            <span className="text-[10px] font-mono text-[#C792EA]">p50 / p95 METRIC</span>
+            <span className="text-[10px] font-mono text-[#C792EA] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">p50 / p95 METRIC</span>
           </div>
           <div className="h-60">
             {chartData.length > 0 ? (
@@ -256,7 +260,7 @@ export const AnalyticsPage = () => {
                   <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
                   <YAxis stroke="#7B818B" fontSize={10} unit="ms" tickLine={false} fontFamily="monospace" />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#101216', borderColor: '#2A2E37', borderRadius: '4px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
+                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
                   />
                   <Line type="monotone" dataKey="avgLatency" stroke="#C792EA" strokeWidth={1.5} dot={{ r: 2, fill: '#C792EA' }} name="Avg Latency (ms)" />
                 </LineChart>
@@ -274,7 +278,7 @@ export const AnalyticsPage = () => {
         </div>
 
         {/* Attack Type Frequency */}
-        <div className="p-4 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="mb-4 border-b border-[#1E2127] pb-3 flex items-center justify-between">
             <div>
               <div className="flex items-center space-x-2">

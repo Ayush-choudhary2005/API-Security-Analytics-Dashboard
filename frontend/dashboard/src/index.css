@@ -15,6 +15,40 @@
   --color-accent-green: #C3E88D;
   --color-accent-amber: #FFCB6B;
   --color-accent-red: #F07178;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+
+@keyframes floatToastTop {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes floatToastBottom {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+.animate-float-toast-top {
+  animation: floatToastTop 6s ease-in-out infinite;
+}
+
+.animate-float-toast-bottom {
+  animation: floatToastBottom 6s ease-in-out infinite 1.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-toast-top,
+  .animate-float-toast-bottom {
+    animation: none !important;
+  }
 }
 
 :root {

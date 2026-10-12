@@ -131,8 +131,8 @@ export const IntegrationsPage = () => {
 
   if (!currentProject) {
     return (
-      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
-        <div className="w-12 h-12 rounded-full bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-3xl p-8 max-w-xl mx-auto mt-8 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
           <Layers className="w-6 h-6" />
         </div>
         <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
@@ -143,14 +143,14 @@ export const IntegrationsPage = () => {
           {currentOrg ? (
             <button
               onClick={openCreateProjModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Project</span>
             </button>
           ) : (
             <button
               onClick={openCreateOrgModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Workspace</span>
             </button>
@@ -166,7 +166,7 @@ export const IntegrationsPage = () => {
       <div className="border-b border-[#1E2127] pb-4">
         <div className="flex items-center space-x-2.5">
           <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">External Alert Pipelines & Integrations</h1>
-          <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#82AAFF] border border-[#2A2E37]">
+          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#16181D] text-[#82AAFF] border border-[#2A2E37]">
             <span>OUTBOUND_WEBHOOKS</span>
           </span>
         </div>
@@ -177,7 +177,7 @@ export const IntegrationsPage = () => {
 
       {testResult && (
         <div
-          className={`p-3 rounded border text-xs font-mono flex items-center space-x-2 transition-all ${
+          className={`p-3.5 rounded-2xl border text-xs font-mono flex items-center space-x-2 transition-all ${
             testResult.status === 'success'
               ? 'bg-[#101216] border-[#C3E88D]/40 text-[#C3E88D]'
               : testResult.status === 'error'
@@ -193,10 +193,10 @@ export const IntegrationsPage = () => {
 
       <div className="grid grid-cols-1 gap-5">
         {/* SLACK INTEGRATION */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA] font-mono text-xs font-bold">
+              <div className="w-9 h-9 rounded-full bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA] font-mono text-xs font-bold">
                 SL
               </div>
               <div>
@@ -209,14 +209,14 @@ export const IntegrationsPage = () => {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handleTestWebhook('slack')}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-colors border border-[#1E2127]"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-all duration-200 hover:-translate-y-0.5 border border-[#1E2127] hover:border-[#2A2E37] shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5 text-[#82AAFF]" />
                   <span>Send Test Alert</span>
                 </button>
                 <button
                   onClick={() => handleDeleteWebhook('slack')}
-                  className="p-1.5 rounded text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors"
+                  className="p-1.5 rounded-lg text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors"
                   title="Disconnect Slack"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -226,11 +226,11 @@ export const IntegrationsPage = () => {
           </div>
 
           {slackConfig ? (
-            <div className="p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] flex items-center justify-between">
+            <div className="p-3.5 rounded-xl bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] flex items-center justify-between">
               <span className="truncate">{slackConfig.masked_url || 'https://hooks.slack.com/services/****'}</span>
               <button
                 onClick={() => handleToggleWebhook('slack', slackConfig.enabled)}
-                className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                className={`text-[10px] font-mono uppercase px-2.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
                   slackConfig.enabled
                     ? 'bg-[#16181D] text-[#C3E88D] border-[#C3E88D]/30 hover:border-[#C3E88D]'
                     : 'bg-[#16181D] text-[#7B818B] border-[#7B818B]/30 hover:border-[#7B818B]'
@@ -250,13 +250,13 @@ export const IntegrationsPage = () => {
                   placeholder="https://hooks.slack.com/services/T00/B00/XXXX"
                   value={slackUrl}
                   onChange={(e) => setSlackUrl(e.target.value)}
-                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded px-3 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded-xl px-3.5 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
               <button
                 type="submit"
                 disabled={slackSaving}
-                className="px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+                className="px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
               >
                 {slackSaving ? 'CONNECTING...' : 'CONNECT SLACK CHANNEL'}
               </button>
@@ -265,10 +265,10 @@ export const IntegrationsPage = () => {
         </div>
 
         {/* DISCORD INTEGRATION */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#82AAFF] font-mono text-xs font-bold">
+              <div className="w-9 h-9 rounded-full bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#82AAFF] font-mono text-xs font-bold">
                 DC
               </div>
               <div>
@@ -281,14 +281,14 @@ export const IntegrationsPage = () => {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handleTestWebhook('discord')}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-colors border border-[#1E2127]"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-all duration-200 hover:-translate-y-0.5 border border-[#1E2127] hover:border-[#2A2E37] shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5 text-[#82AAFF]" />
                   <span>Send Test Alert</span>
                 </button>
                 <button
                   onClick={() => handleDeleteWebhook('discord')}
-                  className="p-1.5 rounded text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors"
+                  className="p-1.5 rounded-lg text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors"
                   title="Disconnect Discord"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -298,11 +298,11 @@ export const IntegrationsPage = () => {
           </div>
 
           {discordConfig ? (
-            <div className="p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] flex items-center justify-between">
+            <div className="p-3.5 rounded-xl bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF] flex items-center justify-between">
               <span className="truncate">{discordConfig.masked_url || 'https://discord.com/api/webhooks/****'}</span>
               <button
                 onClick={() => handleToggleWebhook('discord', discordConfig.enabled)}
-                className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                className={`text-[10px] font-mono uppercase px-2.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
                   discordConfig.enabled
                     ? 'bg-[#16181D] text-[#C3E88D] border-[#C3E88D]/30 hover:border-[#C3E88D]'
                     : 'bg-[#16181D] text-[#7B818B] border-[#7B818B]/30 hover:border-[#7B818B]'
@@ -322,13 +322,13 @@ export const IntegrationsPage = () => {
                   placeholder="https://discord.com/api/webhooks/XXXX/YYYY"
                   value={discordUrl}
                   onChange={(e) => setDiscordUrl(e.target.value)}
-                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded px-3 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded-xl px-3.5 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
               <button
                 type="submit"
                 disabled={discordSaving}
-                className="px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+                className="px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
               >
                 {discordSaving ? 'CONNECTING...' : 'CONNECT DISCORD SERVER'}
               </button>
@@ -337,9 +337,9 @@ export const IntegrationsPage = () => {
         </div>
 
         {/* GEMINI AI THREAT ENGINE */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center space-x-3 mb-4">
-            <div className="w-9 h-9 rounded bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#FFCB6B]">
+            <div className="w-9 h-9 rounded-full bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#FFCB6B]">
               <Cpu className="w-4 h-4" />
             </div>
             <div>
@@ -348,7 +348,7 @@ export const IntegrationsPage = () => {
             </div>
           </div>
 
-          <div className="p-4 rounded bg-[#0A0B0D] border border-[#1E2127] space-y-2.5 text-xs font-mono">
+          <div className="p-4 rounded-xl bg-[#0A0B0D] border border-[#1E2127] space-y-2.5 text-xs font-mono">
             <div className="flex items-center justify-between">
               <span className="text-[#7B818B]">LLM Engine Model:</span>
               <span className="text-[#C792EA]">Gemini 1.5 Pro / Flash (Autonomous Fallback)</span>

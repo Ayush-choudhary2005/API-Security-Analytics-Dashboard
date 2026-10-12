@@ -68,8 +68,8 @@ export const LiveMonitoringPage = () => {
 
   if (!currentProject) {
     return (
-      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
-        <div className="w-12 h-12 rounded-full bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-3xl p-8 max-w-xl mx-auto mt-8 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
           <Activity className="w-6 h-6" />
         </div>
         <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
@@ -80,14 +80,14 @@ export const LiveMonitoringPage = () => {
           {currentOrg ? (
             <button
               onClick={openCreateProjModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Project</span>
             </button>
           ) : (
             <button
               onClick={openCreateOrgModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Workspace</span>
             </button>
@@ -104,7 +104,7 @@ export const LiveMonitoringPage = () => {
         <div>
           <div className="flex items-center space-x-2.5">
             <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">Live Telemetry Ingestion</h1>
-            <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#E6E8EB] border border-[#2A2E37]">
+            <span className="inline-flex items-center space-x-1.5 px-3 py-0.5 rounded-full text-[10px] font-mono bg-[#16181D] text-[#E6E8EB] border border-[#2A2E37]">
               <span className={`w-1.5 h-1.5 rounded-full ${!isPaused ? 'bg-[#C3E88D] animate-pulse shadow-[0_0_6px_rgba(195,232,141,0.8)]' : 'bg-[#7B818B]'}`}></span>
               <span>{!isPaused ? 'STREAM: ACTIVE' : 'STREAM: PAUSED'}</span>
             </span>
@@ -117,10 +117,10 @@ export const LiveMonitoringPage = () => {
         <div className="flex items-center space-x-2.5">
           <button
             onClick={() => setIsPaused(!isPaused)}
-            className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded border text-xs font-mono font-medium transition-colors ${
+            className={`inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full border text-xs font-mono font-medium transition-all duration-200 hover:-translate-y-0.5 shadow-xs ${
               isPaused
                 ? 'bg-[#C3E88D] text-[#0A0B0D] font-semibold border-[#C3E88D] hover:bg-[#d4f2a7]'
-                : 'bg-[#16181D] border-[#1E2127] text-[#E6E8EB] hover:bg-[#1E2127]'
+                : 'bg-[#16181D] border-[#1E2127] hover:border-[#2A2E37] text-[#E6E8EB] hover:bg-[#1E2127]'
             }`}
           >
             {isPaused ? <Play className="w-3.5 h-3.5 fill-current" /> : <Pause className="w-3.5 h-3.5" />}
@@ -128,7 +128,7 @@ export const LiveMonitoringPage = () => {
           </button>
           <button
             onClick={() => setEvents([])}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-xs font-mono text-[#9BA1AC] hover:text-[#E6E8EB] transition-colors"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#9BA1AC] hover:text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>CLEAR BUFFER</span>
@@ -137,7 +137,7 @@ export const LiveMonitoringPage = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="p-3 rounded bg-[#101216] border border-[#1E2127] flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div className="p-3.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
         <div className="relative w-full sm:w-80">
           <Search className="w-3.5 h-3.5 text-[#7B818B] absolute left-3 top-2.5" />
           <input
@@ -145,7 +145,7 @@ export const LiveMonitoringPage = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search endpoint path, IP, or method..."
-            className="w-full bg-[#16181D] border border-[#1E2127] rounded pl-8 pr-3 py-1.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
+            className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
           />
         </div>
 
@@ -153,7 +153,7 @@ export const LiveMonitoringPage = () => {
           <select
             value={methodFilter}
             onChange={(e) => setMethodFilter(e.target.value)}
-            className="bg-[#16181D] border border-[#1E2127] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
+            className="bg-[#16181D] border border-[#1E2127] rounded-xl px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
           >
             <option value="ALL">METHOD: ALL</option>
             <option value="GET">GET</option>
@@ -165,7 +165,7 @@ export const LiveMonitoringPage = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#16181D] border border-[#1E2127] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
+            className="bg-[#16181D] border border-[#1E2127] rounded-xl px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
           >
             <option value="ALL">STATUS: ALL</option>
             <option value="2xx">2xx SUCCESS</option>
@@ -176,7 +176,7 @@ export const LiveMonitoringPage = () => {
       </div>
 
       {/* Streaming Events Table */}
-      <div className="rounded bg-[#101216] border border-[#1E2127] overflow-hidden">
+      <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-[#16181D] text-[#7B818B] text-[10px] uppercase border-b border-[#1E2127]">

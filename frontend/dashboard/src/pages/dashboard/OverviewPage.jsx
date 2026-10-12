@@ -224,14 +224,14 @@ export const OverviewPage = () => {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] text-xs text-[#E6E8EB] transition-colors"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#C792EA]' : 'text-[#7B818B]'}`} />
             <span>Sync</span>
           </button>
           <Link
             to="/app/sdk"
-            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
             <span>SDK Quickstart</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -239,47 +239,52 @@ export const OverviewPage = () => {
         </div>
       </div>
 
-      {/* TOP UNIFIED METRICS STRIP */}
-      <div className="bg-[#101216] border border-[#1E2127] rounded grid grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-[#1E2127]">
-        <div className="p-4">
+      {/* TOP UNIFIED METRICS CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#82AAFF]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Total Requests</span>
           <p className="text-xl font-bold text-[#E6E8EB] font-mono">{stats?.total_events ?? events.length}</p>
-          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">INGESTED VIA SDK</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">INGESTED VIA SDK</p>
         </div>
 
-        <div className="p-4">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#F07178]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Threats Detected</span>
           <p className="text-xl font-bold text-[#F07178] font-mono">{stats?.total_alerts ?? alerts.length}</p>
-          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">ML & HEURISTICS</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">ML & HEURISTICS</p>
         </div>
 
-        <div className="p-4">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#82AAFF]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Active Projects</span>
           <p className="text-xl font-bold text-[#82AAFF] font-mono">{projects.length}</p>
-          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">IN TENANT SCOPE</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">IN TENANT SCOPE</p>
         </div>
 
-        <div className="p-4">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C792EA]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Risk Score</span>
           <p className="text-xl font-bold text-[#C792EA] font-mono">
             {stats?.max_anomaly_score && (events.length > 0 || stats?.total_events > 0)
               ? Number(stats.max_anomaly_score).toFixed(2)
               : '0.00'}
           </p>
-          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">ISOLATION FOREST MAX</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">ISOLATION FOREST MAX</p>
         </div>
 
-        <div className="p-4 col-span-2 lg:col-span-1">
+        <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 col-span-2 lg:col-span-1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#FFCB6B]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Blocked IPs</span>
           <p className="text-xl font-bold text-[#FFCB6B] font-mono">{blockedIPs.length}</p>
-          <p className="text-[10px] text-[#9BA1AC] mt-0.5 font-mono">ACTIVE MITIGATION</p>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">ACTIVE MITIGATION</p>
         </div>
       </div>
 
       {/* CHARTS ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Traffic Over Time */}
-        <div className="lg:col-span-2 p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="lg:col-span-2 p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div>
               <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Traffic & Latency Timeline</h3>
@@ -304,7 +309,7 @@ export const OverviewPage = () => {
                   <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} />
                   <YAxis stroke="#7B818B" fontSize={10} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '6px', fontSize: '11px', color: '#E6E8EB' }}
+                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB' }}
                   />
                   <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="#82AAFF" fillOpacity={0.12} name="Requests" />
                   <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="#F07178" fillOpacity={0.2} name="Anomalies" />
@@ -330,7 +335,7 @@ export const OverviewPage = () => {
         </div>
 
         {/* Attack Distribution */}
-        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="mb-3 border-b border-[#1E2127] pb-2">
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Attack Distribution</h3>
             <p className="text-[11px] text-[#9BA1AC]">Classified by machine learning vectors</p>
@@ -353,7 +358,7 @@ export const OverviewPage = () => {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '6px', fontSize: '11px', color: '#E6E8EB' }}
+                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB' }}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
                 </PieChart>
@@ -366,13 +371,13 @@ export const OverviewPage = () => {
       </div>
 
       {/* THREAT GEOLOCATION MAP */}
-      <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+      <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
         <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
           <div>
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Threat Geolocation Map</h3>
             <p className="text-[11px] text-[#9BA1AC]">Live coordinate projection of hostile ingress origin IPs</p>
           </div>
-          <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] border border-[#1E2127] px-2 py-0.5 rounded">
+          <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">
             SOURCE: LIVE_TELEMETRY
           </span>
         </div>
@@ -382,7 +387,7 @@ export const OverviewPage = () => {
       {/* LIVE TABLES ROW */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Live Event Feed Table */}
-        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div className="flex items-center space-x-2">
               <span className="w-2 h-2 rounded-full bg-[#C3E88D] animate-pulse"></span>
@@ -398,17 +403,17 @@ export const OverviewPage = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-[#16181D] text-[#7B818B] font-mono text-[10px] uppercase border-b border-[#1E2127]">
                 <tr>
-                  <th className="py-2 px-2.5">Method</th>
-                  <th className="py-2 px-2.5">Endpoint</th>
-                  <th className="py-2 px-2.5">Status</th>
-                  <th className="py-2 px-2.5">Latency</th>
-                  <th className="py-2 px-2.5">IP</th>
+                  <th className="py-2.5 px-3">Method</th>
+                  <th className="py-2.5 px-3">Endpoint</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Latency</th>
+                  <th className="py-2.5 px-3">IP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1E2127]/60 font-mono">
                 {events.slice(0, 8).map((ev, i) => (
                   <tr key={ev.id || i} className="hover:bg-[#16181D]/60 transition-colors">
-                    <td className="py-2 px-2.5 font-bold">
+                    <td className="py-2.5 px-3 font-bold">
                       <span className={
                         ev.method === 'GET' ? 'text-[#C3E88D]' :
                         ev.method === 'POST' ? 'text-[#82AAFF]' :
@@ -417,10 +422,10 @@ export const OverviewPage = () => {
                         {ev.method}
                       </span>
                     </td>
-                    <td className="py-2 px-2.5 text-[#E6E8EB] truncate max-w-[130px]">{ev.endpoint}</td>
-                    <td className="py-2 px-2.5">
+                    <td className="py-2.5 px-3 text-[#E6E8EB] truncate max-w-[130px]">{ev.endpoint}</td>
+                    <td className="py-2.5 px-3">
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                           ev.status_code >= 500
                             ? 'bg-[#F07178]/15 text-[#F07178] border-[#F07178]/30'
                             : ev.status_code >= 400
@@ -431,8 +436,8 @@ export const OverviewPage = () => {
                         {ev.status_code}
                       </span>
                     </td>
-                    <td className="py-2 px-2.5 text-[#9BA1AC]">{Math.round(ev.latency_ms || 10)}ms</td>
-                    <td className="py-2 px-2.5 text-[#7B818B]">{ev.ip || '127.0.0.1'}</td>
+                    <td className="py-2.5 px-3 text-[#9BA1AC]">{Math.round(ev.latency_ms || 10)}ms</td>
+                    <td className="py-2.5 px-3 text-[#7B818B]">{ev.ip || '127.0.0.1'}</td>
                   </tr>
                 ))}
                 {events.length === 0 && (
@@ -448,7 +453,7 @@ export const OverviewPage = () => {
         </div>
 
         {/* Recent Alerts & Threats Table */}
-        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div className="flex items-center space-x-2">
               <span className="w-2 h-2 rounded-full bg-[#F07178]"></span>
@@ -464,19 +469,19 @@ export const OverviewPage = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-[#16181D] text-[#7B818B] font-mono text-[10px] uppercase border-b border-[#1E2127]">
                 <tr>
-                  <th className="py-2 px-2.5">Severity</th>
-                  <th className="py-2 px-2.5">Attack Type</th>
-                  <th className="py-2 px-2.5">Score</th>
-                  <th className="py-2 px-2.5">Source IP</th>
-                  <th className="py-2 px-2.5 text-right">Action</th>
+                  <th className="py-2.5 px-3">Severity</th>
+                  <th className="py-2.5 px-3">Attack Type</th>
+                  <th className="py-2.5 px-3">Score</th>
+                  <th className="py-2.5 px-3">Source IP</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1E2127]/60">
                 {alerts.slice(0, 8).map((alt) => (
                   <tr key={alt.id} className="hover:bg-[#16181D]/60 transition-colors">
-                    <td className="py-2 px-2.5">
+                    <td className="py-2.5 px-3">
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase font-mono border ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase font-mono border ${
                           alt.severity === 'critical' || alt.severity === 'high'
                             ? 'bg-[#F07178]/15 text-[#F07178] border-[#F07178]/30'
                             : 'bg-[#FFCB6B]/15 text-[#FFCB6B] border-[#FFCB6B]/30'
@@ -485,14 +490,14 @@ export const OverviewPage = () => {
                         {alt.severity || 'high'}
                       </span>
                     </td>
-                    <td className="py-2 px-2.5 font-medium text-[#E6E8EB]">
+                    <td className="py-2.5 px-3 font-medium text-[#E6E8EB]">
                       {(alt.attack_type || 'Anomaly').replace('_', ' ')}
                     </td>
-                    <td className="py-2 px-2.5 font-mono text-[#C792EA]">
+                    <td className="py-2.5 px-3 font-mono text-[#C792EA]">
                       {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(2) : alt.anomaly_score}
                     </td>
-                    <td className="py-2 px-2.5 font-mono text-[#7B818B]">{alt.ip || alt.source_ip || '-'}</td>
-                    <td className="py-2 px-2.5 text-right">
+                    <td className="py-2.5 px-3 font-mono text-[#7B818B]">{alt.ip || alt.source_ip || '-'}</td>
+                    <td className="py-2.5 px-3 text-right">
                       <button
                         onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
                         className="text-[11px] text-[#82AAFF] hover:underline font-mono"
@@ -517,10 +522,10 @@ export const OverviewPage = () => {
 
       {/* BLOCKED IPS MANAGEMENT */}
       {blockedIPs.length > 0 && (
-        <div className="p-4.5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Actively Blocked Host IP Addresses</h3>
-            <span className="text-[10px] font-mono text-[#FFCB6B] bg-[#16181D] border border-[#1E2127] px-2 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-[#FFCB6B] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">
               {blockedIPs.length} BLOCKED_RULES
             </span>
           </div>
@@ -528,7 +533,7 @@ export const OverviewPage = () => {
             {blockedIPs.map((b) => (
               <div
                 key={b.ip}
-                className="p-3 rounded bg-[#16181D] border border-[#1E2127] flex items-center justify-between text-xs"
+                className="p-3.5 rounded-xl bg-[#16181D] border border-[#1E2127] hover:border-[#2A2E37] flex items-center justify-between text-xs transition-colors"
               >
                 <div>
                   <p className="font-mono text-[#F07178] text-xs font-semibold">{b.ip}</p>
@@ -536,7 +541,7 @@ export const OverviewPage = () => {
                 </div>
                 <button
                   onClick={() => handleUnblock(b.ip)}
-                  className="px-2.5 py-1 rounded bg-[#101216] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-[10px] font-mono border border-[#1E2127] transition-colors"
+                  className="px-3 py-1 rounded-full bg-[#101216] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-[10px] font-mono border border-[#1E2127] hover:border-[#2A2E37] transition-colors"
                 >
                   Unblock
                 </button>

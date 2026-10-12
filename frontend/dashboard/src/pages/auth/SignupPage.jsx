@@ -95,7 +95,7 @@ export const SignupPage = () => {
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center space-x-2.5 py-2 px-3 rounded bg-[#16181D] hover:bg-[#1E2127] border border-[#2A2E37] text-xs font-medium text-[#E6E8EB] transition-colors mb-4"
+            className="w-full flex items-center justify-center space-x-2.5 py-2.5 px-4 rounded-full bg-[#16181D] hover:bg-[#1E2127] hover:-translate-y-0.5 border border-[#2A2E37] hover:border-[#82AAFF]/40 text-xs font-semibold text-[#E6E8EB] transition-all duration-200 mb-4 cursor-pointer shadow-xs"
           >
             <svg className="w-3.5 h-3.5 fill-current text-white" viewBox="0 0 24 24">
               <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
@@ -123,7 +123,7 @@ export const SignupPage = () => {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Alex Rivers"
-                  className="w-full bg-[#16181D] border border-[#1E2127] rounded pl-8 pr-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-9 pr-3 py-2.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] focus:ring-1 focus:ring-[#C792EA]/40 transition-colors font-mono"
                 />
               </div>
             </div>
@@ -138,7 +138,7 @@ export const SignupPage = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="operator@company.internal"
-                  className="w-full bg-[#16181D] border border-[#1E2127] rounded pl-8 pr-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-9 pr-3 py-2.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] focus:ring-1 focus:ring-[#C792EA]/40 transition-colors font-mono"
                 />
               </div>
             </div>
@@ -153,7 +153,7 @@ export const SignupPage = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full bg-[#16181D] border border-[#1E2127] rounded pl-8 pr-9 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-9 pr-9 py-2.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] focus:ring-1 focus:ring-[#C792EA]/40 transition-colors font-mono"
                 />
                 <button
                   type="button"
@@ -175,7 +175,7 @@ export const SignupPage = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full bg-[#16181D] border border-[#1E2127] rounded pl-8 pr-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] transition-colors"
+                  className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-9 pr-3 py-2.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] focus:ring-1 focus:ring-[#C792EA]/40 transition-colors font-mono"
                 />
               </div>
             </div>
@@ -183,9 +183,9 @@ export const SignupPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-[#C792EA] hover:bg-[#d6a5f7] disabled:opacity-50 text-xs font-semibold text-[#0A0B0D] transition-colors shadow-xs"
+              className="group w-full mt-4 flex items-center justify-center space-x-2 py-3 px-4 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] hover:-translate-y-0.5 disabled:opacity-50 text-xs font-bold text-[#0A0B0D] transition-all duration-200 shadow-md cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C792EA]"
             >
-              <span>{loading ? 'Creating Account...' : 'Create Account'}</span>
+              <span>{loading ? 'CREATING INSTANCE...' : 'CREATE ACCOUNT'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>

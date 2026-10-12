@@ -575,8 +575,8 @@ class ApiSecurityMiddleware:
 
   if (!currentProject) {
     return (
-      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
-        <div className="w-12 h-12 rounded-full bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-3xl p-8 max-w-xl mx-auto mt-8 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mx-auto text-[#82AAFF]">
           <Terminal className="w-6 h-6" />
         </div>
         <h2 className="text-base font-semibold text-[#E6E8EB]">No Project Selected</h2>
@@ -587,14 +587,14 @@ class ApiSecurityMiddleware:
           {currentOrg ? (
             <button
               onClick={openCreateProjModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Project</span>
             </button>
           ) : (
             <button
               onClick={openCreateOrgModal}
-              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <span>Create Workspace</span>
             </button>
@@ -611,7 +611,7 @@ class ApiSecurityMiddleware:
         <div>
           <div className="flex items-center space-x-2.5">
             <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">SDK Guided Onboarding</h1>
-            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#82AAFF] border border-[#2A2E37]">
+            <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#16181D] text-[#82AAFF] border border-[#2A2E37]">
               <span>SETUP_WIZARD</span>
             </span>
           </div>
@@ -626,7 +626,7 @@ class ApiSecurityMiddleware:
             href={getDownloadSdkUrl()}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             title="Download complete preconfigured SDK ZIP archive with pre-injected configuration and sample app"
           >
             <Download className="w-3.5 h-3.5" />
@@ -635,7 +635,7 @@ class ApiSecurityMiddleware:
 
           {/* Connection Status Pill */}
           <div
-            className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded border text-xs font-mono transition-colors ${
+            className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-full border text-xs font-mono transition-colors ${
               isConnected
                 ? 'bg-[#101216] border-[#C3E88D]/40 text-[#C3E88D]'
                 : 'bg-[#101216] border-[#1E2127] text-[#7B818B]'
@@ -654,9 +654,9 @@ class ApiSecurityMiddleware:
       {/* Stepper Wizard Cards */}
       <div className="space-y-4">
         {/* STEP 1: Select Framework */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center space-x-2.5 mb-3">
-            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
+            <span className="w-5 h-5 rounded-full bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               1
             </span>
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Select Web Framework / Runtime</h3>
@@ -673,9 +673,9 @@ class ApiSecurityMiddleware:
               <button
                 key={fw.id}
                 onClick={() => handleSelectFramework(fw.id)}
-                className={`p-3 rounded border text-xs text-left transition-colors font-mono cursor-pointer ${
+                className={`p-3 rounded-xl border text-xs text-left transition-all duration-200 font-mono cursor-pointer hover:-translate-y-0.5 ${
                   framework === fw.id
-                    ? 'bg-[#16181D] border-[#82AAFF] text-[#E6E8EB]'
+                    ? 'bg-[#16181D] border-[#82AAFF] text-[#E6E8EB] shadow-xs'
                     : 'bg-[#0A0B0D] border-[#1E2127] text-[#7B818B] hover:text-[#E6E8EB] hover:border-[#2A2E37]'
                 }`}
               >
@@ -692,9 +692,9 @@ class ApiSecurityMiddleware:
         </div>
 
         {/* STEP 2: Configure Secret Key */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center space-x-2.5 mb-2">
-            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
+            <span className="w-5 h-5 rounded-full bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               2
             </span>
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Project Ingestion Credentials</h3>
@@ -705,13 +705,13 @@ class ApiSecurityMiddleware:
               Your API key and live telemetry endpoint are automatically embedded into the integration snippet below.
             </p>
 
-            <div className="flex items-center justify-between p-3 rounded bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF]">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#0A0B0D] border border-[#1E2127] font-mono text-xs text-[#82AAFF]">
               <pre className="whitespace-pre-wrap leading-relaxed">
                 <code>{envExportCommand}</code>
               </pre>
               <button
                 onClick={() => copyText(envExportCommand, 3)}
-                className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1 shrink-0 ml-3 cursor-pointer"
+                className="text-[#7B818B] hover:text-[#E6E8EB] inline-flex items-center space-x-1 shrink-0 ml-3 cursor-pointer p-1 rounded-lg hover:bg-[#16181D] transition-colors"
               >
                 {copiedIndex === 3 ? <Check className="w-4 h-4 text-[#C3E88D]" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -719,7 +719,7 @@ class ApiSecurityMiddleware:
 
             {/* Key input / notice */}
             {effectiveKey === '<YOUR_SDK_KEY>' ? (
-              <div className="p-3 rounded bg-[#16181D] border border-[#E5C07B]/30 space-y-2">
+              <div className="p-3.5 rounded-xl bg-[#16181D] border border-[#E5C07B]/30 space-y-2">
                 <div className="flex items-center space-x-1.5 text-xs text-[#E5C07B] font-mono">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-[#E5C07B]" />
                   <span>Custom / Secret Key: Paste your key below to auto-fill the snippet in real time:</span>
@@ -730,7 +730,7 @@ class ApiSecurityMiddleware:
                     value={userCustomKey}
                     onChange={(e) => setUserCustomKey(e.target.value)}
                     placeholder="Paste ask_... key here"
-                    className="w-full bg-[#0A0B0D] border border-[#2A2E37] rounded px-3 py-1.5 text-xs font-mono text-[#E6E8EB] focus:outline-hidden focus:border-[#82AAFF]"
+                    className="w-full bg-[#0A0B0D] border border-[#2A2E37] rounded-xl px-3.5 py-1.5 text-xs font-mono text-[#E6E8EB] focus:outline-hidden focus:border-[#82AAFF] transition-colors"
                   />
                   {userCustomKey && (
                     <button
@@ -752,10 +752,10 @@ class ApiSecurityMiddleware:
         </div>
 
         {/* STEP 3: Drop-in Integration Code */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2.5">
-              <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
+              <span className="w-5 h-5 rounded-full bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
                 3
               </span>
               <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
@@ -764,7 +764,7 @@ class ApiSecurityMiddleware:
             </div>
             <button
               onClick={() => copyText(frameworkGuides[framework]?.code || '', 4)}
-              className="inline-flex items-center space-x-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] px-2.5 py-1 rounded font-mono transition-colors cursor-pointer"
+              className="inline-flex items-center space-x-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] px-3 py-1 rounded-full font-mono transition-all duration-200 hover:-translate-y-0.5 cursor-pointer shadow-xs"
             >
               {copiedIndex === 4 ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
               <span>Copy Code</span>
@@ -772,11 +772,11 @@ class ApiSecurityMiddleware:
           </div>
           
           <div className="ml-7.5 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded bg-[#0A0B0D] border border-[#1E2127] text-xs font-mono">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-[#0A0B0D] border border-[#1E2127] text-xs font-mono">
               <span className="text-[#82AAFF]">
                 📁 File location: <code className="text-[#E6E8EB] font-semibold">{frameworkGuides[framework]?.targetFile}</code>
               </span>
-              <span className="text-[10px] text-[#C3E88D] bg-[#C3E88D]/10 px-2 py-0.5 rounded border border-[#C3E88D]/20 self-start sm:self-auto">
+              <span className="text-[10px] text-[#C3E88D] bg-[#C3E88D]/10 px-2.5 py-0.5 rounded-full border border-[#C3E88D]/20 self-start sm:self-auto">
                 {frameworkGuides[framework]?.badge}
               </span>
             </div>
@@ -785,7 +785,7 @@ class ApiSecurityMiddleware:
               {frameworkGuides[framework]?.instructions}
             </p>
 
-            <div className="p-4 rounded bg-[#0A0B0D] border border-[#1E2127] overflow-x-auto">
+            <div className="p-4 rounded-xl bg-[#0A0B0D] border border-[#1E2127] overflow-x-auto">
               <pre className="text-xs font-mono text-[#E6E8EB] leading-relaxed">
                 <code>{frameworkGuides[framework]?.code}</code>
               </pre>
@@ -793,7 +793,7 @@ class ApiSecurityMiddleware:
 
             {/* Optional / Advanced Python SDK Archive */}
             {(framework === 'flask' || framework === 'fastapi' || framework === 'django') && (
-              <div className="mt-4 p-3 rounded bg-[#16181D]/60 border border-[#1E2127] space-y-2 text-xs font-mono">
+              <div className="mt-4 p-3.5 rounded-xl bg-[#16181D]/60 border border-[#1E2127] space-y-2 text-xs font-mono">
                 <div className="flex items-center justify-between">
                   <span className="text-[#9BA1AC] text-[11px]">
                     Alternative: Prefer the full packaged Python SDK with background thread queuing?
@@ -808,7 +808,7 @@ class ApiSecurityMiddleware:
                     <span>Download .zip</span>
                   </a>
                 </div>
-                <div className="p-2 rounded bg-[#0A0B0D] border border-[#1E2127] text-[11px] text-[#7B818B] flex items-center justify-between">
+                <div className="p-2.5 rounded-lg bg-[#0A0B0D] border border-[#1E2127] text-[11px] text-[#7B818B] flex items-center justify-between">
                   <code>{gitInstallCommand}</code>
                   <button
                     onClick={() => copyText(gitInstallCommand, 22)}
@@ -824,9 +824,9 @@ class ApiSecurityMiddleware:
         </div>
 
         {/* STEP 4: Ingest Verification Event */}
-        <div className="p-5 rounded bg-[#101216] border border-[#1E2127]">
+        <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
           <div className="flex items-center space-x-2.5 mb-2">
-            <span className="w-5 h-5 rounded bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
+            <span className="w-5 h-5 rounded-full bg-[#16181D] border border-[#2A2E37] text-[#82AAFF] flex items-center justify-center text-[11px] font-mono font-bold">
               4
             </span>
             <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Deploy Host API & Ingest Verification Event</h3>
@@ -839,7 +839,7 @@ class ApiSecurityMiddleware:
             <button
               onClick={handleSendTestEvent}
               disabled={testSending}
-              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbdff] disabled:opacity-50 text-xs font-semibold font-mono text-[#0A0B0D] transition-colors shadow-xs cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] disabled:opacity-50 text-xs font-semibold font-mono text-[#0A0B0D] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
             >
               <Send className={`w-3.5 h-3.5 ${testSending ? 'animate-spin' : ''}`} />
               <span>{testSending ? 'TRANSMITTING TELEMETRY...' : 'DISPATCH TEST TELEMETRY PROBE'}</span>

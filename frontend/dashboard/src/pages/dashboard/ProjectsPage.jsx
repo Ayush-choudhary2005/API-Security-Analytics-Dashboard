@@ -186,8 +186,8 @@ export const ProjectsPage = () => {
   // Empty state: No workspace
   if (!currentOrg || organizations.length === 0) {
     return (
-      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
-        <div className="w-12 h-12 rounded-full bg-[#C792EA]/10 border border-[#C792EA]/30 flex items-center justify-center mx-auto text-[#C792EA]">
+      <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-3xl p-8 max-w-xl mx-auto mt-8 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-[#C792EA]/10 border border-[#C792EA]/30 flex items-center justify-center mx-auto text-[#C792EA]">
           <FolderGit2 className="w-6 h-6" />
         </div>
         <h2 className="text-base font-semibold text-[#E6E8EB]">No Workspace Created</h2>
@@ -197,7 +197,7 @@ export const ProjectsPage = () => {
         <div className="pt-2">
           <button
             onClick={openCreateOrgModal}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
             <span>Create Workspace</span>
           </button>
@@ -213,7 +213,7 @@ export const ProjectsPage = () => {
         <div>
           <div className="flex items-center space-x-2.5">
             <h1 className="text-lg font-bold text-[#E6E8EB] tracking-tight">Credentials & Project Governance</h1>
-            <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#C792EA] border border-[#2A2E37]">
+            <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#16181D] text-[#C792EA] border border-[#2A2E37]">
               <span>ORG_WORKSPACE</span>
             </span>
           </div>
@@ -223,12 +223,12 @@ export const ProjectsPage = () => {
         </div>
 
         {/* Tab Controls */}
-        <div className="inline-flex items-center space-x-1 bg-[#101216] border border-[#1E2127] p-1 rounded self-start sm:self-auto font-mono text-xs">
+        <div className="inline-flex items-center space-x-1 bg-[#101216] border border-[#1E2127] p-1 rounded-full self-start sm:self-auto font-mono text-xs">
           <button
             onClick={() => setActiveTab('keys')}
-            className={`px-3 py-1.5 rounded transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
               activeTab === 'keys'
-                ? 'bg-[#16181D] text-[#C792EA] font-semibold border border-[#2A2E37]'
+                ? 'bg-[#16181D] text-[#C792EA] font-semibold border border-[#2A2E37] shadow-xs'
                 : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
@@ -236,9 +236,9 @@ export const ProjectsPage = () => {
           </button>
           <button
             onClick={() => setActiveTab('projects')}
-            className={`px-3 py-1.5 rounded transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
               activeTab === 'projects'
-                ? 'bg-[#16181D] text-[#82AAFF] font-semibold border border-[#2A2E37]'
+                ? 'bg-[#16181D] text-[#82AAFF] font-semibold border border-[#2A2E37] shadow-xs'
                 : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
@@ -246,9 +246,9 @@ export const ProjectsPage = () => {
           </button>
           <button
             onClick={() => setActiveTab('members')}
-            className={`px-3 py-1.5 rounded transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
               activeTab === 'members'
-                ? 'bg-[#16181D] text-[#C3E88D] font-semibold border border-[#2A2E37]'
+                ? 'bg-[#16181D] text-[#C3E88D] font-semibold border border-[#2A2E37] shadow-xs'
                 : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
@@ -260,7 +260,7 @@ export const ProjectsPage = () => {
       {/* TAB 1: SDK KEYS */}
       {activeTab === 'keys' && (
         !currentProject ? (
-          <div className="py-16 text-center space-y-3 bg-[#101216] border border-[#1E2127] rounded p-6">
+          <div className="py-16 text-center space-y-3 bg-[#101216] border border-[#1E2127] rounded-3xl p-6 shadow-sm">
             <Key className="w-8 h-8 text-[#7B818B] mx-auto opacity-60" />
             <h3 className="text-sm font-semibold text-[#E6E8EB]">No Project Selected</h3>
             <p className="text-xs text-[#9BA1AC] max-w-sm mx-auto">
@@ -270,14 +270,14 @@ export const ProjectsPage = () => {
               {projects.length > 0 ? (
                 <button
                   onClick={() => setActiveTab('projects')}
-                  className="px-3.5 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded font-mono transition-colors"
+                  className="px-4 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded-full font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                 >
                   Choose a Project
                 </button>
               ) : (
                 <button
                   onClick={openCreateProjModal}
-                  className="px-3.5 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded font-mono transition-colors"
+                  className="px-4 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded-full font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                 >
                   Create Project
                 </button>
@@ -286,7 +286,7 @@ export const ProjectsPage = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="rounded bg-[#101216] border border-[#1E2127] p-5">
+            <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] p-5 shadow-sm transition-all duration-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-[#1E2127] pb-3">
                 <div>
                   <div className="flex items-center space-x-2">
@@ -305,7 +305,7 @@ export const ProjectsPage = () => {
                     href={projectService.downloadSdkUrl(currentProject?.id) + (latestCreatedKey ? `?api_key=${encodeURIComponent(latestCreatedKey)}` : '')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                     title="Download preconfigured SDK archive containing ready-to-run middleware and config"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -317,7 +317,7 @@ export const ProjectsPage = () => {
                       setKeyError(null);
                       setShowNewKeyModal(true);
                     }}
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Create New Key</span>
@@ -457,18 +457,18 @@ export const ProjectsPage = () => {
               {projects.map((proj) => (
                 <div
                   key={proj.id}
-                  className={`p-5 rounded bg-[#101216] border transition-colors ${
+                  className={`p-5 rounded-2xl bg-[#101216] border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 ${
                     currentProject?.id === proj.id
                       ? 'border-[#82AAFF] bg-[#16181D]'
                       : 'border-[#1E2127] hover:border-[#2A2E37]'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-mono text-[#82AAFF] bg-[#16181D] border border-[#2A2E37] px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] font-mono text-[#82AAFF] bg-[#16181D] border border-[#2A2E37] px-2 py-0.5 rounded-full">
                       {proj.id.slice(0, 12)}
                     </span>
                     {currentProject?.id === proj.id && (
-                      <span className="text-[10px] font-mono text-[#C3E88D] uppercase tracking-wider font-semibold border border-[#C3E88D]/30 px-1.5 py-0.5 rounded bg-[#C3E88D]/10">ACTIVE PROJECT</span>
+                      <span className="text-[10px] font-mono text-[#C3E88D] uppercase tracking-wider font-semibold border border-[#C3E88D]/30 px-2 py-0.5 rounded-full bg-[#C3E88D]/10">ACTIVE PROJECT</span>
                     )}
                   </div>
                   <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">{proj.name}</h3>
@@ -478,10 +478,10 @@ export const ProjectsPage = () => {
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => selectProject(proj)}
-                        className={`text-xs font-mono font-semibold px-3 py-1 rounded transition-colors ${
+                        className={`text-xs font-mono font-semibold px-3.5 py-1 rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs ${
                           currentProject?.id === proj.id
                             ? 'bg-[#82AAFF] text-[#0A0B0D]'
-                            : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127]'
+                            : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127] hover:border-[#2A2E37]'
                         }`}
                       >
                         {currentProject?.id === proj.id ? 'Selected' : 'Switch Context'}
@@ -490,7 +490,7 @@ export const ProjectsPage = () => {
                         href={projectService.downloadSdkUrl(proj.id)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-mono text-[#82AAFF] hover:text-[#a0c2ff] inline-flex items-center space-x-1 px-2 py-1 rounded bg-[#16181D] border border-[#1E2127]"
+                        className="text-xs font-mono text-[#82AAFF] hover:text-[#a0c2ff] inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#16181D] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 hover:-translate-y-0.5"
                         title="Download SDK archive for this project"
                       >
                         <Download className="w-3 h-3" />
@@ -514,7 +514,7 @@ export const ProjectsPage = () => {
 
       {/* TAB 3: MEMBERS */}
       {activeTab === 'members' && (
-        <div className="rounded bg-[#101216] border border-[#1E2127] p-5">
+        <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] p-5 shadow-sm transition-all duration-200">
           <div className="flex items-center justify-between mb-4 border-b border-[#1E2127] pb-3">
             <div>
               <div className="flex items-center space-x-2">
@@ -525,7 +525,7 @@ export const ProjectsPage = () => {
             </div>
             <button
               onClick={() => setShowMemberModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Invite Member</span>
