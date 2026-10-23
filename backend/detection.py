@@ -22,7 +22,10 @@ import os
 import threading
 import uuid
 from collections import defaultdict, deque
-import joblib
+try:
+    import joblib
+except ImportError:
+    joblib = None
 
 from db import get_events_since, get_organization_id_for_project
 
@@ -31,6 +34,9 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "isolation_forest_model.job
 
 def _init_isolation_forest():
     """Load pre-trained model or generate a robust baseline Isolation Forest model."""
+    if joblib is None:
+        return None
+
     if os.path.exists(MODEL_PATH):
         try:
             m = joblib.load(MODEL_PATH)
@@ -45,10 +51,10 @@ def _init_isolation_forest():
         from sklearn.ensemble import IsolationForest
 
         np.random.seed(42)
-        n_samples = 400
-        # Baseline normal traffic distribution
-        latencies = np.clip(np.random.normal(loc=35.0, scale=15.0, size=n_samples), 4.0, 150.0)
-        failed_auth = np.random.choice([0, 1], size=n_samples, p=[0.97, 0.03])
+        n_samples = 500
+        # Baseline normal traffic distribution accommodating modern cloud & edge APIs
+        latencies = np.clip(np.random.lognormal(mean=4.2, sigma=0.55, size=n_samples), 8.0, 450.0)
+        failed_auth = np.random.choice([0, 1], size=n_samples, p=[0.98, 0.02])
         unique_endpoints = np.random.randint(1, 4, size=n_samples)
         request_count_10s = np.random.randint(1, 8, size=n_samples)
 
@@ -85,6 +91,13 @@ AUTH_FAILURE_CODES = {401, 403}
 
 DEFAULT_ALERT_COOLDOWN_SEC = 60.0  # 60s cooldown per (project, attack_type, ip)
 
+# Static asset extensions to ignore when evaluating endpoint scanning cardinality
+STATIC_EXTENSIONS = (
+    '.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.gif',
+    '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map',
+    '/_next/', '/static/', '/assets/', '/favicon'
+)
+
 
 # =====================================================================
 # Project-Specific Adaptive Baseline Tracker (Option C Hybrid Component)
@@ -116,17 +129,17 @@ class ProjectBaselineTracker:
         if len(samples) < 5:
             return {
                 "count": count,
-                "mean_latency": 35.0,
-                "std_latency": 20.0,
+                "mean_latency": 120.0,
+                "std_latency": 80.0,
                 "is_cold": True,
             }
 
         mean = statistics.mean(samples)
-        std = statistics.pstdev(samples) if len(samples) >= 2 else 15.0
+        std = statistics.pstdev(samples) if len(samples) >= 2 else 40.0
         return {
             "count": count,
             "mean_latency": mean,
-            "std_latency": max(std, 10.0),
+            "std_latency": max(std, 25.0),
             "is_cold": count < 50,
         }
 
@@ -202,7 +215,16 @@ def compute_features(ip: str, now_ts: float, history: list) -> dict:
     window_10 = [e for e in history if now_ts - e["timestamp"] <= 10]
 
     failed_auth_count = sum(1 for e in window_60 if e["status_code"] in AUTH_FAILURE_CODES)
-    unique_endpoints = len({e["endpoint"] for e in window_60})
+
+    # Exclude static bundles & assets when assessing endpoint scanning cardinality
+    api_endpoints = {
+        e["endpoint"] for e in window_60
+        if not any(
+            e["endpoint"].lower().endswith(ext) or ext in e["endpoint"].lower()
+            for ext in STATIC_EXTENSIONS
+        )
+    }
+    unique_endpoints = len(api_endpoints)
     request_count_10s = len(window_10)
 
     return {
@@ -269,17 +291,36 @@ def compute_anomaly_score(features: dict, history: list, project_id: str = "defa
     ip_z_scores.append(features["request_count_10s"] / BURST_THRESHOLD)
     stat_score = sum(ip_z_scores) / len(ip_z_scores) if ip_z_scores else 0.0
 
-    # Hybrid Combination
+    # Hybrid Combination:
+    # Early adaptive blending starting at N >= 5 instead of locking to cold prior for 50 requests
+    count = proj_stats.get("count", 0)
+    if count >= 5:
+        alpha = min(0.75, (count - 4) / 25.0)
+    else:
+        alpha = 0.0
+
+    # Benign cloud traffic guard: if an event has zero security red flags, reasonable cloud latency
+    # (<= 500ms), and low cardinality, prevent cold-start synthetic prior false alarms
+    is_benign = (
+        features.get("failed_auth_count", 0) == 0
+        and features.get("unique_endpoints", 0) <= 5
+        and features.get("request_count_10s", 0) <= 10
+        and latency <= 500.0
+    )
+
     if ml_model is not None:
-        if proj_stats["is_cold"]:
+        if is_benign and count < 10:
+            global_score = min(global_score, 1.2)
+
+        if alpha == 0.0:
             combined = global_score
         else:
-            # Mature project: project-calibrated deviation adjusts global score
-            alpha = min(0.6, proj_stats["count"] / 200.0)
-            combined = (1.0 - alpha) * global_score + alpha * max(global_score * 0.7, proj_z_score)
+            combined = (1.0 - alpha) * global_score + alpha * max(global_score * 0.5, proj_z_score)
         return round(float(combined), 3)
     else:
-        # Fallback to statistical score
+        # Fallback to statistical score with cloud-calibrated baseline
+        if is_benign and count < 10:
+            proj_z_score = min(proj_z_score, 1.2)
         return round(float(max(stat_score, proj_z_score)), 3)
 
 
