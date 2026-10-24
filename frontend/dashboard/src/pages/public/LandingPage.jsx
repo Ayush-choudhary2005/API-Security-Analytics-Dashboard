@@ -30,9 +30,8 @@ export const LandingPage = () => {
   const [activeFramework, setActiveFramework] = useState('nextjs');
 
   useEffect(() => {
-    const oauthError = searchParams.get('error');
     const linkRequired = searchParams.get('link_required');
-    if (oauthError || linkRequired) {
+    if (linkRequired === '1') {
       navigate(`/login?${searchParams.toString()}`, { replace: true });
     } else if (!authLoading && isAuthenticated) {
       navigate('/app', { replace: true });

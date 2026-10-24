@@ -90,14 +90,18 @@ export const AuthLayout = ({ children, title, subtitle }) => {
 
         <div className="relative z-10 w-full max-w-md">
           {/* Mobile Header */}
-          <div className="lg:hidden flex items-center space-x-2.5 mb-6">
-            <div className="w-8 h-8 rounded-xl bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA]">
-              <Shield className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-sm font-semibold text-[#E6E8EB]">API-Security-Analytics-Dashboard</span>
-              <p className="text-[11px] font-mono text-[#7B818B]">API Security Platform</p>
-            </div>
+          <div className="lg:hidden mb-6">
+            <Link to="/" className="inline-flex items-center space-x-2.5 group">
+              <div className="w-8 h-8 rounded-xl bg-[#16181D] border border-[#2A2E37] flex items-center justify-center text-[#C792EA] group-hover:border-[#C792EA]/60 transition-colors shadow-xs">
+                <Shield className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-[#E6E8EB] group-hover:text-white transition-colors">
+                  API-Security-Analytics-Dashboard
+                </span>
+                <p className="text-[11px] font-mono text-[#7B818B]">API Security Platform</p>
+              </div>
+            </Link>
           </div>
 
           <div className="mb-6">

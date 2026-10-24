@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowRight, FileText } from 'lucide-react';
 import { ThreatPanel } from './ThreatPanel';
 
@@ -45,23 +46,23 @@ export const Hero = () => {
 
             {/* 4. Buttons row (pill-shaped, fully rounded, with hover physics) */}
             <div className="mt-8 flex flex-wrap items-center gap-3.5 font-mono">
-              <a
-                href="https://api-security-analytics-dashboard-vyfe.onrender.com/signup"
+              <Link
+                to="/signup"
                 className="group inline-flex items-center justify-center space-x-2 px-6 py-3 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] hover:-translate-y-0.5 text-[#0A0B0D] font-bold text-xs transition-all duration-200 shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C792EA]"
               >
                 <span>PROVISION INSTANCE</span>
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200" />
-              </a>
+              </Link>
 
-              <a
-                href="https://api-security-analytics-dashboard-vyfe.onrender.com/login"
+              <Link
+                to="/login"
                 className="inline-flex items-center justify-center space-x-1.5 px-6 py-3 rounded-full bg-[#16181D] hover:bg-[#1E2127] hover:-translate-y-0.5 text-[#E6E8EB] border border-[#2A2E37] hover:border-[#C792EA]/50 font-semibold text-xs transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E6E8EB]"
               >
                 <span>OPERATOR LOGIN</span>
-              </a>
+              </Link>
 
               <a
-                href="https://api-security-analytics-dashboard-vyfe.onrender.com/#docs"
+                href="#docs"
                 className="group inline-flex items-center justify-center space-x-1.5 px-4 py-3 rounded-full text-[#9BA1AC] hover:text-[#E6E8EB] font-medium text-xs transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#82AAFF]"
               >
                 <FileText className="w-3.5 h-3.5 text-[#82AAFF] group-hover:text-[#E6E8EB] transition-colors" />
