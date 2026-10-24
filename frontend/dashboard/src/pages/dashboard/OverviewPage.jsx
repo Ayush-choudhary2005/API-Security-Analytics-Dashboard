@@ -16,6 +16,7 @@ import {
 import {
   AreaChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -98,6 +99,33 @@ export const OverviewPage = () => {
 
     const onNewEvent = (ev) => {
       setEvents((prev) => [ev, ...prev.slice(0, 24)]);
+      setStats((prev) => prev ? { ...prev, total_events: (prev.total_events || 0) + 1 } : prev);
+
+      // Live chart update: immediately reflect incoming telemetry in the current time bucket
+      setHistoryData((prev) => {
+        if (!prev || prev.length === 0) return prev;
+        const lastIdx = prev.length - 1;
+        const lastItem = { ...prev[lastIdx] };
+        const isAnomaly = ev.severity && ev.severity !== 'low';
+        const evLat = Number(ev.latency_ms || 0);
+
+        const curTotal = (lastItem.requests ?? lastItem.total ?? 0) + 1;
+        const curAnom = (lastItem.anomalies ?? lastItem.attacks ?? 0) + (isAnomaly ? 1 : 0);
+        const curAvgLat = lastItem.avg_latency || lastItem.latency || evLat;
+        const newAvg = Math.round(((curAvgLat * (curTotal - 1)) + evLat) / curTotal);
+
+        lastItem.requests = curTotal;
+        lastItem.total = curTotal;
+        lastItem.count = curTotal;
+        lastItem.anomalies = curAnom;
+        lastItem.attacks = curAnom;
+        lastItem.avg_latency = newAvg;
+        lastItem.latency = newAvg;
+
+        const updated = [...prev];
+        updated[lastIdx] = lastItem;
+        return updated;
+      });
     };
 
     const onNewAlert = (alt) => {
@@ -146,12 +174,15 @@ export const OverviewPage = () => {
         }))
     : [];
 
+  const totalThreatsRecorded = attackDistribution.reduce((acc, curr) => acc + (curr.value || 0), 0);
+
   const trafficChartData = historyData.length > 0
-    ? historyData.slice(-20).map((h, i) => ({
-        time: h.minute || (h.timestamp ? new Date(h.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `T-${20 - i}`),
-        requests: h.total !== undefined ? h.total : (h.total_requests || h.count || 1),
-        anomalies: h.attacks !== undefined ? h.attacks : (h.anomalies_detected || 0),
-        latency: Math.round(h.avg_latency || 12),
+    ? historyData.map((h) => ({
+        time: h.minute || (h.timestamp ? new Date(h.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+        timestamp: h.timestamp,
+        requests: h.requests ?? h.total ?? 0,
+        anomalies: h.anomalies ?? h.attacks ?? 0,
+        latency: Math.round(h.avg_latency ?? h.latency ?? 0),
       }))
     : [];
 
@@ -288,7 +319,7 @@ export const OverviewPage = () => {
           <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div>
               <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Traffic & Latency Timeline</h3>
-              <p className="text-[11px] text-[#9BA1AC]">Throughput volume vs anomalous outliers</p>
+              <p className="text-[11px] text-[#9BA1AC]">Chronological throughput vs anomalies & response latency</p>
             </div>
             <div className="flex items-center space-x-3 text-[10px] font-mono">
               <span className="flex items-center space-x-1">
@@ -299,20 +330,36 @@ export const OverviewPage = () => {
                 <span className="w-2 h-2 rounded-full bg-[#F07178]"></span>
                 <span className="text-[#9BA1AC]">ANOMALIES</span>
               </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-[#C792EA]"></span>
+                <span className="text-[#9BA1AC]">LATENCY (ms)</span>
+              </span>
             </div>
           </div>
           <div className="h-60">
             {trafficChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trafficChartData}>
+                  <defs>
+                    <linearGradient id="overviewReqGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#82AAFF" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#82AAFF" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="overviewAnomGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F07178" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#F07178" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
-                  <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#7B818B" fontSize={10} tickLine={false} />
+                  <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
+                  <YAxis yAxisId="volume" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" allowDecimals={false} />
+                  <YAxis yAxisId="latency" orientation="right" stroke="#C792EA" fontSize={10} unit="ms" tickLine={false} fontFamily="monospace" />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB' }}
+                    contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
                   />
-                  <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="#82AAFF" fillOpacity={0.12} name="Requests" />
-                  <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="#F07178" fillOpacity={0.2} name="Anomalies" />
+                  <Area yAxisId="volume" type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="url(#overviewReqGrad)" name="Total Requests" />
+                  <Area yAxisId="volume" type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="url(#overviewAnomGrad)" name="Anomalies" />
+                  <Line yAxisId="latency" type="monotone" dataKey="latency" stroke="#C792EA" strokeWidth={2} dot={false} name="Avg Latency (ms)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -335,12 +382,19 @@ export const OverviewPage = () => {
         </div>
 
         {/* Attack Distribution */}
-        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
-          <div className="mb-3 border-b border-[#1E2127] pb-2">
-            <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Attack Distribution</h3>
-            <p className="text-[11px] text-[#9BA1AC]">Classified by machine learning vectors</p>
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm relative">
+          <div className="mb-3 border-b border-[#1E2127] pb-2 flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Attack Distribution</h3>
+              <p className="text-[11px] text-[#9BA1AC]">Classified by machine learning vectors</p>
+            </div>
+            {totalThreatsRecorded > 0 && (
+              <span className="text-[10px] font-mono text-[#F07178] bg-[#F07178]/10 border border-[#F07178]/30 px-2 py-0.5 rounded-full">
+                {totalThreatsRecorded} THREATS
+              </span>
+            )}
           </div>
-          <div className="h-60 flex items-center justify-center">
+          <div className="h-60 flex items-center justify-center relative">
             {attackDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -348,8 +402,8 @@ export const OverviewPage = () => {
                     data={attackDistribution}
                     cx="50%"
                     cy="50%"
-                    innerRadius={46}
-                    outerRadius={74}
+                    innerRadius={48}
+                    outerRadius={72}
                     paddingAngle={3}
                     dataKey="value"
                   >

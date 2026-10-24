@@ -1402,20 +1402,20 @@ def get_recent_alerts(limit: int = 50, tenant_id: str = "default", project_id: s
 
 
 def get_alert_stats(tenant_id: str = "default"):
-    """Returns the count of each attack type for the most recent 200 alerts scoped to project."""
+    """Returns the count of each attack type for alerts scoped to project."""
     conn = get_conn()
     rows = conn.execute(
         """
-        SELECT rule_flags, severity, anomaly_score 
+        SELECT rule_flags, severity, anomaly_score, attack_type 
         FROM events 
         WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
-        ORDER BY id DESC LIMIT 200
+        ORDER BY id DESC LIMIT 500
         """,
         (tenant_id, tenant_id),
     ).fetchall()
     conn.close()
 
-    stats = {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "anomaly": 0}
+    stats = {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "anomaly": 0, "composite_attack": 0}
     for r in rows:
         flags_json = r["rule_flags"]
         if not flags_json:
@@ -1432,6 +1432,10 @@ def get_alert_stats(tenant_id: str = "default"):
             flags = []
 
         has_rule = False
+        if len(flags) >= 2:
+            stats["composite_attack"] += 1
+            has_rule = True
+
         if "brute_force" in flags:
             stats["brute_force"] += 1
             has_rule = True
@@ -1442,7 +1446,7 @@ def get_alert_stats(tenant_id: str = "default"):
             stats["request_burst"] += 1
             has_rule = True
 
-        if not has_rule and r["anomaly_score"] > 2.5:
+        if not has_rule and (r["anomaly_score"] > 2.5 or r["attack_type"] == "statistical_anomaly"):
             stats["anomaly"] += 1
 
     # Keep top-level keys for test assertion backwards compatibility, and include attack_distribution key for dashboard charts
@@ -1450,6 +1454,7 @@ def get_alert_stats(tenant_id: str = "default"):
         "brute_force": stats["brute_force"],
         "endpoint_scan": stats["endpoint_scan"],
         "request_burst": stats["request_burst"],
+        "composite_attack": stats["composite_attack"],
         "anomaly": stats["anomaly"]
     }
 
@@ -1488,8 +1493,12 @@ def get_all_events_count(tenant_id: str = "default"):
     return count
 
 
-def get_historical_stats(tenant_id: str = "default"):
-    """Fetches aggregated historical data for the analytics dashboard tab scoped to project."""
+def get_historical_stats(tenant_id: str = "default", window_hours: float = 1.0):
+    """
+    Fetches aggregated historical data for the analytics and overview dashboard tabs scoped to project.
+    Generates contiguous, zero-filled, chronologically ordered time buckets with request counts,
+    anomalies, and authentic latency statistics (mean + p95).
+    """
     conn = get_conn()
     try:
         top_endpoints = conn.execute(
@@ -1512,46 +1521,110 @@ def get_historical_stats(tenant_id: str = "default"):
             (tenant_id, tenant_id),
         ).fetchall()
 
-        # Execute timeline query with dialect fallback
-        is_pg = getattr(conn, "_is_pg", False) or database.is_postgres()
-        if is_pg:
-            timeline_query = """
-                SELECT to_char(to_timestamp(timestamp), 'HH24:MI') as minute, 
-                       sum(case when severity != 'low' then 1 else 0 end) as attacks, 
-                       count(*) as total,
-                       round(avg(latency_ms)::numeric, 1) as avg_latency
-                FROM events 
-                WHERE (project_id = ? OR tenant_id = ?) 
-                GROUP BY minute ORDER BY minute ASC LIMIT 60
-            """
-        else:
-            timeline_query = """
-                SELECT strftime('%H:%M', datetime(timestamp, 'unixepoch', 'localtime')) as minute, 
-                       sum(case when severity != 'low' then 1 else 0 end) as attacks, 
-                       count(*) as total,
-                       round(avg(latency_ms), 1) as avg_latency
-                FROM events 
-                WHERE (project_id = ? OR tenant_id = ?) 
-                GROUP BY minute ORDER BY minute ASC LIMIT 60
-            """
+        now = time.time()
+        window_sec = max(600, int(float(window_hours) * 3600))
 
-        timeline = conn.execute(
-            timeline_query,
-            (tenant_id, tenant_id),
+        # Check latest event timestamp so testing data recorded earlier is accurately framed
+        max_row = conn.execute(
+            "SELECT max(timestamp) as max_ts FROM events WHERE (project_id = ? OR tenant_id = ?)",
+            (tenant_id, tenant_id)
+        ).fetchone()
+        latest_ts = max_row["max_ts"] if max_row and max_row["max_ts"] else None
+
+        anchor_end = now
+        if latest_ts and (now - latest_ts) > window_sec:
+            anchor_end = latest_ts + 60
+        anchor_start = anchor_end - window_sec
+
+        # Determine optimal bucket size:
+        # <= 1h: 60-second buckets (60 points)
+        # <= 6h: 5-minute buckets (72 points)
+        # <= 24h: 20-minute buckets (72 points)
+        # > 24h: 2-hour buckets (84 points)
+        if window_sec <= 3600:
+            bucket_size = 60
+        elif window_sec <= 21600:
+            bucket_size = 300
+        elif window_sec <= 86400:
+            bucket_size = 1200
+        else:
+            bucket_size = 7200
+
+        # Query events in this active window
+        events_in_window = conn.execute(
+            """
+            SELECT timestamp, latency_ms, severity 
+            FROM events 
+            WHERE (project_id = ? OR tenant_id = ?) AND timestamp >= ? AND timestamp <= ?
+            ORDER BY timestamp ASC
+            """,
+            (tenant_id, tenant_id, anchor_start - bucket_size, anchor_end + bucket_size)
         ).fetchall()
+
+        # Initialize continuous contiguous time buckets
+        start_bucket = int(anchor_start // bucket_size) * bucket_size
+        end_bucket = int(anchor_end // bucket_size) * bucket_size
+
+        buckets = {}
+        curr = start_bucket
+        while curr <= end_bucket:
+            if window_sec <= 86400:
+                label = time.strftime('%H:%M', time.localtime(curr))
+            else:
+                label = time.strftime('%b %d %H:%M', time.localtime(curr))
+            buckets[curr] = {
+                "minute": label,
+                "timestamp": curr,
+                "total": 0,
+                "attacks": 0,
+                "latencies": []
+            }
+            curr += bucket_size
+
+        # Aggregate events into buckets
+        for r in events_in_window:
+            ts = r["timestamp"]
+            b_key = int(ts // bucket_size) * bucket_size
+            if b_key in buckets:
+                buckets[b_key]["total"] += 1
+                if r["severity"] != 'low':
+                    buckets[b_key]["attacks"] += 1
+                if r["latency_ms"] is not None:
+                    buckets[b_key]["latencies"].append(float(r["latency_ms"]))
+
+        # Build contiguous timeline array
+        timeline = []
+        for b_ts in sorted(buckets.keys()):
+            b = buckets[b_ts]
+            lats = b["latencies"]
+            if lats:
+                avg_l = round(sum(lats) / len(lats), 1)
+                s_lats = sorted(lats)
+                p95_idx = int(len(s_lats) * 0.95)
+                p95_l = round(s_lats[min(p95_idx, len(s_lats) - 1)], 1)
+            else:
+                avg_l = 0.0
+                p95_l = 0.0
+
+            timeline.append({
+                "minute": b["minute"],
+                "time": b["minute"],
+                "timestamp": b["timestamp"],
+                "total": b["total"],
+                "requests": b["total"],
+                "count": b["total"],
+                "attacks": b["attacks"],
+                "anomalies": b["attacks"],
+                "avg_latency": avg_l,
+                "p95_latency": p95_l,
+                "latency": avg_l,
+            })
 
         return {
             "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
             "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
-            "timeline": [
-                {
-                    "minute": r["minute"],
-                    "attacks": r["attacks"],
-                    "total": r["total"],
-                    "avg_latency": float(r["avg_latency"]) if r["avg_latency"] is not None else 0.0,
-                }
-                for r in timeline
-            ],
+            "timeline": timeline,
+            "window": f"{int(window_sec / 3600)}h" if window_sec >= 3600 else f"{int(window_sec / 60)}m"
         }
     except Exception as e:
         import logging

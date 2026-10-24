@@ -31,13 +31,14 @@ export const AnalyticsPage = () => {
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('1h');
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (range = timeRange) => {
     if (!currentProject?.id) return;
     setLoading(true);
     try {
       const [histRes, statsRes] = await Promise.all([
-        telemetryService.getHistory(currentProject.id),
+        telemetryService.getHistory(currentProject.id, range),
         telemetryService.getAlertStats(currentProject.id),
       ]);
       const hist = histRes.data;
@@ -51,15 +52,17 @@ export const AnalyticsPage = () => {
   };
 
   useEffect(() => {
-    fetchAnalytics();
+    fetchAnalytics(timeRange);
   }, [currentProject?.id]);
 
   const chartData = history.length > 0
-    ? history.map((item, i) => ({
-        time: item.minute || (item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `T-${i}`),
-        requests: item.total || item.total_requests || (item.count || 1),
-        anomalies: item.attacks !== undefined ? item.attacks : (item.anomalies_detected || 0),
-        avgLatency: Math.round(item.avg_latency || 12),
+    ? history.map((item) => ({
+        time: item.minute || (item.timestamp ? new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+        timestamp: item.timestamp,
+        requests: item.requests ?? item.total ?? item.count ?? 0,
+        anomalies: item.anomalies ?? item.attacks ?? 0,
+        avgLatency: Math.round(item.avg_latency ?? item.latency ?? 0),
+        p95Latency: Math.round(item.p95_latency ?? item.avg_latency ?? 0),
       }))
     : [];
 
@@ -75,9 +78,8 @@ export const AnalyticsPage = () => {
 
   const totalVol = chartData.reduce((acc, c) => acc + (c.requests || 0), 0);
   const totalAnom = chartData.reduce((acc, c) => acc + (c.anomalies || 0), 0);
-  const avgLat = totalVol > 0 && chartData.length > 0
-    ? Math.round(chartData.reduce((acc, c) => acc + (c.avgLatency || 0), 0) / chartData.length)
-    : 0;
+  const weightedLatencySum = chartData.reduce((acc, c) => acc + ((c.avgLatency || 0) * (c.requests || 0)), 0);
+  const avgLat = totalVol > 0 ? Math.round(weightedLatencySum / totalVol) : 0;
   const breachRate = totalVol > 0 ? ((totalAnom / totalVol) * 100).toFixed(2) : '0.00';
 
   if (!currentProject) {
@@ -128,8 +130,28 @@ export const AnalyticsPage = () => {
         </div>
 
         <div className="flex items-center space-x-2.5">
+          {/* Time Window Selector */}
+          <div className="flex items-center space-x-1 bg-[#101216] border border-[#1E2127] p-1 rounded-full">
+            {['30m', '1h', '6h', '24h', '7d'].map((r) => (
+              <button
+                key={r}
+                onClick={() => {
+                  setTimeRange(r);
+                  fetchAnalytics(r);
+                }}
+                className={`px-3 py-1 rounded-full text-[10px] font-mono font-medium transition-all ${
+                  timeRange === r
+                    ? 'bg-[#C792EA] text-[#0A0B0D] font-bold shadow-xs'
+                    : 'text-[#7B818B] hover:text-[#E6E8EB] hover:bg-[#16181D]'
+                }`}
+              >
+                {r.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
           <button
-            onClick={fetchAnalytics}
+            onClick={() => fetchAnalytics(timeRange)}
             disabled={loading}
             className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
           >
@@ -218,13 +240,14 @@ export const AnalyticsPage = () => {
                 </defs>
                 <CartesianGrid strokeDasharray="2 2" stroke="#1E2127" />
                 <XAxis dataKey="time" stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
-                <YAxis stroke="#7B818B" fontSize={10} tickLine={false} fontFamily="monospace" />
+                <YAxis yAxisId="requests" stroke="#82AAFF" fontSize={10} tickLine={false} fontFamily="monospace" allowDecimals={false} />
+                <YAxis yAxisId="anomalies" orientation="right" stroke="#F07178" fontSize={10} tickLine={false} fontFamily="monospace" allowDecimals={false} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', fontFamily: 'monospace', paddingTop: '10px' }} />
-                <Area type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="url(#reqGradient)" name="Total Requests" />
-                <Area type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="url(#anomGradient)" name="Flagged Anomalies" />
+                <Area yAxisId="requests" type="monotone" dataKey="requests" stroke="#82AAFF" strokeWidth={1.5} fill="url(#reqGradient)" name="Total Requests (Left Axis)" />
+                <Area yAxisId="anomalies" type="monotone" dataKey="anomalies" stroke="#F07178" strokeWidth={1.5} fill="url(#anomGradient)" name="Flagged Anomalies (Right Axis)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -246,11 +269,11 @@ export const AnalyticsPage = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-[#C792EA]" />
-                <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Average Latency Profile</h3>
+                <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Average & p95 Latency Profile</h3>
               </div>
-              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Response latency in milliseconds across observation windows</p>
+              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Mean response latency vs 95th percentile spike latency across observation windows</p>
             </div>
-            <span className="text-[10px] font-mono text-[#C792EA] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">p50 / p95 METRIC</span>
+            <span className="text-[10px] font-mono text-[#C792EA] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">AVG / p95 METRIC</span>
           </div>
           <div className="h-60">
             {chartData.length > 0 ? (
@@ -262,7 +285,9 @@ export const AnalyticsPage = () => {
                   <Tooltip
                     contentStyle={{ backgroundColor: '#16181D', borderColor: '#2A2E37', borderRadius: '12px', fontSize: '11px', color: '#E6E8EB', fontFamily: 'monospace' }}
                   />
-                  <Line type="monotone" dataKey="avgLatency" stroke="#C792EA" strokeWidth={1.5} dot={{ r: 2, fill: '#C792EA' }} name="Avg Latency (ms)" />
+                  <Legend wrapperStyle={{ fontSize: '10px', fontFamily: 'monospace' }} />
+                  <Line type="monotone" dataKey="avgLatency" stroke="#82AAFF" strokeWidth={1.5} dot={false} name="Avg Latency (ms)" />
+                  <Line type="monotone" dataKey="p95Latency" stroke="#C792EA" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="p95 Latency (ms)" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (

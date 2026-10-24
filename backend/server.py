@@ -1705,7 +1705,10 @@ def history():
     if err:
         return err
     try:
-        return jsonify(db.get_historical_stats(project_id))
+        window_arg = request.args.get("window", "1h").strip().lower()
+        window_map = {"30m": 0.5, "1h": 1.0, "6h": 6.0, "24h": 24.0, "7d": 168.0}
+        window_hours = window_map.get(window_arg, 1.0)
+        return jsonify(db.get_historical_stats(project_id, window_hours=window_hours))
     except Exception as e:
         logger.error(f"Error handling /history for project {project_id}: {e}", exc_info=True)
         return jsonify({"top_endpoints": [], "top_ips": [], "timeline": []})
