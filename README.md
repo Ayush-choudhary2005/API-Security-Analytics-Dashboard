@@ -1,12 +1,12 @@
-# 🛡️ API Security Analytics & Active Defense Platform
+# API Security Analytics & Active Defense Platform
 
-An end-to-end, zero-latency API observability, multi-tenant security, and autonomous active defense platform. This project detects zero-day API abuse, behavioral anomalies, and automated attacks using an unsupervised Machine Learning model (**Isolation Forest**). It actively defends servers via auto-blocking and webhooks, provides full multi-tenant project isolation with dedicated SDK credentials, and investigates threats autonomously using **Generative AI (Google Gemini)**.
+An end-to-end, zero-latency API observability, multi-tenant security, and autonomous active defense platform. This project detects zero-day API abuse, behavioral anomalies, and automated attacks using an unsupervised Machine Learning model (Isolation Forest). It actively defends servers via auto-blocking and webhooks, provides full multi-tenant project isolation with dedicated SDK credentials, and investigates threats autonomously using Generative AI (Google Gemini) and a built-in Autonomous Heuristic Engine.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-```
+```text
 Organization / Workspace (e.g., Acme Corporation)
  │
  ├── 1. Users / Team Members (Owners, Admins, Members, Viewers)
@@ -31,40 +31,41 @@ Organization / Workspace (e.g., Acme Corporation)
       │                   │
       │                   └── 7. Real-Time WebSockets (Isolated Project Rooms)
       │                        │
-      │                        └── 8. Project Dashboard (Live EKG, Maps, AI Investigations)
+      │                        └── 8. Project Dashboard (Live EKG, Dual-Axis Analytics, AI Investigations)
 ```
 
 ### Complete Multi-Tenant Pipeline Flow
+
 ```mermaid
 flowchart TD
-    Org["🏢 Organization / Workspace"] --> Member["👥 Organization Members (Roles)"]
-    Member --> User["👤 Authenticated User"]
-    Org --> Project["📁 Projects"]
-    Project --> SDKKey["🔑 Project SDK Key (ask_...)"]
-    SDKKey --> App["💻 Instrumented API"]
-    App --> SDK["⚡ Zero-Latency SDK Middleware"]
-    SDK --> Collector["🛡️ Telemetry Ingestion (/ingest)"]
-    Collector --> ML["🧠 Feature Extraction & Isolation Forest"]
-    ML --> Alerts["🚨 Security Alerts & Rate Limiter"]
-    Alerts --> Webhook["🔔 Tenant Webhook (Slack/Discord)"]
-    Collector --> WS["📡 WebSocket (Project Room)"]
-    WS --> Dashboard["📊 Dashboard Console UI"]
-    Alerts --> Gemini["✨ GenAI Threat Investigator"]
-    Gemini --> PDF["📄 Threat Intelligence PDF"]
+    Org["Organization / Workspace"] --> Member["Organization Members (Roles)"]
+    Member --> User["Authenticated User"]
+    Org --> Project["Projects"]
+    Project --> SDKKey["Project SDK Key (ask_...)"]
+    SDKKey --> App["Instrumented API"]
+    App --> SDK["Zero-Latency SDK Middleware"]
+    SDK --> Collector["Telemetry Ingestion (/ingest)"]
+    Collector --> ML["Feature Extraction & Isolation Forest"]
+    ML --> Alerts["Security Alerts & Rate Limiter"]
+    Alerts --> Webhook["Tenant Webhook (Slack/Discord)"]
+    Collector --> WS["WebSocket (Project Room)"]
+    WS --> Dashboard["Dashboard Console UI"]
+    Alerts --> Gemini["GenAI / Heuristic Threat Investigator"]
+    Gemini --> PDF["Threat Intelligence PDF"]
 ```
 
 ---
 
-## 🔐 Authentication & Session Security
+## Authentication & Session Security
 
 The platform includes a complete, enterprise-grade authentication system designed to isolate user workspaces and enforce least privilege.
 
 * **User Registration & Email Verification (`/api/auth/register`, `/api/auth/verify-email`, `/api/auth/resend-verification`):**
   * Validates RFC 5322 email syntax and prevents duplicate account registration (`HTTP 409 Conflict`).
-  * Enforces minimum password strength requirements (≥ 8 characters) and password confirmation matching (`HTTP 400 Bad Request`).
+  * Enforces minimum password strength requirements (>= 8 characters) and password confirmation matching (`HTTP 400 Bad Request`).
   * Automatically provisions a default project workspace and initial SDK credentials upon registration.
   * Generates cryptographically secure, single-use email verification tokens (24-hour expiration) stored as SHA-256 hashes at rest.
-  * Dispatches transactional verification emails via SMTP or dev mailbox fallback.
+  * Dispatches transactional verification emails via SMTP or development mailbox fallback.
   * Google OAuth signups are automatically verified as email authenticity is verified by Google.
 * **Secure Login (`/api/auth/login`):**
   * Verifies credentials against salted cryptographic hashes.
@@ -102,32 +103,32 @@ The platform includes a complete, enterprise-grade authentication system designe
 
 ---
 
-## 🏢 Multi-Tenant SaaS Organizations & Workspaces
+## Multi-Tenant SaaS Organizations & Workspaces
 
 The platform implements a production-grade multi-tenant SaaS architecture supporting multiple independent companies and teams on the same deployment:
 
-```
+```text
 Acme Corporation (Organization / Workspace)
  ├── Members: alice@acme.com (Owner), bob@acme.com (Admin), dev@acme.com (Member)
- ├── Project 1: Production API   ──> SDK Key A ──> Isolated Telemetry, ML Alerts, Webhooks
- ├── Project 2: Staging API      ──> SDK Key B ──> Isolated Telemetry, ML Alerts, Webhooks
- └── Project 3: Payment Gateway  ──> SDK Key C ──> Isolated Telemetry, ML Alerts, Webhooks
+ ├── Project 1: Production API   --> SDK Key A --> Isolated Telemetry, ML Alerts, Webhooks
+ ├── Project 2: Staging API      --> SDK Key B --> Isolated Telemetry, ML Alerts, Webhooks
+ └── Project 3: Payment Gateway  --> SDK Key C --> Isolated Telemetry, ML Alerts, Webhooks
 
 Cyberdyne Systems (Organization / Workspace)
  ├── Members: john@cyberdyne.com (Owner)
- └── Project 1: Defense Network  ──> SDK Key D ──> Strictly Isolated Data Boundary
+ └── Project 1: Defense Network  --> SDK Key D --> Strictly Isolated Data Boundary
 ```
 
 ### Hierarchy & Security Model:
-```
+```text
 Organization / Workspace
-       ↓
+       |
 Users / Organization Members
-       ↓
+       |
     Projects
-       ↓
+       |
  SDK Credentials
-       ↓
+       |
 Telemetry (Events / Alerts / Webhooks / Rooms)
 ```
 
@@ -140,22 +141,22 @@ Telemetry (Events / Alerts / Webhooks / Rooms)
   * Last owner protection: The system strictly prevents deleting or leaving the last owner of an organization.
 * **Server-Side Tenant Isolation Boundary:**
   * **Zero Frontend Trust:** The backend NEVER trusts `organization_id` or `project_id` supplied by client queries or request bodies.
-  * **Strict Authorization Pipeline:** Every resource is authorized through: `authenticated user` → `organization membership` → `project ownership/membership` → `target resource`.
+  * **Strict Authorization Pipeline:** Every resource is authorized through: `authenticated user` -> `organization membership` -> `project ownership/membership` -> `target resource`.
   * **Cross-Tenant Attack Resistance:** Attempting to view, tamper with, or query another organization's projects, API keys, webhook configs, telemetry events, alerts, blocked IPs, or AI threat investigations returns `HTTP 403 Forbidden`.
 * **Workspace & Project Switching:**
-  * The dashboard HUD features synchronized **Org** and **Project** selectors.
+  * The dashboard header features synchronized Org and Project selectors.
   * Switching organizations automatically updates accessible projects.
   * Switching projects rebinds live WebSocket rooms, event streams, attack charts, threat maps, blocked IPs, and SDK credentials without reloading the page.
 
 ---
 
-## 🔑 SDK Credentials & Security
+## SDK Credentials & Security
 
 Every project has its own dedicated SDK credentials used to authenticate telemetry.
 
 ### The Golden Rule:
 > [!IMPORTANT]
-> **The SDK credential is NOT the user's dashboard login token.**
+> The SDK credential is NOT the user's dashboard login token.
 > It contains zero user credentials, passwords, or dashboard session data. It is an isolated, scoped API key whose sole capability is authorizing background telemetry ingestion for that specific project.
 
 * **Credential Format:** Recognizable, high-entropy tokens:
@@ -172,28 +173,28 @@ Every project has its own dedicated SDK credentials used to authenticate telemet
 
 ---
 
-## 🚀 Guided Developer Onboarding Experience
+## Guided Developer Onboarding Experience
 
-The platform provides a guided, zero-prior-knowledge onboarding wizard (`🚀 Quickstart`) designed to take developers from creating a project to verified live telemetry in minutes.
+The platform provides a guided, zero-prior-knowledge onboarding wizard (`Quickstart`) designed to take developers from creating a project to verified live telemetry in minutes.
 
-The onboarding wizard automatically opens upon creating any new project and can be relaunched anytime via the **🚀 Quickstart** button in the dashboard topbar:
+The onboarding wizard automatically opens upon creating any new project and can be relaunched anytime via the **Quickstart** button in the dashboard topbar:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    DEVELOPER ONBOARDING & QUICKSTART WIZARD                     │
-├──────────────────────┬──────────────────────────────────────────────────────────┤
-│ 1. Choose Framework  │ Select web framework: [🌶️ Flask] [⚡ FastAPI]            │
-│ 2. Install SDK       │ pip install mlo11y                        [📋 Copy]      │
-│ 3. Configure API Key │ export SECURITY_SDK_API_KEY="ask_..."     [📋 Copy]      │
-│ 4. Integration Code  │ SecurityMiddleware(app)                   [📋 Copy]      │
-│ 5. Start Application │ python app.py                             [📋 Copy]      │
-│ 6. Send Test Request │ curl http://127.0.0.1:5000/               [📋 Copy]      │
-│                      │ [⚡ Send Live Test Event Now]                            │
-│ 7. Verify Connection │ ✓ SDK connected                                          │
-│                      │ ✓ Telemetry received                                     │
-│                      │ ✓ Project configured                                     │
-│                      │ [🚀 Open Live Dashboard]                                 │
-└──────────────────────┴──────────────────────────────────────────────────────────┘
+```text
++---------------------------------------------------------------------------------+
+|                    DEVELOPER ONBOARDING & QUICKSTART WIZARD                     |
++----------------------+----------------------------------------------------------+
+| 1. Choose Framework  | Select web framework: [Flask] [FastAPI]                  |
+| 2. Install SDK       | pip install mlo11y                        [Copy]         |
+| 3. Configure API Key | export SECURITY_SDK_API_KEY="ask_..."     [Copy]         |
+| 4. Integration Code  | SecurityMiddleware(app)                   [Copy]         |
+| 5. Start Application | python app.py                             [Copy]         |
+| 6. Send Test Request | curl http://127.0.0.1:5000/               [Copy]         |
+|                      | [Send Live Test Event Now]                               |
+| 7. Verify Connection | [OK] SDK connected                                       |
+|                      | [OK] Telemetry received                                  |
+|                      | [OK] Project configured                                  |
+|                      | [Open Live Dashboard]                                    |
++----------------------+----------------------------------------------------------+
 ```
 
 ### 7-Step Guided Workflow:
@@ -208,22 +209,18 @@ The onboarding wizard automatically opens upon creating any new project and can 
 * **STEP 3: Configure API Key**
   * Displays environment variable `SECURITY_SDK_API_KEY`.
   * Shows masked credential with a copy button and ready-to-run terminal snippets for Linux/macOS (`export`), Windows PowerShell (`$env:`), and `.env` files.
-  * Clearly reminds developers to treat SDK keys like secrets and never commit them to git.
+  * Reminds developers to treat SDK keys like secrets and never commit them to git.
 * **STEP 4: Add Integration Code**
   * Provides a complete, copy-paste-ready application example demonstrating that only **two lines of code** are required to observe and protect any API.
 * **STEP 5: Start Application**
   * Displays the startup command (`python app.py`) and explains the asynchronous background worker operation.
 * **STEP 6: Send Test Request**
   * Provides copyable curl commands for sending sample traffic.
-  * Includes an interactive **"⚡ Send Live Test Event"** button that immediately fires a synthetic test event into the project's ingestion pipeline.
+  * Includes an interactive **"Send Live Test Event"** button that immediately fires a synthetic test event into the project's ingestion pipeline.
 * **STEP 7: Verify Connection**
   * Automatically detects incoming telemetry in real time via WebSockets and periodic polling.
-  * When verified, displays:
-    * `✓ SDK connected`
-    * `✓ Telemetry received`
-    * `✓ Project configured`
-    * Details of the received sample event (endpoint, latency, HTTP status code).
-  * If telemetry is pending, displays an active radar listening indicator alongside comprehensive **Troubleshooting Guidance** (checking port reachability, environment variables, HTTP 401 resolution).
+  * When verified, displays connection confirmation badges and details of the received sample event (endpoint, latency, HTTP status code).
+  * If telemetry is pending, displays an active radar listening indicator alongside comprehensive Troubleshooting Guidance (checking port reachability, environment variables, HTTP 401 resolution).
 
 ### Server-Side Onboarding State Persistence & Isolation:
 * **Per-Project State:** Each project tracks its onboarding progress (`project_onboarding` table: `current_step`, `completed_steps`, `framework`, `status`, `first_telemetry_at`).
@@ -231,7 +228,7 @@ The onboarding wizard automatically opens upon creating any new project and can 
 
 ---
 
-## 📦 SDK Integration Guide
+## SDK Integration Guide
 
 Instrumenting any Python Flask API takes less than two minutes:
 
@@ -297,18 +294,14 @@ if __name__ == "__main__":
 | `timeout` | `SECURITY_SDK_TIMEOUT` | `2.0` | Timeout in seconds for background telemetry delivery |
 | `max_queue_size` | `SECURITY_SDK_MAX_QUEUE_SIZE` | `10000` | In-memory buffer size before dropping telemetry |
 | `app_name` | `SECURITY_SDK_APP_NAME` | `flask-app` | Descriptive application name |
-| `user_id_callback` | — | `None` | Optional hook `callback(request)` returning authenticated user ID |
+| `user_id_callback` | -- | `None` | Optional hook `callback(request)` returning authenticated user ID |
 | `debug` | `SECURITY_SDK_DEBUG` | `false` | Enable verbose worker debug output |
-```
-
-### Step 5: Verify Live Telemetry
-Make requests to your API. Telemetry immediately begins streaming into your project dashboard via WebSockets.
 
 ---
 
-## ⚡ Production Telemetry Ingestion Pipeline (`POST /ingest`)
+## Production Telemetry Ingestion Pipeline (`POST /ingest`)
 
-The platform's ingestion pipeline is architected for enterprise production workloads, supporting high throughput, microburst absorption, data loss prevention (DLP), and multi-tenant isolation.
+The platform's ingestion pipeline is architected for enterprise production workloads, supporting high throughput, microburst absorption, data loss prevention (DLP), static asset exclusion, and multi-tenant isolation.
 
 ### 1. Telemetry Event Schema (`POST /ingest`)
 The ingestion endpoint accepts JSON payloads adhering to the canonical schema:
@@ -332,8 +325,9 @@ The ingestion endpoint accepts JSON payloads adhering to the canonical schema:
 }
 ```
 
-* **Server-Pinned Fields:** `project_id`, `tenant_id`, and `ingested_at` are **strictly generated/overridden by the server** based on the authenticated Bearer API key. Even if a client submits an arbitrary `{"project_id": "victim_project"}`, it is safely ignored.
+* **Server-Pinned Fields:** `project_id`, `tenant_id`, and `ingested_at` are strictly generated or overridden by the server based on the authenticated Bearer API key. Even if a client submits an arbitrary `{"project_id": "victim_project"}`, it is safely ignored.
 * **Payload Size Ceiling:** Requests larger than **64 KB** are immediately rejected with `HTTP 413 Payload Too Large`.
+* **Static Asset Filtering:** Assets such as `.js`, `.css`, `.png`, `.jpg`, `.svg`, `.ico`, `.woff`, `.map` are excluded from triggering scanning anomalies, preventing false alerts on cloud deployments (such as Vercel or Render).
 
 ### 2. HTTP Response Behavior for SDK Clients
 
@@ -349,7 +343,7 @@ The ingestion endpoint accepts JSON payloads adhering to the canonical schema:
 | **`503 Service Unavailable`** | Dependency Outage | The collector database is currently unreachable. |
 
 ### 3. Data Loss Prevention (DLP) & Secret Redaction
-If an application inadvertently captures sensitive data, the pipeline automatically scrubs it before it reaches detection or storage:
+If an application captures sensitive data, the pipeline automatically scrubs it before it reaches detection or storage:
 * **Key Scrubber:** Any metadata key containing `password`, `secret`, `token`, `auth`, `cookie`, `key`, `credential`, `session`, `jwt`, `card` is replaced with `"[REDACTED]"`.
 * **Value Regex Engine:** Scans strings for Bearer tokens (`Bearer ...`), JSON Web Tokens (`eyJ...`), API keys (`ask_...`, `sec_live_...`, `sk-...`, `AKIA...`), and payment card numbers.
 * **Query Parameter Scrubber:** URLs such as `/auth/callback?token=secret123` are automatically sanitized to `/auth/callback?token=[REDACTED]`.
@@ -370,7 +364,7 @@ The platform provides dedicated liveness and readiness endpoints conforming to K
     }
     ```
 * **Readiness Probe (`GET /ready` or `GET /readyz`)**:
-  * Deep dependency verification: tests SQLite database read/write connectivity, ML anomaly detector status, and rate limiters.
+  * Deep dependency verification: tests SQLite/PostgreSQL read/write connectivity, ML anomaly detector status, and rate limiters.
   * Healthy Response (`200 OK`):
     ```json
     {
@@ -388,28 +382,28 @@ The platform provides dedicated liveness and readiness endpoints conforming to K
 
 ---
 
-## 🧠 Machine Learning Detection & Active Defense Pipeline
+## Machine Learning Detection & Active Defense Pipeline
 
-The platform features an advanced, multi-tenant active defense pipeline fusing unsupervised machine learning with deterministic threat rule engines.
+The platform features a multi-tenant active defense pipeline fusing unsupervised machine learning with deterministic threat rule engines.
 
 ### 1. Architectural Decision: Isolation Forest Baseline Architecture
 
 When designing anomaly detection for a multi-tenant observability platform, the baseline architecture dictates operational accuracy and cross-tenant isolation:
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        BASELINE EVALUATION MATRIX                      │
-├─────────────────────────┬──────────────────────────────────────────────┤
-│ Option A: Shared Only   │ ❌ Cross-project distortion (e.g. 1200ms batch│
-│                         │    APIs contaminate 15ms microservices).     │
-├─────────────────────────┼──────────────────────────────────────────────┤
-│ Option B: Project-Only  │ ❌ Severe cold-start starvation (new projects│
-│                         │    have 0 events and cannot train models).   │
-├─────────────────────────┼──────────────────────────────────────────────┤
-│ Option C: Hybrid Model  │ ✅ SELECTED: Universal structural prior for  │
-│    (Prior + Adaptive)   │    cold starts blended with rolling project  │
-│                         │    baselines for zero cross-tenant leakage.  │
-└─────────────────────────┴──────────────────────────────────────────────┘
+```text
++-------------------------+----------------------------------------------+
+|                         BASELINE EVALUATION MATRIX                     |
++-------------------------+----------------------------------------------+
+| Option A: Shared Only   | [X] Cross-project distortion (e.g. 1200ms    |
+|                         |     batch APIs contaminate 15ms services).   |
++-------------------------+----------------------------------------------+
+| Option B: Project-Only  | [X] Severe cold-start starvation (new        |
+|                         |     projects have 0 events to train models). |
++-------------------------+----------------------------------------------+
+| Option C: Hybrid Model  | [SELECTED] Universal structural prior for    |
+|    (Prior + Adaptive)   | cold starts blended with rolling project     |
+|                         | baselines for zero cross-tenant leakage.     |
++-------------------------+----------------------------------------------+
 ```
 
 #### Why Option C (Hybrid Approach) Was Chosen:
@@ -417,22 +411,22 @@ When designing anomaly detection for a multi-tenant observability platform, the 
 2. **Project-Specific Adaptive Normalizer (`ProjectBaselineTracker`):** A lightweight rolling online statistics tracker maintains per-project latency means, standard deviations, and throughput baselines.
 3. **Dynamic Calibration:** As a project accumulates history, project-calibrated z-scores modulate the anomaly score:
    $$\text{Anomaly Score} = (1 - \alpha) \cdot \text{Score}_{\text{global}} + \alpha \cdot \max(\text{Score}_{\text{global}}, Z_{\text{project}})$$
-   where $\alpha = \min(0.6, N_{\text{project}} / 200)$. This guarantees that a slow batch export API running at 600ms is **not** falsely flagged as anomalous, while a sudden 600ms latency spike in a 10ms microservice is immediately caught.
+   where $\alpha = \min(0.6, N_{\text{project}} / 200)$. This guarantees that a slow batch export API running at 600ms is not falsely flagged as anomalous, while a sudden 600ms latency spike in a 10ms microservice is immediately caught.
 4. **Zero Cross-Tenant Contamination:** Telemetry from Organization A never enters or distorts the baseline calculations of Organization B.
 
 ---
 
 ### 2. Threat Taxonomy & Detection Capabilities
 
-The engine continuously evaluates telemetry streams across four threat vectors:
+The engine continuously evaluates telemetry streams across threat vectors:
 
 | Attack Type | Mechanism | Window | Threshold | Severity |
 |---|---|---|---|---|
-| **Brute Force Login** | Failed authentication status codes (`401`, `403`) | 60s | $> 5$ failures | `MEDIUM` / `HIGH` |
-| **Endpoint Scanning** | High unique endpoint cardinality from single IP | 60s | $> 15$ unique paths | `MEDIUM` / `HIGH` |
-| **Request Burst** | Rapid volumetric traffic spikes | 10s | $> 30$ requests | `MEDIUM` / `HIGH` |
-| **Composite Attack** | Multi-vector exploitation (e.g. scanning + brute force) | 60s | $\ge 2$ rules triggered | `HIGH` |
-| **Statistical Anomaly** | Unsupervised Isolation Forest outlier detection | Dynamic | Anomaly Score $> 2.5$ | `MEDIUM` / `HIGH` |
+| **Brute Force Login** | Failed authentication status codes (`401`, `403`) | 60s | > 5 failures | `MEDIUM` / `HIGH` |
+| **Endpoint Scanning** | High unique endpoint cardinality from single IP | 60s | > 15 unique paths | `MEDIUM` / `HIGH` |
+| **Request Burst** | Rapid volumetric traffic spikes | 10s | > 30 requests | `MEDIUM` / `HIGH` |
+| **Composite Attack** | Multi-vector exploitation (e.g. scanning + brute force) | 60s | >= 2 rules triggered | `HIGH` |
+| **Statistical Anomaly** | Unsupervised Isolation Forest outlier detection | Dynamic | Anomaly Score > 2.5 | `MEDIUM` / `HIGH` |
 | **Normal Traffic** | Standard API transactions conforming to baseline | Rolling | Within normal distribution | `LOW` |
 
 ---
@@ -442,21 +436,21 @@ The engine continuously evaluates telemetry streams across four threat vectors:
 Rather than outputting opaque binary classifications, the pipeline outputs calibrated continuous metrics for every event:
 
 * **Severity Levels:** Categorized as `low`, `medium`, or `high`.
-* **Continuous Risk Score (`0.0` – `100.0`):** Combines rule-based severity weights with ML anomaly scores.
-  * Baseline Normal: `0.0` – `25.0`
-  * Suspicious / Warning: `35.0` – `69.0`
-  * Critical Attack: `70.0` – `100.0`
-* **Confidence Metric (`0.10` – `0.98`):**
+* **Continuous Risk Score (`0.0` - `100.0`):** Combines rule-based severity weights with ML anomaly scores.
+  * Baseline Normal: `0.0` - `25.0`
+  * Suspicious / Warning: `35.0` - `69.0`
+  * Critical Attack: `70.0` - `100.0`
+* **Confidence Metric (`0.10` - `0.98`):**
   * Deterministic multi-rule hits: `0.95`
   * Single deterministic rule: `0.88`
-  * Statistical ML anomaly: `0.65` – `0.85` (scaled with deviation depth)
+  * Statistical ML anomaly: `0.65` - `0.85` (scaled with deviation depth)
   * Baseline normal: `0.92` (acknowledges real-world probabilistic traffic variations)
 
 ---
 
 ### 4. Alert Deduplication & Cooldown Manager
 
-During ongoing volumetric attacks (e.g., 200 failed logins in 60 seconds), notifying on every individual request creates catastrophic alert storms across Slack and webhook channels.
+During ongoing volumetric attacks (e.g., 200 failed logins in 60 seconds), notifying on every individual request creates alert storms across Slack and webhook channels.
 
 * **Suppression Strategy:** The thread-safe `AlertCooldownManager` tracks keys of `(project_id, attack_type, source_ip)`.
 * **Behavior:**
@@ -489,31 +483,31 @@ Every detection and telemetry event retains canonical, server-verified tenant me
 }
 ```
 
-* **Project-Scoped Auto-Blocking:** The active rate limiter tracks request counts strictly per `(project_id, ip)`. An abusive IP blocked in Project A is **never** blocked in Project B.
-* **External Service Fault Tolerance:** Ingestion and detection execution are fully decoupled from third-party services. Disconnected WebSockets, slow Slack webhooks, or unavailable Gemini AI endpoints will **never** block or fail telemetry ingestion (`HTTP 201 Created` is guaranteed).
+* **Project-Scoped Auto-Blocking:** The active rate limiter tracks request counts strictly per `(project_id, ip)`. An abusive IP blocked in Project A is never blocked in Project B.
+* **External Service Fault Tolerance:** Ingestion and detection execution are fully decoupled from third-party services. Disconnected WebSockets, slow Slack webhooks, or unavailable Gemini AI endpoints will never block or fail telemetry ingestion (`HTTP 201 Created` is guaranteed).
 
 ---
 
-## 🔌 Production Integrations & Notification Service
+## Production Integrations & Notification Service
 
-The platform implements an extensible, decoupled notification architecture designed to dispatch real-time security alerts to developer communication platforms without tightly coupling providers into the detection pipeline.
+The platform implements an extensible notification architecture designed to dispatch real-time security alerts to developer communication platforms without tightly coupling providers into the detection pipeline.
 
 ### Notification Architecture Pattern
 
-```
+```text
 Alert Triggered (Ingestion / ML Detection Pipeline)
-      │
-      ▼
+      |
+      v
 NotificationService (backend/integrations/service.py)
-      │
-      ├── Project Isolation & Active Configuration Resolver
-      │
-      ├── Asynchronous Non-Blocking Worker Dispatcher (Daemon Thread)
-      │
-      └── Provider Adapter (backend/integrations/base.py)
-            ├── SlackProvider (backend/integrations/slack.py)
-            ├── DiscordProvider (backend/integrations/discord.py)
-            └── Extensible: PagerDuty / Opsgenie / Generic Webhooks
+      |
+      +-- Project Isolation & Active Configuration Resolver
+      |
+      +-- Asynchronous Non-Blocking Worker Dispatcher (Daemon Thread)
+      |
+      +-- Provider Adapter (backend/integrations/base.py)
+            +-- SlackProvider (backend/integrations/slack.py)
+            +-- DiscordProvider (backend/integrations/discord.py)
+            +-- Extensible: PagerDuty / Opsgenie / Generic Webhooks
 ```
 
 ### Supported Integration Providers
@@ -526,16 +520,18 @@ NotificationService (backend/integrations/service.py)
    * **Payload Format:** Discord Webhook Embeds with hex color mapping (Red for `HIGH`, Orange for `MEDIUM`, Blue for `LOW`), structured field tables, and markdown code formatting.
    * **URL Validation:** Validates `https://discord.com/api/webhooks/...` endpoint structures.
    * **Coexistence:** Can run alongside Slack on the same project; both providers receive incident dispatches concurrently without collisions.
-3. **Google Gemini GenAI Threat Analyst**
-   * **Server-Side API Key Security:** `GEMINI_API_KEY` is loaded exclusively server-side from environment variables. The API key is **never** sent to the client, embedded in HTML, or logged.
-   * **Project-Scoped Authorization:** Calls to `/api/investigate/<alert_id>` strictly verify project ownership or membership (`HTTP 403 Forbidden` if unauthorized). Only traffic history belonging to the target project is submitted to the LLM.
-   * **Heuristic Offline Fallback Mode:** When `GEMINI_API_KEY` is unset, rate-limited (HTTP 429), or the network is offline, the platform automatically synthesizes an automated, structured heuristic threat report and remediation playbook without erroring.
+3. **Google Gemini GenAI Threat Analyst & Autonomous Heuristic Engine**
+   * **Server-Side API Key Security:** `GEMINI_API_KEY` is loaded exclusively server-side from environment variables. The API key is never sent to the client, embedded in HTML, or logged.
+   * **Production Model Failover:** Automatically uses official Gemini models (`gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`) with failover.
+   * **Autonomous Heuristic Fallback Engine:** When `GEMINI_API_KEY` is not provided, contains placeholder text, or experiences quota limits, the platform generates complete structured threat intelligence reports and remediation playbooks using built-in Isolation Forest heuristics without throwing errors or hanging.
+   * **Status HUD:** Shows whether investigations are running via `GEMINI LIVE` or `HEURISTIC ENGINE (OFFLINE MODE)`.
+   * **Project-Scoped Authorization:** Calls to `/api/investigate/<alert_id>` strictly verify project ownership or membership (`HTTP 403 Forbidden` if unauthorized). Only traffic history belonging to the target project is analyzed.
 4. **Integration Health & Status Indicators HUD**
    * Real-time HUD pill in the dashboard header displaying live health statuses:
-     * `💬 Slack: Connected ✓` / `Not Configured` / `Disabled`
-     * `🎮 Discord: Connected ✓` / `Not Configured` / `Disabled`
-     * `✨ Gemini: Configured ✓` / `Missing Key (Fallback Mode)`
-     * `📦 SDK: Connected ✓ (X events)` / `Waiting for Telemetry`
+     * `Slack: Connected [OK]` / `Not Configured` / `Disabled`
+     * `Discord: Connected [OK]` / `Not Configured` / `Disabled`
+     * `Gemini: Configured [OK]` / `Missing Key (Fallback Mode)`
+     * `SDK: Connected [OK] (X events)` / `Waiting for Telemetry`
    * Dedicated `/api/projects/<project_id>/integrations/status` endpoint exposes sanitized status badges without leaking secret tokens.
 
 ### Security & Fault-Tolerance Guarantees
@@ -546,14 +542,14 @@ NotificationService (backend/integrations/service.py)
   Discord: https://discord.com/api/webhooks/1234****/********
   ```
 * **Strict Cross-Tenant IDOR Defense:** Users cannot read, test, modify, or delete another tenant's integrations (`HTTP 403 Forbidden`).
-* **Non-Blocking Telemetry Ingestion:** Webhook alerts are dispatched asynchronously in daemon threads with network timeouts (5s). If an external provider is slow, down, or returning 500 errors, telemetry ingestion and ML detection are **never blocked or slowed down** (`HTTP 201 Created` is guaranteed).
+* **Non-Blocking Telemetry Ingestion:** Webhook alerts are dispatched asynchronously in daemon threads with network timeouts (5s). If an external provider is slow or down, telemetry ingestion and ML detection are never blocked or slowed down (`HTTP 201 Created` is guaranteed).
 
 ---
 
-## 🌟 Core Platform Features
+## Core Platform Features
 
 ### 1. Zero-Latency SDK (Telemetry)
-* **Asynchronous Capture:** A lightweight Flask middleware (`sdk/middleware.py`) that hooks into any API. It extracts traffic data (IP, latency, endpoints, status codes) and forwards it to the collector via a background worker thread with internal queue buffering, ensuring **zero host API latency**.
+* **Asynchronous Capture:** A lightweight Flask middleware (`sdk/middleware.py`) that hooks into any API. It extracts traffic data (IP, latency, endpoints, status codes) and forwards it to the collector via a background worker thread with internal queue buffering, ensuring zero host API latency.
 
 ### 2. Unsupervised Machine Learning (Detection)
 * **Isolation Forest Model:** Dynamically detects behavioral anomalies without relying solely on static signatures.
@@ -561,79 +557,87 @@ NotificationService (backend/integrations/service.py)
 
 ### 3. Active Defense & Alerting (Response)
 * **Auto-Blocking / Rate Limiting:** Abusive IPs exceeding the rate threshold (>50 requests/min) are automatically intercepted and blocked (`429 Too Many Requests`) at the ingestion layer for 5 minutes.
-* **Proactive UI Warnings:** Warns security operators via a glowing banner when an IP hits 30% of the threshold, enabling preemptive one-click manual blocking before the attack peaks.
+* **Proactive UI Warnings:** Warns security operators via an alert banner when an IP hits 30% of the threshold, enabling preemptive one-click manual blocking before the attack peaks.
 * **Automated Webhooks:** `HIGH` severity incidents instantly notify Slack or Discord channels.
 
-### 4. GenAI Threat Analyst (Google Gemini)
-* **Autonomous Investigation:** Clicking "Investigate" on any alert feeds the exact 30 chronological events surrounding the attack into `gemini-3.6-flash`.
-* **Actionable Intelligence:** Generates structured Threat Intelligence, ML Interpretations, and Remediation Strategies.
-* **One-Click PDF Export:** Instantly exports the AI Threat Report to an executive-ready, formatted PDF document.
+### 4. GenAI & Heuristic Threat Analyst
+* **Autonomous Investigation:** Clicking "Investigate" on any alert feeds chronological events surrounding the attack into Google Gemini (`gemini-2.0-flash`) or the Autonomous Heuristic Engine.
+* **Actionable Intelligence:** Generates structured Threat Analysis, ML Interpretations, and Actionable Remediation Steps.
+* **One-Click PDF Export:** Instantly exports the Threat Report to an executive-ready, formatted PDF document.
 
-### 5. "Movie Hacker" Real-Time Dashboard (Observability)
-* **WebSockets Integration:** Built with `Flask-SocketIO` to push live events and alerts to authenticated project rooms (`project_<id>`).
-* **Smooth 1-FPS EKG Chart:** Batches real-time traffic updates into a fluid, animated Bezier curve with glowing plasma styling.
-* **Interactive Time Windows:** Seamlessly switch between 30s, 1m, and 5m live telemetry views.
-* **Live Threat Map:** Plots attacking IP geolocation dynamically on a dark-themed Leaflet.js world map.
-* **Attack Distribution Chart:** Real-time Chart.js doughnut chart visualizing active threat proportions (Brute Force, Scan, Burst, ML Anomaly).
-* **Historical Analytics Tab:** Inspect historical traffic distributions, top accessed endpoints, and top attacker IPs over selectable time ranges.
+### 5. High-Precision Real-Time Dashboard & Analytics
+* **True Chronological Epoch Bucketing:** Replaced string-based minute grouping with continuous epoch-second math, ensuring contiguous zero-filling and eliminating gap-collapsing across all charts.
+* **Dual-Axis Timeline Visualizations:** Left Y-Axis for request velocity and anomalies; Right Y-Axis for response latency and p95 percentiles.
+* **Smooth 1-FPS EKG Telemetry Pulse:** Real-time 60-second oscilloscope displaying instantaneous throughput (req/s), average and peak latency (ms), and error rates.
+* **Multi-Window Analytics Filters:** Interactive time-range filters (`30M`, `1H`, `6H`, `24H`, `7D`) with automatic bucket resolution.
+* **Live WebSocket Telemetry Increments:** Incoming socket events update charts in real time without requiring page refreshes.
+* **React Error Boundary:** Resilient error boundary wrapping all dashboard subpages to prevent UI freezing and ensure graceful recovery.
+* **Live Threat Map:** Plots attacking IP geolocation dynamically on a dark-themed Leaflet world map.
+* **Attack Distribution Chart:** Donut chart visualizing active threat proportions (Brute Force, Scan, Burst, ML Anomaly, Composite Attack).
 
 ---
 
-## 🛠️ Project Structure
+## Project Structure
 
 ```text
 API-Security-Analytics-Dashboard/
-├── backend/
-│   ├── auth.py                 # User authentication, registration, hashing & decorators
-│   ├── config.py               # Environment profiles (development, staging, production)
-│   ├── database.py             # PostgreSQL & SQLite persistence engine & connection pool
-│   ├── db.py                   # Multi-tenant data layer & business queries
-│   ├── detection.py            # ML scoring & Isolation Forest dynamic thresholding
-│   ├── investigator.py         # Google Gemini GenAI threat investigation & heuristic fallbacks
-│   ├── logging_config.py       # Structured logging & automatic secret scrubbing
-│   ├── migrations.py           # Schema migrations & production indexing engine
-│   ├── rate_limiter.py         # Ingestion rate limiter & login brute-force defense
-│   ├── google_auth.py          # Google OAuth 2.0 / OpenID Connect client integration
-│   ├── server.py               # Main Flask & SocketIO application server
-│   ├── webhook.py              # Backward-compatible webhook dispatcher facade
-│   ├── integrations/           # Extensible Notification Service & Provider Adapters
-│   │   ├── base.py             # Abstract BaseNotificationProvider interface
-│   │   ├── slack.py            # Slack Block Kit notification adapter
-│   │   ├── discord.py          # Discord Embed notification adapter
-│   │   └── service.py          # NotificationService router & async dispatcher
-│   ├── train_model.py          # Isolation Forest model training script
-│   ├── test_production_tenant_isolation_suite.py # 11-test Tenant Isolation & IDOR suite
-│   ├── test_integrations_production_suite.py     # 10-test Notification Service suite
-│   ├── test_ml_detection_pipeline_suite.py       # 11-test ML detection pipeline suite
-│   ├── test_telemetry_ingestion_suite.py         # 11-test Ingestion & rate-limiting suite
-│   ├── test_security_audit.py  # 86-test security audit verification suite
-│   └── test_google_oauth_suite.py # 14-scenario Google OAuth verification suite
-├── sdk/
-│   └── middleware.py           # Zero-Latency asynchronous Python SDK
-├── frontend/
-│   └── dashboard/              # Production React + Vite SaaS Frontend Application
-├── demo/
-│   ├── sample_app.py           # Instrumented mock E-Commerce API (Port 5002)
-│   └── generators.py           # Realistic attack & normal traffic simulation suite
-├── Dockerfile                  # Hardened production container image
-├── docker-compose.yml          # Multi-container orchestration (Platform + PostgreSQL)
-├── gunicorn_config.py          # Production WSGI server configuration
-├── .env.example                # Example environment configuration template
-└── requirements.txt            # Python dependencies
+|-- backend/
+|   |-- auth.py                 # User authentication, registration, hashing & decorators
+|   |-- config.py               # Environment profiles (development, staging, production)
+|   |-- database.py             # PostgreSQL & SQLite persistence engine & connection pool
+|   |-- db.py                   # Multi-tenant data layer & true chronological queries
+|   |-- detection.py            # ML scoring & Isolation Forest dynamic thresholding
+|   |-- investigator.py         # Google Gemini GenAI threat investigation & heuristic fallbacks
+|   |-- logging_config.py       # Structured logging & automatic secret scrubbing
+|   |-- migrations.py           # Schema migrations & production indexing engine
+|   |-- rate_limiter.py         # Ingestion rate limiter & login brute-force defense
+|   |-- google_auth.py          # Google OAuth 2.0 / OpenID Connect client integration
+|   |-- server.py               # Main Flask & SocketIO application server
+|   |-- webhook.py              # Backward-compatible webhook dispatcher facade
+|   |-- integrations/           # Extensible Notification Service & Provider Adapters
+|   |   |-- base.py             # Abstract BaseNotificationProvider interface
+|   |   |-- slack.py            # Slack Block Kit notification adapter
+|   |   |-- discord.py          # Discord Embed notification adapter
+|   |   +-- service.py          # NotificationService router & async dispatcher
+|   |-- train_model.py          # Isolation Forest model training script
+|   |-- test_production_tenant_isolation_suite.py # 11-test Tenant Isolation & IDOR suite
+|   |-- test_integrations_production_suite.py     # 10-test Notification Service suite
+|   |-- test_ml_detection_pipeline_suite.py       # 11-test ML detection pipeline suite
+|   |-- test_telemetry_ingestion_suite.py         # 11-test Ingestion & rate-limiting suite
+|   |-- test_security_audit.py  # 86-test security audit verification suite
+|   +-- test_google_oauth_suite.py # 14-scenario Google OAuth verification suite
+|-- sdk/
+|   +-- middleware.py           # Zero-Latency asynchronous Python SDK
+|-- frontend/
+|   +-- dashboard/              # Production React + Vite SaaS Frontend Application
+|       |-- src/
+|       |   |-- components/
+|       |   |   +-- common/
+|       |   |       +-- ErrorBoundary.jsx # React Error Boundary for fault recovery
+|       |   +-- pages/
+|       |       +-- dashboard/  # Overview, LiveMonitoring, Analytics, Investigations, etc.
+|-- demo/
+|   |-- sample_app.py           # Instrumented mock E-Commerce API (Port 5002)
+|   +-- generators.py           # Realistic attack & normal traffic simulation suite
+|-- Dockerfile                  # Hardened production container image
+|-- docker-compose.yml          # Multi-container orchestration (Platform + PostgreSQL)
+|-- gunicorn_config.py          # Production WSGI server configuration
+|-- .env.example                # Example environment configuration template
++-- requirements.txt            # Python dependencies
 ```
 
 ---
 
-## ⚙️ Environment Variables & Configuration
+## Environment Variables & Configuration
 
 Configure the following variables in your environment or `.env` file (see `.env.example`):
 
 | Variable | Required | Default | Description |
 | :--- | :---: | :---: | :--- |
 | `ENVIRONMENT` | Recommended | `development` | Environment profile (`development`, `staging`, `production`). |
-| `DATABASE_URL` | **Yes** (in Prod) | `sqlite:///backend/events.db` | Database connection string. Use `postgresql://user:pass@host:5432/dbname` in production; SQLite in development. |
-| `SECRET_KEY` | **Yes** (in Prod) | `api-security-dashboard-secret-321` | Cryptographic secret for signing Flask session cookies (32-byte hex random string). |
-| `SESSION_COOKIE_SECURE` | **Yes** (in Prod) | `false` (dev) / `true` (prod) | Strictly enforce `Secure` cookies over HTTPS. Set to `true` in production and staging. |
+| `DATABASE_URL` | Yes (in Prod) | `sqlite:///backend/events.db` | Database connection string. Use `postgresql://user:pass@host:5432/dbname` in production; SQLite in development. |
+| `SECRET_KEY` | Yes (in Prod) | `api-security-dashboard-secret-321` | Cryptographic secret for signing Flask session cookies (32-byte hex random string). |
+| `SESSION_COOKIE_SECURE` | Yes (in Prod) | `false` (dev) / `true` (prod) | Strictly enforce `Secure` cookies over HTTPS. Set to `true` in production and staging. |
 | `PORT` | Optional | `5001` | Port on which the central backend and dashboard listen. |
 | `CORS_ALLOWED_ORIGINS` | Recommended | `*` (dev) | Permitted origins for HTTP and WebSockets (e.g. `https://dashboard.company.com`). |
 | `MAX_CONTENT_LENGTH` | Optional | `5242880` (5 MB) | Maximum allowable request body size to prevent volumetric resource starvation. |
@@ -641,8 +645,8 @@ Configure the following variables in your environment or `.env` file (see `.env.
 | `RATE_LIMIT_PER_MINUTE` | Optional | `50` | Token bucket ingestion rate limit per project. |
 | `RATE_LIMIT_BURST` | Optional | `30` | Maximum token bucket burst capacity per project. |
 | `GEMINI_API_KEY` | Recommended | None | Google AI Studio API key used for autonomous GenAI Threat Investigations (runs in heuristic fallback if omitted). |
-| `GOOGLE_CLIENT_ID` | Optional* | None | Google Cloud OAuth 2.0 Web Client ID (*required for Google sign-in). |
-| `GOOGLE_CLIENT_SECRET` | Optional* | None | Google Cloud OAuth 2.0 Web Client Secret (*required for Google sign-in). |
+| `GOOGLE_CLIENT_ID` | Optional | None | Google Cloud OAuth 2.0 Web Client ID (required for Google sign-in). |
+| `GOOGLE_CLIENT_SECRET` | Optional | None | Google Cloud OAuth 2.0 Web Client Secret (required for Google sign-in). |
 | `GOOGLE_REDIRECT_URI` | Optional | `http://127.0.0.1:5001/auth/google/callback` | Authorized redirect URI for Google OAuth callback. |
 | `SLACK_WEBHOOK_URL` | Optional | None | Optional global fallback webhook (projects configure their own webhooks in the UI). |
 | `APP_BASE_URL` | Optional | `http://localhost:5001` | Base URL used to format email verification and password reset links. |
@@ -652,12 +656,12 @@ Configure the following variables in your environment or `.env` file (see `.env.
 
 ---
 
-## 🌐 Google Cloud OAuth 2.0 Configuration
+## Google Cloud OAuth 2.0 Configuration
 
 To enable "Continue with Google" sign-in:
 
 ### 1. Create a Google Cloud Project & Configure Consent Screen
-1. Navigate to the [Google Cloud Console](https://console.cloud.google.com/).
+1. Navigate to the Google Cloud Console (`https://console.cloud.google.com/`).
 2. Create a new project (e.g. `ml-o11y-security-platform`) or select an existing one.
 3. Go to **APIs & Services > OAuth consent screen**.
 4. Choose **External** user type and click **Create**.
@@ -673,7 +677,7 @@ To enable "Continue with Google" sign-in:
 
 ### 2. Create OAuth 2.0 Credentials
 1. Go to **APIs & Services > Credentials**.
-2. Click **+ Create Credentials** and select **OAuth client ID**.
+2. Click **Create Credentials** and select **OAuth client ID**.
 3. Set **Application type** to **Web application**.
 4. Name: `ML-O11Y Web Client`.
 5. Under **Authorized redirect URIs**, add:
@@ -691,7 +695,7 @@ export GOOGLE_REDIRECT_URI="http://127.0.0.1:5001/auth/google/callback"
 
 ---
 
-## 🚀 Setup & Installation
+## Setup & Installation
 
 ### 1. Clone & Set Up Python Environment
 
@@ -725,12 +729,12 @@ export SECRET_KEY="your_secure_random_session_secret"
 
 ---
 
-## 🎥 Running the Live Platform Demo
+## Running the Live Platform Demo
 
 To run the complete interactive platform demonstration, open **3 terminal windows** (with your virtual environment activated in all three):
 
-### Terminal 1 — The Security Brain & Dashboard
-Runs the telemetry collector, ML engine, SQLite database, and real-time dashboard server:
+### Terminal 1 -- The Security Brain & Dashboard
+Runs the telemetry collector, ML engine, database, and real-time dashboard server:
 ```bash
 python backend/server.py
 ```
@@ -739,23 +743,23 @@ python backend/server.py
   * **Email:** `demo@mlo11y.local`
   * **Password:** `demo123456`
 
-### Terminal 2 — The Victim Application
+### Terminal 2 -- The Victim Application
 Runs a sample e-commerce API (listening on port **5002**), instrumented with the SDK:
 ```bash
 python demo/sample_app.py
 ```
 
-### Terminal 3 — The Attack & Traffic Simulator
+### Terminal 3 -- The Attack & Traffic Simulator
 Simulates normal web visitors alongside automated hackers executing Brute Force logins, Endpoint Scans, and Request Bursts:
 ```bash
 python demo/generators.py continuous
 ```
 
-> **Watch the Live Defense:** Look at the dashboard on `http://127.0.0.1:5001`. Normal requests render as a smooth blue line. As soon as attack spikes occur, the ML engine raises alerts, the attacking IP is plotted on the world map, auto-blocking triggers (`429`), and you can click **"Investigate"** to receive a full Gemini AI threat analysis and PDF report!
+> **Watch the Live Defense:** Open the dashboard on `http://127.0.0.1:5001`. Normal requests render as a smooth line. As soon as attack spikes occur, the ML engine raises alerts, the attacking IP is plotted on the world map, auto-blocking triggers (`429`), and you can click **"Investigate"** to receive an AI threat analysis and PDF report.
 
 ---
 
-## 🧪 Running Automated Test Suites
+## Running Automated Test Suites
 
 ### Complete Production Tenant-Isolation & IDOR Attack Suite (11 Scenarios)
 ```bash
