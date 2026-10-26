@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ProjectProvider } from './context/ProjectContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './layouts/AppLayout';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Lazy-loaded Public Pages
 const LandingPage = lazy(() =>
@@ -88,20 +89,22 @@ export function App() {
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <Suspense fallback={<PageLoader />}>
-                        <Routes>
-                          <Route index element={<OverviewPage />} />
-                          <Route path="live" element={<LiveMonitoringPage />} />
-                          <Route path="threats" element={<ThreatsPage />} />
-                          <Route path="analytics" element={<AnalyticsPage />} />
-                          <Route path="projects" element={<ProjectsPage />} />
-                          <Route path="sdk" element={<SdkOnboardingPage />} />
-                          <Route path="integrations" element={<IntegrationsPage />} />
-                          <Route path="investigations" element={<InvestigationsPage />} />
-                          <Route path="settings" element={<SettingsPage />} />
-                          <Route path="*" element={<Navigate to="/app" replace />} />
-                        </Routes>
-                      </Suspense>
+                      <ErrorBoundary>
+                        <Suspense fallback={<PageLoader />}>
+                          <Routes>
+                            <Route index element={<OverviewPage />} />
+                            <Route path="live" element={<LiveMonitoringPage />} />
+                            <Route path="threats" element={<ThreatsPage />} />
+                            <Route path="analytics" element={<AnalyticsPage />} />
+                            <Route path="projects" element={<ProjectsPage />} />
+                            <Route path="sdk" element={<SdkOnboardingPage />} />
+                            <Route path="integrations" element={<IntegrationsPage />} />
+                            <Route path="investigations" element={<InvestigationsPage />} />
+                            <Route path="settings" element={<SettingsPage />} />
+                            <Route path="*" element={<Navigate to="/app" replace />} />
+                          </Routes>
+                        </Suspense>
+                      </ErrorBoundary>
                     </AppLayout>
                   </ProtectedRoute>
                 }
