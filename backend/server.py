@@ -68,7 +68,8 @@ socketio = SocketIO(
     max_http_buffer_size=app_cfg.MAX_CONTENT_LENGTH
 )
 
-API_TOKEN = "phase1-demo-token"
+# Demo token is only active if explicitly enabled in configuration and never in production
+API_TOKEN = "phase1-demo-token" if getattr(app_cfg, "ALLOW_DEMO_TOKEN", False) else None
 REQUIRED_FIELDS = ["endpoint", "method", "status_code", "latency_ms", "ip"]
 
 
@@ -85,7 +86,8 @@ def _get_project_from_auth():
         project = db.get_project_by_api_key(token)
         if project:
             return project
-        if token == API_TOKEN:
+        # Only permit phase1-demo-token if demo bypass is explicitly active (disabled in production)
+        if API_TOKEN and token == API_TOKEN:
             return db.get_project_by_id("proj_demo_default")
     return None
 
@@ -133,9 +135,9 @@ def handle_join_project(data):
         emit('error', {'message': 'project_id required'})
         return {'status': 'error', 'message': 'project_id required'}
 
-    # Demo project fallback for unauthenticated demo scripts
+    # Demo project fallback for unauthenticated demo scripts (development only)
     if not user_id:
-        if project_id in ('proj_demo_default', 'phase1-demo-token', 'default'):
+        if getattr(app_cfg, "ALLOW_DEMO_TOKEN", False) and project_id in ('proj_demo_default', 'phase1-demo-token', 'default'):
             room_name = f"project_{project_id}"
             join_room(room_name)
             emit('project_joined', {'project_id': project_id, 'room': room_name})
@@ -1901,5 +1903,8 @@ def get_alert_report(alert_id):
 
 if __name__ == "__main__":
     db.init_db()
-    print(f"Collector starting. Token: {API_TOKEN}")
+    if API_TOKEN:
+        print("Collector starting in development mode (demo token enabled).")
+    else:
+        print("Collector starting in production hardened mode (demo token disabled).")
     socketio.run(app, host="0.0.0.0", port=5001, debug=False)

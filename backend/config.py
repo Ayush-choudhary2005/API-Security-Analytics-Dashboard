@@ -52,12 +52,16 @@ class BaseConfig:
     # Global Fallback Webhook
     SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
+    # Ingestion Token & Demo Bypass Control
+    ALLOW_DEMO_TOKEN = os.environ.get("ALLOW_DEMO_TOKEN", "true" if (os.environ.get("ENVIRONMENT") or os.environ.get("FLASK_ENV") or "development").lower() != "production" else "false").lower() == "true"
+
 
 class DevelopmentConfig(BaseConfig):
     """Local development profile."""
     DEBUG = True
     SESSION_COOKIE_SECURE = False
     CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "*")
+    ALLOW_DEMO_TOKEN = os.environ.get("ALLOW_DEMO_TOKEN", "true").lower() == "true"
 
 
 class StagingConfig(BaseConfig):
@@ -65,6 +69,7 @@ class StagingConfig(BaseConfig):
     DEBUG = False
     SESSION_COOKIE_SECURE = True
     CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "https://staging.mlo11y.com")
+    ALLOW_DEMO_TOKEN = False
 
 
 class ProductionConfig(BaseConfig):
@@ -72,6 +77,7 @@ class ProductionConfig(BaseConfig):
     DEBUG = False
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    ALLOW_DEMO_TOKEN = False  # Hardcoded demo bypass is strictly forbidden in production
 
     def __init__(self):
         # Validate that default secret key is NOT used in real production

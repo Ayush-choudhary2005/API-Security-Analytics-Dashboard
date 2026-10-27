@@ -77,14 +77,21 @@ def _seed_default_demo_account(conn):
         proj_id = proj_row["id"]
         conn.execute("UPDATE projects SET organization_id = ? WHERE id = ? AND (organization_id IS NULL OR organization_id = '')", (org_id, proj_id))
 
-    # 4. Check if phase1-demo-token API key exists
-    demo_key_hash = hashlib.sha256(b"phase1-demo-token").hexdigest()
-    key_row = conn.execute("SELECT id FROM api_keys WHERE key_hash = ?", (demo_key_hash,)).fetchone()
-    if not key_row:
-        conn.execute(
-            "INSERT INTO api_keys (project_id, name, key_prefix, key_hash, created_at) VALUES (?, ?, ?, ?, ?)",
-            (proj_id, "Demo Ingest Key", "phase1", demo_key_hash, now)
-        )
+    # 4. Check if phase1-demo-token API key exists (only in development if demo bypass is permitted)
+    try:
+        from config import get_config
+        allow_demo = get_config().ALLOW_DEMO_TOKEN
+    except Exception:
+        allow_demo = False
+
+    if allow_demo:
+        demo_key_hash = hashlib.sha256(b"phase1-demo-token").hexdigest()
+        key_row = conn.execute("SELECT id FROM api_keys WHERE key_hash = ?", (demo_key_hash,)).fetchone()
+        if not key_row:
+            conn.execute(
+                "INSERT INTO api_keys (project_id, name, key_prefix, key_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                (proj_id, "Demo Ingest Key", "phase1", demo_key_hash, now)
+            )
 
     # 5. Optional: seed global SLACK_WEBHOOK_URL into demo project if set in environment
     env_slack = os.environ.get("SLACK_WEBHOOK_URL", "")
@@ -1020,11 +1027,20 @@ def get_project_by_api_key(raw_key: str) -> dict:
         conn.close()
         return project
 
-    # Fallback compatibility for literal phase1 demo token
+    # Fallback compatibility for literal phase1 demo token (development only if permitted)
     if raw_key == "phase1-demo-token":
-        row = conn.execute("SELECT * FROM projects WHERE id = 'proj_demo_default'").fetchone()
+        try:
+            from config import get_config
+            allow_demo = get_config().ALLOW_DEMO_TOKEN
+        except Exception:
+            allow_demo = False
+
+        if allow_demo:
+            row = conn.execute("SELECT * FROM projects WHERE id = 'proj_demo_default'").fetchone()
+            conn.close()
+            return dict(row) if row else None
         conn.close()
-        return dict(row) if row else None
+        return None
 
     conn.close()
     return None
