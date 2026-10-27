@@ -11,6 +11,19 @@ import os
 import secrets
 from typing import List
 
+# Blacklist of known insecure, placeholder, or default secrets
+INSECURE_DEFAULT_SECRET_KEYS = {
+    "api-security-dashboard-secret-321",
+    "replace-with-a-secure-random-32-byte-hex-key-in-production",
+    "replace-with-a-real-secret-key-32-bytes-long",
+    "your_secure_random_session_secret",
+    "secret",
+    "secret123",
+    "changeme",
+    "admin",
+    "password",
+}
+
 
 class BaseConfig:
     """Base application configuration."""
@@ -18,8 +31,9 @@ class BaseConfig:
     DEBUG = False
     TESTING = False
 
-    # Core Secrets
-    SECRET_KEY = os.environ.get("SECRET_KEY", "api-security-dashboard-secret-321")
+    # Core Secrets: Load from environment if set; otherwise generate an ephemeral secure key for local dev
+    _raw_secret = os.environ.get("SECRET_KEY", "").strip()
+    SECRET_KEY = _raw_secret if _raw_secret else secrets.token_hex(32)
 
     # Database URL
     DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -71,6 +85,15 @@ class StagingConfig(BaseConfig):
     CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "https://staging.mlo11y.com")
     ALLOW_DEMO_TOKEN = False
 
+    def __init__(self):
+        raw_secret = os.environ.get("SECRET_KEY", "").strip()
+        if not raw_secret or raw_secret in INSECURE_DEFAULT_SECRET_KEYS or len(raw_secret) < 32:
+            raise RuntimeError(
+                "FATAL SECURITY CONFIGURATION: Staging environment requires a cryptographically "
+                "strong SECRET_KEY (minimum 32 characters). Set a secure SECRET_KEY in your environment."
+            )
+        self.SECRET_KEY = raw_secret
+
 
 class ProductionConfig(BaseConfig):
     """Hardened production deployment profile."""
@@ -80,14 +103,15 @@ class ProductionConfig(BaseConfig):
     ALLOW_DEMO_TOKEN = False  # Hardcoded demo bypass is strictly forbidden in production
 
     def __init__(self):
-        # Validate that default secret key is NOT used in real production
-        if self.SECRET_KEY == "api-security-dashboard-secret-321":
-            import warnings
-            warnings.warn(
-                "CRITICAL SECURITY RISK: Running in production with default SECRET_KEY! "
-                "Set a cryptographically strong SECRET_KEY in your environment.",
-                UserWarning
+        raw_secret = os.environ.get("SECRET_KEY", "").strip()
+        if not raw_secret or raw_secret in INSECURE_DEFAULT_SECRET_KEYS or len(raw_secret) < 32:
+            raise RuntimeError(
+                "FATAL SECURITY CONFIGURATION: Production refuses to start with a missing, "
+                "default, or weak SECRET_KEY. You must configure a cryptographically secure "
+                "SECRET_KEY (minimum 32 characters, e.g. generated via `secrets.token_hex(32)`) "
+                "in your environment variables."
             )
+        self.SECRET_KEY = raw_secret
 
 
 CONFIG_MAP = {

@@ -636,7 +636,7 @@ Configure the following variables in your environment or `.env` file (see `.env.
 | :--- | :---: | :---: | :--- |
 | `ENVIRONMENT` | Recommended | `development` | Environment profile (`development`, `staging`, `production`). |
 | `DATABASE_URL` | Yes (in Prod) | `sqlite:///backend/events.db` | Database connection string. Use `postgresql://user:pass@host:5432/dbname` in production; SQLite in development. |
-| `SECRET_KEY` | Yes (in Prod) | `api-security-dashboard-secret-321` | Cryptographic secret for signing Flask session cookies (32-byte hex random string). |
+| `SECRET_KEY` | Yes (in Prod) | Generated in Dev | Cryptographic secret for signing Flask session cookies (minimum 32 characters; server refuses to boot in production if missing or default). |
 | `SESSION_COOKIE_SECURE` | Yes (in Prod) | `false` (dev) / `true` (prod) | Strictly enforce `Secure` cookies over HTTPS. Set to `true` in production and staging. |
 | `PORT` | Optional | `5001` | Port on which the central backend and dashboard listen. |
 | `CORS_ALLOWED_ORIGINS` | Recommended | `*` (dev) | Permitted origins for HTTP and WebSockets (e.g. `https://dashboard.company.com`). |
