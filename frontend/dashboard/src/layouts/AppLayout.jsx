@@ -291,15 +291,36 @@ export const AppLayout = ({ children }) => {
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-1.5 w-80 bg-[#16181D] border border-[#2A2E37] rounded-md shadow-2xl py-2 z-50">
-                <div className="px-3 py-1.5 text-xs font-semibold text-[#E6E8EB] border-b border-[#1E2127] flex items-center justify-between">
+              <div className="absolute right-0 mt-1.5 w-80 bg-[#16181D]/95 backdrop-blur-md border border-[#2A2E37] rounded-2xl shadow-2xl py-1.5 z-50 overflow-hidden">
+                <div className="px-3.5 py-2 text-xs font-semibold text-[#E6E8EB] border-b border-[#1E2127] flex items-center justify-between">
                   <span className="font-mono text-[11px] uppercase tracking-wider text-[#C792EA]">Live Threat Stream</span>
-                  <span className="text-[10px] text-[#7B818B] font-mono">{liveAlerts.length} buffered</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] text-[#7B818B] font-mono">{liveAlerts.length} buffered</span>
+                    {liveAlerts.length > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLiveAlerts([]);
+                        }}
+                        className="text-[10px] font-mono text-[#82AAFF] hover:text-white px-2 py-0.5 rounded bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-colors cursor-pointer"
+                        title="Dismiss all notifications"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="max-h-64 overflow-y-auto divide-y divide-[#1E2127]/60">
                   {liveAlerts.length > 0 ? (
                     liveAlerts.map((alt, idx) => (
-                      <div key={idx} className="p-3 text-xs hover:bg-[#1E2127] transition-colors">
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          navigate('/app/threats');
+                        }}
+                        className="p-3 text-xs hover:bg-[#1E2127] transition-colors cursor-pointer"
+                      >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold text-[#F07178] uppercase tracking-wider text-[10px] font-mono">
                             {alt.attack_type || 'ANOMALY'}
