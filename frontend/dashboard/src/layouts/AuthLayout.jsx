@@ -15,7 +15,7 @@ export const AuthLayout = ({ children, title, subtitle }) => {
             </div>
             <div>
               <span className="text-sm font-semibold tracking-tight text-[#E6E8EB] transition-colors">
-                API-Security-Analytics-Dashboard
+                API Security Analytics
               </span>
               <p className="text-[11px] font-mono text-[#7B818B]">API Security Analytics & Active Defense</p>
             </div>

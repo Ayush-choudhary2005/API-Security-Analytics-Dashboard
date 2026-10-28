@@ -19,7 +19,7 @@ export const PublicLayout = ({ children }) => {
               <Shield className="w-4 h-4" />
             </div>
             <span className="text-xs font-semibold tracking-tight text-[#E6E8EB] group-hover:text-white transition-colors">
-              API-Security-Analytics-Dashboard
+              API Security Analytics
             </span>
           </Link>
 

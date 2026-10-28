@@ -142,7 +142,7 @@ export const AppLayout = ({ children }) => {
               <Shield className="w-4 h-4" />
             </div>
             <span className="hidden sm:inline-block text-xs font-semibold tracking-tight text-[#E6E8EB] group-hover:text-white transition-colors">
-              API-Security-Analytics-Dashboard
+              API Security Analytics
             </span>
           </NavLink>
 
@@ -440,7 +440,7 @@ export const AppLayout = ({ children }) => {
               <div className="flex items-center justify-between pb-3 border-b border-[#1E2127] mb-3">
                 <div className="flex items-center space-x-2">
                   <Shield className="w-4 h-4 text-[#C792EA]" />
-                  <span className="font-semibold text-xs text-[#E6E8EB]">API-Security-Analytics-Dashboard</span>
+                  <span className="font-semibold text-xs text-[#E6E8EB]">API Security Analytics</span>
                 </div>
                 <button onClick={() => setMobileMenuOpen(false)} className="text-[#9BA1AC] hover:text-white p-1">
                   <X className="w-4 h-4" />
