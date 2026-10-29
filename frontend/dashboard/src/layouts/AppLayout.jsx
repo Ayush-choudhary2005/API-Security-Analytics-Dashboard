@@ -501,9 +501,24 @@ export const AppLayout = ({ children }) => {
 
       {/* Modal: Create Organization */}
       {showCreateOrgModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCreateOrgModal(false);
+          }}
+        >
           <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Create New Organization</h3>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold text-[#E6E8EB]">Create New Organization</h3>
+              <button
+                type="button"
+                onClick={() => setShowCreateOrgModal(false)}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
             <p className="text-xs text-[#9BA1AC] mb-4">
               Organizations provide boundary isolation for tenant telemetry, alert policies, and access tokens.
             </p>
@@ -523,13 +538,13 @@ export const AppLayout = ({ children }) => {
                 <button
                   type="button"
                   onClick={() => setShowCreateOrgModal(false)}
-                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
+                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 text-xs bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold rounded transition-colors"
+                  className="px-3.5 py-1.5 text-xs bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold rounded cursor-pointer transition-colors"
                 >
                   Create Organization
                 </button>
@@ -541,9 +556,24 @@ export const AppLayout = ({ children }) => {
 
       {/* Modal: Create Project */}
       {showCreateProjModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCreateProjModal(false);
+          }}
+        >
           <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Create New Project</h3>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold text-[#E6E8EB]">Create New Project</h3>
+              <button
+                type="button"
+                onClick={() => setShowCreateProjModal(false)}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
             <p className="text-xs text-[#9BA1AC] mb-4">
               Create an isolated project within <span className="text-[#E6E8EB] font-medium">{currentOrg?.name || 'Workspace'}</span> to collect API metrics.
             </p>
@@ -573,13 +603,13 @@ export const AppLayout = ({ children }) => {
                 <button
                   type="button"
                   onClick={() => setShowCreateProjModal(false)}
-                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
+                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] font-semibold rounded transition-colors"
+                  className="px-3.5 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] font-semibold rounded cursor-pointer transition-colors"
                 >
                   Create Project & Key
                 </button>
@@ -591,11 +621,26 @@ export const AppLayout = ({ children }) => {
 
       {/* Modal: Newly Generated API Key */}
       {latestCreatedKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLatestCreatedKey(null);
+          }}
+        >
           <div className="bg-[#101216] border border-[#C3E88D]/40 rounded-md p-6 w-full max-w-md shadow-2xl">
-            <div className="flex items-center space-x-2 mb-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#C3E88D]"></span>
-              <h3 className="text-sm font-semibold text-[#E6E8EB]">SDK Key Generated</h3>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#C3E88D]"></span>
+                <h3 className="text-sm font-semibold text-[#E6E8EB]">SDK Key Generated</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLatestCreatedKey(null)}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
             </div>
             <p className="text-xs text-[#9BA1AC] mb-3">
               Your new project has been created and your initial SDK ingestion key has been provisioned. Copy this key now to configure your SDK.
@@ -609,7 +654,7 @@ export const AppLayout = ({ children }) => {
                   setCopiedLatestKey(true);
                   setTimeout(() => setCopiedLatestKey(false), 2000);
                 }}
-                className="ml-2 px-2 py-1 rounded bg-[#101216] hover:bg-[#1E2127] text-xs text-[#E6E8EB] border border-[#2A2E37] flex-shrink-0 transition-colors"
+                className="ml-2 px-2 py-1 rounded bg-[#101216] hover:bg-[#1E2127] text-xs text-[#E6E8EB] border border-[#2A2E37] flex-shrink-0 transition-colors cursor-pointer"
               >
                 {copiedLatestKey ? 'Copied!' : 'Copy'}
               </button>
@@ -618,7 +663,7 @@ export const AppLayout = ({ children }) => {
               <button
                 type="button"
                 onClick={() => setLatestCreatedKey(null)}
-                className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded"
+                className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors"
               >
                 Close
               </button>
@@ -628,7 +673,7 @@ export const AppLayout = ({ children }) => {
                   setLatestCreatedKey(null);
                   navigate('/app/sdk');
                 }}
-                className="px-3.5 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold rounded transition-colors"
+                className="px-3.5 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold rounded cursor-pointer transition-colors"
               >
                 Go to SDK Integration
               </button>
