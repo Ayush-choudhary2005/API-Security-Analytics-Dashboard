@@ -12,6 +12,7 @@ export const SignupPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successInfo, setSuccessInfo] = useState(null);
@@ -158,7 +159,8 @@ export const SignupPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-2.5 text-[#7B818B] hover:text-[#E6E8EB]"
+                  className="absolute right-2.5 top-2.5 text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
@@ -170,13 +172,21 @@ export const SignupPage = () => {
               <div className="relative">
                 <Lock className="w-3.5 h-3.5 text-[#7B818B] absolute left-3 top-2.5" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showConfirmPassword ? 'text' : 'password'}
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-9 pr-3 py-2.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] focus:ring-1 focus:ring-[#C792EA]/40 transition-colors font-mono"
+                  className="w-full bg-[#16181D] border border-[#1E2127] rounded-xl pl-9 pr-9 py-2.5 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none focus:border-[#C792EA] focus:ring-1 focus:ring-[#C792EA]/40 transition-colors font-mono"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-2.5 top-2.5 text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer"
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
               </div>
             </div>
 
