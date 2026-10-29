@@ -1,5 +1,6 @@
 import React from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapPin } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // Resolve real or fallback coordinates for IP
@@ -72,12 +73,17 @@ export const ThreatMap = ({ threats = [] }) => {
               <Popup>
                 <div className="text-xs space-y-1.5 p-1 font-sans">
                   <div className="flex items-center justify-between gap-2 border-b border-[#2A2E37] pb-1">
-                    <p className="font-mono text-[10px] font-bold text-[#F07178] uppercase tracking-wider">{threat.attack_type || 'ANOMALY_VECTOR'}</p>
+                    <p className="font-mono text-[10px] font-bold text-[#F07178] uppercase tracking-wider">
+                      {String(threat.attack_type || 'ANOMALY VECTOR').replace(/_/g, ' ')}
+                    </p>
                     <span className="font-mono text-[10px] px-1 rounded bg-[#1E2127] text-[#9BA1AC]">{threat.severity || 'flagged'}</span>
                   </div>
                   <p className="font-mono text-xs text-[#E6E8EB]">IP: {threat.ip || threat.source_ip || '127.0.0.1'}</p>
                   {locationLabel && (
-                    <p className="text-[11px] text-[#C3E88D] font-mono">📍 {locationLabel}</p>
+                    <p className="text-[11px] text-[#C3E88D] font-mono flex items-center space-x-1">
+                      <MapPin className="w-3 h-3 flex-shrink-0" />
+                      <span>{locationLabel}</span>
+                    </p>
                   )}
                   <p className="text-[11px] text-[#9BA1AC] truncate max-w-[180px]">Endpoint: {threat.endpoint || '/api'}</p>
                   <p className="font-mono text-[10px] text-[#C792EA]">Anomaly Score: {threat.anomaly_score?.toFixed ? threat.anomaly_score.toFixed(3) : threat.anomaly_score || '0.92'}</p>
