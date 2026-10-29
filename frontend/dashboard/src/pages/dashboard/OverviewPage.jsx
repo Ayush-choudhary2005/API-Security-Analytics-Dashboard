@@ -169,7 +169,7 @@ export const OverviewPage = () => {
     ? Object.entries(rawDist)
         .filter(([k, count]) => count > 0 && k !== 'attack_distribution')
         .map(([type, count]) => ({
-          name: type.replace('_', ' ').toUpperCase(),
+          name: type.replace(/_/g, ' ').toUpperCase(),
           value: count,
         }))
     : [];
@@ -545,7 +545,7 @@ export const OverviewPage = () => {
                       </span>
                     </td>
                     <td className="py-2.5 px-3 font-medium text-[#E6E8EB]">
-                      {(alt.attack_type || 'Anomaly').replace('_', ' ')}
+                      {(alt.attack_type || 'Anomaly').replace(/_/g, ' ')}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-[#C792EA]">
                       {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(2) : alt.anomaly_score}

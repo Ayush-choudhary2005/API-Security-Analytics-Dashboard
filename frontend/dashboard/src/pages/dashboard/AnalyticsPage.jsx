@@ -71,7 +71,7 @@ export const AnalyticsPage = () => {
     ? Object.entries(rawDist)
         .filter(([key, count]) => count > 0 && key !== 'attack_distribution')
         .map(([type, count]) => ({
-          type: type.replace('_', ' ').toUpperCase(),
+          type: type.replace(/_/g, ' ').toUpperCase(),
           count,
         }))
     : [];

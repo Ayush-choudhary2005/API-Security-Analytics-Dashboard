@@ -242,7 +242,7 @@ export const ThreatsPage = () => {
                     </span>
                   </td>
                   <td className="py-2 px-3 font-medium text-[#E6E8EB]">
-                    {(alt.attack_type || 'Anomaly Detected').replace('_', ' ')}
+                    {(alt.attack_type || 'Anomaly Detected').replace(/_/g, ' ')}
                   </td>
                   <td className="py-2 px-3 font-mono text-[#C792EA]">
                     {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(3) : alt.anomaly_score}
