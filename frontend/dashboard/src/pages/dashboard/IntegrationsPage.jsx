@@ -177,7 +177,7 @@ export const IntegrationsPage = () => {
 
       {testResult && (
         <div
-          className={`p-3.5 rounded-2xl border text-xs font-mono flex items-center space-x-2 transition-all ${
+          className={`p-3.5 rounded-2xl border text-xs font-mono flex items-center justify-between transition-all ${
             testResult.status === 'success'
               ? 'bg-[#101216] border-[#C3E88D]/40 text-[#C3E88D]'
               : testResult.status === 'error'
@@ -185,9 +185,19 @@ export const IntegrationsPage = () => {
               : 'bg-[#101216] border-[#1E2127] text-[#82AAFF]'
           }`}
         >
-          {testResult.status === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[#C3E88D]" />}
-          {testResult.status === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#F07178]" />}
-          <span>{testResult.message}</span>
+          <div className="flex items-center space-x-2">
+            {testResult.status === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[#C3E88D]" />}
+            {testResult.status === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#F07178]" />}
+            <span>{testResult.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTestResult(null)}
+            className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer ml-3 flex-shrink-0 transition-colors"
+            title="Dismiss notification"
+          >
+            ✕
+          </button>
         </div>
       )}
 
