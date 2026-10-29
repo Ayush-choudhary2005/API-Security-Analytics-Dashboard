@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Zap,
   Radio,
+  AlertCircle,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { telemetryService, onboardingService } from '../../services/api';
@@ -28,6 +29,7 @@ export const ThreatsPage = () => {
   const [blockIpInput, setBlockIpInput] = useState('');
   const [blockReasonInput, setBlockReasonInput] = useState('');
   const [blockLoading, setBlockLoading] = useState(false);
+  const [blockError, setBlockError] = useState(null);
   const [simulatingAttack, setSimulatingAttack] = useState(false);
 
   const fetchThreatData = useCallback(async () => {
@@ -57,6 +59,7 @@ export const ThreatsPage = () => {
     e.preventDefault();
     if (!blockIpInput.trim() || !currentProject?.id) return;
     setBlockLoading(true);
+    setBlockError(null);
     try {
       await telemetryService.blockIP({
         ip: blockIpInput.trim(),
@@ -66,9 +69,11 @@ export const ThreatsPage = () => {
       setShowBlockModal(false);
       setBlockIpInput('');
       setBlockReasonInput('');
+      setBlockError(null);
       fetchThreatData();
     } catch (err) {
       console.error('Failed to block IP:', err);
+      setBlockError(err.response?.data?.error || err.response?.data?.message || 'Failed to block IP address. Please verify IP address format.');
     } finally {
       setBlockLoading(false);
     }
@@ -167,8 +172,11 @@ export const ThreatsPage = () => {
             <span>{simulatingAttack ? 'INJECTING PROBE...' : 'SIMULATE ATTACK'}</span>
           </button>
           <button
-            onClick={() => setShowBlockModal(true)}
-            className="inline-flex items-center space-x-1 px-4 py-1.5 rounded-full bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] text-xs font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+            onClick={() => {
+              setBlockError(null);
+              setShowBlockModal(true);
+            }}
+            className="inline-flex items-center space-x-1 px-4 py-1.5 rounded-full bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] text-xs font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Block IP Address</span>
@@ -328,12 +336,41 @@ export const ThreatsPage = () => {
 
       {/* Modal: Block IP */}
       {showBlockModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowBlockModal(false);
+              setBlockError(null);
+            }
+          }}
+        >
           <div className="bg-[#101216] border border-[#2A2E37] rounded-3xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1">Manually Block IP Address</h3>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold text-[#E6E8EB]">Manually Block IP Address</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBlockModal(false);
+                  setBlockError(null);
+                }}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
             <p className="text-xs text-[#9BA1AC] mb-4">
               Requests matching this IP address will immediately receive HTTP 429 and be blocked at ingestion.
             </p>
+
+            {blockError && (
+              <div className="mb-3.5 p-2.5 rounded-xl bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178] flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{blockError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleManualBlock} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Host IP Address</label>
@@ -342,7 +379,10 @@ export const ThreatsPage = () => {
                   required
                   placeholder="e.g. 198.51.100.45"
                   value={blockIpInput}
-                  onChange={(e) => setBlockIpInput(e.target.value)}
+                  onChange={(e) => {
+                    setBlockIpInput(e.target.value);
+                    if (blockError) setBlockError(null);
+                  }}
                   className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded-xl px-3.5 py-2 text-xs font-mono text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
@@ -359,15 +399,18 @@ export const ThreatsPage = () => {
               <div className="flex justify-end space-x-2.5 pt-3 border-t border-[#1E2127]">
                 <button
                   type="button"
-                  onClick={() => setShowBlockModal(false)}
-                  className="px-4 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded-full transition-colors"
+                  onClick={() => {
+                    setShowBlockModal(false);
+                    setBlockError(null);
+                  }}
+                  className="px-4 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded-full transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={blockLoading}
-                  className="px-4 py-1.5 text-xs bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] font-semibold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+                  className="px-4 py-1.5 text-xs bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] font-semibold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
                 >
                   {blockLoading ? 'Applying...' : 'Enforce Deny Rule'}
                 </button>
