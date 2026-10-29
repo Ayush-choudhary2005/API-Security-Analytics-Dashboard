@@ -13,6 +13,8 @@ import {
   Info,
   Trash2,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
@@ -26,6 +28,9 @@ export const SettingsPage = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
   const [pwdSuccess, setPwdSuccess] = useState(null);
   const [pwdError, setPwdError] = useState(null);
@@ -33,6 +38,7 @@ export const SettingsPage = () => {
   // Account deletion state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePwd, setShowDeletePwd] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
@@ -182,14 +188,24 @@ export const SettingsPage = () => {
               <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">
                 Current Password
               </label>
-              <input
-                type="password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded-xl px-3.5 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-              />
+              <div className="relative">
+                <input
+                  type={showCurrentPwd ? 'text' : 'password'}
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded-xl pl-3.5 pr-10 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPwd(!showCurrentPwd)}
+                  className="absolute right-3 top-2.5 text-[#7B818B] hover:text-[#E6E8EB] transition-colors cursor-pointer"
+                  aria-label={showCurrentPwd ? 'Hide current password' : 'Show current password'}
+                >
+                  {showCurrentPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
           )}
 
@@ -197,28 +213,48 @@ export const SettingsPage = () => {
             <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">
               {user?.has_password ? 'New Password (Min. 8 characters)' : 'Password (Min. 8 characters)'}
             </label>
-            <input
-              type="password"
-              required
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded-xl px-3.5 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-            />
+            <div className="relative">
+              <input
+                type={showNewPwd ? 'text' : 'password'}
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded-xl pl-3.5 pr-10 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPwd(!showNewPwd)}
+                className="absolute right-3 top-2.5 text-[#7B818B] hover:text-[#E6E8EB] transition-colors cursor-pointer"
+                aria-label={showNewPwd ? 'Hide new password' : 'Show new password'}
+              >
+                {showNewPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
           </div>
 
           <div>
             <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">
               Confirm Password
             </label>
-            <input
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded-xl px-3.5 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPwd ? 'text' : 'password'}
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded-xl pl-3.5 pr-10 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                className="absolute right-3 top-2.5 text-[#7B818B] hover:text-[#E6E8EB] transition-colors cursor-pointer"
+                aria-label={showConfirmPwd ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showConfirmPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
           </div>
 
           <button
@@ -274,14 +310,24 @@ export const SettingsPage = () => {
                 <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">
                   Confirm Your Password
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded-xl px-3.5 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-                />
+                <div className="relative">
+                  <input
+                    type={showDeletePwd ? 'text' : 'password'}
+                    required
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded-xl pl-3.5 pr-10 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletePwd(!showDeletePwd)}
+                    className="absolute right-3 top-2.5 text-[#7B818B] hover:text-[#E6E8EB] transition-colors cursor-pointer"
+                    aria-label={showDeletePwd ? 'Hide password' : 'Show password'}
+                  >
+                    {showDeletePwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
             ) : (
               <div>
