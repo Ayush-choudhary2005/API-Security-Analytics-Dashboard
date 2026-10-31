@@ -185,14 +185,14 @@ export const LiveMonitoringPage = () => {
           {currentOrg ? (
             <button
               onClick={openCreateProjModal}
-              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
             >
               <span>Create Project</span>
             </button>
           ) : (
             <button
               onClick={openCreateOrgModal}
-              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
             >
               <span>Create Workspace</span>
             </button>
@@ -222,7 +222,7 @@ export const LiveMonitoringPage = () => {
         <div className="flex items-center space-x-2.5">
           <button
             onClick={() => setIsPaused(!isPaused)}
-            className={`inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full border text-xs font-mono font-medium transition-all duration-200 hover:-translate-y-0.5 shadow-xs ${
+            className={`inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full border text-xs font-mono font-medium transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer ${
               isPaused
                 ? 'bg-[#C3E88D] text-[#0A0B0D] font-semibold border-[#C3E88D] hover:bg-[#d4f2a7]'
                 : 'bg-[#16181D] border-[#1E2127] hover:border-[#2A2E37] text-[#E6E8EB] hover:bg-[#1E2127]'
@@ -236,7 +236,7 @@ export const LiveMonitoringPage = () => {
               setEvents([]);
               rawEventsQueueRef.current = [];
             }}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#9BA1AC] hover:text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#9BA1AC] hover:text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>CLEAR BUFFER</span>
@@ -442,13 +442,18 @@ export const LiveMonitoringPage = () => {
                       : 'Just now'}
                   </td>
                   <td className="py-2 px-3 font-bold">
-                    <span className={
-                      ev.method === 'GET' ? 'text-[#C3E88D]' :
-                      ev.method === 'POST' ? 'text-[#82AAFF]' :
-                      ev.method === 'PUT' ? 'text-[#FFCB6B]' : 'text-[#F07178]'
-                    }>
-                      {ev.method}
-                    </span>
+                    {(() => {
+                      const method = String(ev.method || 'GET').toUpperCase();
+                      const colorClass =
+                        method === 'GET'
+                          ? 'text-[#C3E88D]'
+                          : method === 'POST'
+                          ? 'text-[#82AAFF]'
+                          : method === 'PUT' || method === 'PATCH'
+                          ? 'text-[#FFCB6B]'
+                          : 'text-[#F07178]';
+                      return <span className={colorClass}>{method}</span>;
+                    })()}
                   </td>
                   <td className="py-2 px-3 text-[#E6E8EB] font-sans truncate max-w-[200px]">{ev.endpoint}</td>
                   <td className="py-2 px-3">
