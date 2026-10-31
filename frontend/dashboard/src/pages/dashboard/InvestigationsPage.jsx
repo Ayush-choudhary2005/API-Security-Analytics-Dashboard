@@ -40,15 +40,24 @@ export const InvestigationsPage = () => {
 
   // Load available alerts for project
   useEffect(() => {
-    if (!currentProject?.id) return;
+    if (!currentProject?.id) {
+      setAlerts([]);
+      setSelectedAlertId('');
+      setReport(null);
+      setError(null);
+      return;
+    }
     telemetryService
       .getAlerts(currentProject.id, 50)
       .then((res) => {
         const raw = res.data;
         const list = Array.isArray(raw) ? raw : (raw?.alerts || []);
         setAlerts(list);
-        if (!selectedAlertId && list.length > 0) {
-          setSelectedAlertId(String(list[0].id));
+        const exists = list.some((a) => String(a.id) === String(selectedAlertId));
+        if (!exists) {
+          const nextId = list.length > 0 ? String(list[0].id) : '';
+          setSelectedAlertId(nextId);
+          setSearchParams(nextId ? { alert_id: nextId } : {}, { replace: true });
         }
       })
       .catch((err) => {
@@ -59,6 +68,9 @@ export const InvestigationsPage = () => {
   useEffect(() => {
     if (selectedAlertId) {
       handleInvestigate(selectedAlertId);
+    } else {
+      setReport(null);
+      setError(null);
     }
   }, [selectedAlertId]);
 
