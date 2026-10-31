@@ -200,7 +200,7 @@ export const OverviewPage = () => {
         <div className="pt-2">
           <button
             onClick={openCreateOrgModal}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs cursor-pointer"
           >
             <span>Create Workspace</span>
           </button>
@@ -223,7 +223,7 @@ export const OverviewPage = () => {
         <div className="pt-2">
           <button
             onClick={openCreateProjModal}
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-xs text-[#0A0B0D] font-semibold transition-colors shadow-xs cursor-pointer"
           >
             <span>Create Project</span>
           </button>
@@ -255,7 +255,7 @@ export const OverviewPage = () => {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#C792EA]' : 'text-[#7B818B]'}`} />
             <span>Sync</span>
@@ -548,13 +548,13 @@ export const OverviewPage = () => {
                       {(alt.attack_type || 'Anomaly').replace(/_/g, ' ')}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-[#C792EA]">
-                      {alt.anomaly_score?.toFixed ? alt.anomaly_score.toFixed(2) : alt.anomaly_score}
+                      {alt.anomaly_score != null ? Number(alt.anomaly_score).toFixed(2) : '0.00'}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-[#7B818B]">{alt.ip || alt.source_ip || '-'}</td>
                     <td className="py-2.5 px-3 text-right">
                       <button
                         onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
-                        className="text-[11px] text-[#82AAFF] hover:underline font-mono"
+                        className="text-[11px] text-[#82AAFF] hover:underline font-mono cursor-pointer"
                       >
                         Investigate &rarr;
                       </button>
@@ -595,7 +595,7 @@ export const OverviewPage = () => {
                 </div>
                 <button
                   onClick={() => handleUnblock(b.ip)}
-                  className="px-3 py-1 rounded-full bg-[#101216] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-[10px] font-mono border border-[#1E2127] hover:border-[#2A2E37] transition-colors"
+                  className="px-3 py-1 rounded-full bg-[#101216] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-[10px] font-mono border border-[#1E2127] hover:border-[#2A2E37] transition-colors cursor-pointer"
                 >
                   Unblock
                 </button>
