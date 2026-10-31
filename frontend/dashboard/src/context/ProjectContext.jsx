@@ -12,11 +12,15 @@ export const ProjectProvider = ({ children }) => {
   const [projects, setProjects] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Load organizations for current user
   const fetchOrganizations = useCallback(async () => {
-    if (!isAuthenticated) return [];
+    if (!isAuthenticated) {
+      setInitialLoading(false);
+      return [];
+    }
     setLoading(true);
     try {
       const res = await organizationService.list();
@@ -34,11 +38,13 @@ export const ProjectProvider = ({ children }) => {
       } else {
         setCurrentOrg(null);
         localStorage.removeItem('api_sec_current_org_id');
+        setInitialLoading(false);
         return [];
       }
     } catch (err) {
       console.error('Error fetching organizations:', err);
       setError('Failed to load organizations');
+      setInitialLoading(false);
       return [];
     } finally {
       setLoading(false);
@@ -50,6 +56,7 @@ export const ProjectProvider = ({ children }) => {
     if (!orgId) {
       setProjects([]);
       setCurrentProject(null);
+      setInitialLoading(false);
       return [];
     }
     setLoading(true);
@@ -76,18 +83,21 @@ export const ProjectProvider = ({ children }) => {
       return [];
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }, []);
 
   // When auth changes, fetch organizations
   useEffect(() => {
     if (isAuthenticated) {
+      setInitialLoading(true);
       fetchOrganizations();
     } else {
       setOrganizations([]);
       setCurrentOrg(null);
       setProjects([]);
       setCurrentProject(null);
+      setInitialLoading(false);
     }
   }, [isAuthenticated, fetchOrganizations]);
 
@@ -188,6 +198,7 @@ export const ProjectProvider = ({ children }) => {
         projects,
         currentProject,
         loading,
+        initialLoading,
         error,
         showCreateOrgModal,
         setShowCreateOrgModal,

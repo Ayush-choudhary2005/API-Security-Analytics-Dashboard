@@ -11,7 +11,17 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C792EA' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>" />
   </head>
   <body class="bg-[#0A0B0D] text-[#E6E8EB] antialiased selection:bg-[#2A2E37] selection:text-[#E6E8EB]">
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0A0B0D; color: #9BA1AC; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px;">
+        <div style="position: relative; width: 40px; height: 40px; margin-bottom: 16px;">
+          <div style="position: absolute; inset: 0; border: 2px solid #1E2127; border-top-color: #C792EA; border-radius: 50%; animation: secSpin 0.75s linear infinite;"></div>
+          <div style="position: absolute; inset: 7px; border: 2px solid #1E2127; border-bottom-color: #82AAFF; border-radius: 50%; animation: secSpin 1.2s linear infinite reverse;"></div>
+        </div>
+        <div style="letter-spacing: 0.1em; color: #E6E8EB; font-weight: 600; margin-bottom: 4px;">API SECURITY ANALYTICS</div>
+        <div style="font-size: 10px; color: #7B818B; letter-spacing: 0.05em;">INITIALIZING SECURITY CONSOLE...</div>
+        <style>@keyframes secSpin { to { transform: rotate(360deg); } }</style>
+      </div>
+    </div>
     <noscript id="spa-modules" data-modules="form-forgot form-reset account-modal">
       API-Security-Analytics-Dashboard: API Security Analytics & Active Defense Platform Single Page Application
     </noscript>

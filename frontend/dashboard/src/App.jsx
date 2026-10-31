@@ -59,8 +59,8 @@ const SettingsPage = lazy(() =>
 
 const PageLoader = () => (
   <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3">
-    <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-    <span className="text-xs font-mono text-zinc-400">Loading module...</span>
+    <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#C792EA] rounded-full animate-spin"></div>
+    <span className="text-[10px] font-mono tracking-wider uppercase text-[#9BA1AC]">Loading security module...</span>
   </div>
 );
 

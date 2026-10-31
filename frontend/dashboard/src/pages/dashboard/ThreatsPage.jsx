@@ -16,7 +16,7 @@ import { telemetryService, onboardingService } from '../../services/api';
 
 export const ThreatsPage = () => {
   const navigate = useNavigate();
-  const { currentOrg, currentProject, openCreateOrgModal, openCreateProjModal } = useProject();
+  const { currentOrg, currentProject, initialLoading, openCreateOrgModal, openCreateProjModal } = useProject();
 
   const [alerts, setAlerts] = useState([]);
   const [blockedIPs, setBlockedIPs] = useState([]);
@@ -114,6 +114,17 @@ export const ThreatsPage = () => {
     const matchSeverity = severityFilter === 'ALL' || alt.severity?.toLowerCase() === severityFilter.toLowerCase();
     return matchSearch && matchSeverity;
   });
+
+  if (initialLoading || (loading && alerts.length === 0 && blockedIPs.length === 0)) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#F07178] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Querying Active Threat Feeds...
+        </p>
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return (

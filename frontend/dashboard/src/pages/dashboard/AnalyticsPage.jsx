@@ -27,7 +27,7 @@ import { useProject } from '../../context/ProjectContext';
 import { telemetryService } from '../../services/api';
 
 export const AnalyticsPage = () => {
-  const { currentOrg, currentProject, openCreateOrgModal, openCreateProjModal } = useProject();
+  const { currentOrg, currentProject, initialLoading, openCreateOrgModal, openCreateProjModal } = useProject();
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +81,17 @@ export const AnalyticsPage = () => {
   const weightedLatencySum = chartData.reduce((acc, c) => acc + ((c.avgLatency || 0) * (c.requests || 0)), 0);
   const avgLat = totalVol > 0 ? Math.round(weightedLatencySum / totalVol) : 0;
   const breachRate = totalVol > 0 ? ((totalAnom / totalVol) * 100).toFixed(2) : '0.00';
+
+  if (initialLoading || (loading && history.length === 0 && !stats)) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#82AAFF] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Computing Telemetry & Risk Analytics...
+        </p>
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return (

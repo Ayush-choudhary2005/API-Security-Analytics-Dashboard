@@ -24,7 +24,7 @@ import { telemetryService } from '../../services/api';
 import { getSocket } from '../../services/socket';
 
 export const LiveMonitoringPage = () => {
-  const { currentOrg, currentProject, openCreateOrgModal, openCreateProjModal } = useProject();
+  const { currentOrg, currentProject, initialLoading, openCreateOrgModal, openCreateProjModal } = useProject();
   const [events, setEvents] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -170,6 +170,17 @@ export const LiveMonitoringPage = () => {
 
     return matchSearch && matchMethod && matchStatus;
   });
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#82AAFF] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Connecting Live WebSocket Telemetry...
+        </p>
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return (

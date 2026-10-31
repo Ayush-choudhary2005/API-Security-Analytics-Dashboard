@@ -41,6 +41,7 @@ export const OverviewPage = () => {
     organizations,
     currentProject,
     projects,
+    initialLoading,
     openCreateOrgModal,
     openCreateProjModal,
   } = useProject();
@@ -185,6 +186,26 @@ export const OverviewPage = () => {
         latency: Math.round(h.avg_latency ?? h.latency ?? 0),
       }))
     : [];
+
+  // Loading state: While workspace/project is resolving or initial telemetry metrics are loading
+  if (initialLoading || (loading && !stats)) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="relative w-10 h-10">
+          <div className="absolute inset-0 border-2 border-[#1E2127] border-t-[#C792EA] rounded-full animate-spin"></div>
+          <div className="absolute inset-2 border-2 border-[#1E2127] border-b-[#82AAFF] rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.2s' }}></div>
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-xs font-mono font-medium text-[#E6E8EB] tracking-wider uppercase text-[11px]">
+            Synchronizing Security Telemetry
+          </p>
+          <p className="text-[10px] font-mono text-[#7B818B]">
+            Aggregating incident vectors, anomaly baselines, and active metrics...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Empty state: No workspace / organization
   if (!currentOrg || organizations.length === 0) {
