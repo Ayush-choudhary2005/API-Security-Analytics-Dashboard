@@ -9,6 +9,7 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  AlertCircle,
   Shield,
   UserPlus,
   Lock,
@@ -49,6 +50,7 @@ export const ProjectsPage = () => {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState('member');
+  const [memberError, setMemberError] = useState(null);
 
   const fetchKeys = useCallback(async () => {
     if (!currentProject?.id) return;
@@ -157,6 +159,7 @@ export const ProjectsPage = () => {
     e.preventDefault();
     if (!currentOrg?.id || !memberEmail.trim()) return;
     setLoading(true);
+    setMemberError(null);
     try {
       await organizationService.addMember(currentOrg.id, {
         email: memberEmail.trim(),
@@ -164,9 +167,11 @@ export const ProjectsPage = () => {
       });
       setShowMemberModal(false);
       setMemberEmail('');
+      setMemberError(null);
       fetchMembers();
     } catch (err) {
       console.error('Failed to invite member:', err);
+      setMemberError(err.response?.data?.error || err.response?.data?.message || 'Failed to invite member. Please check the email address.');
     } finally {
       setLoading(false);
     }
@@ -524,8 +529,11 @@ export const ProjectsPage = () => {
               <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Team members with workspace access privileges</p>
             </div>
             <button
-              onClick={() => setShowMemberModal(true)}
-              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+              onClick={() => {
+                setMemberError(null);
+                setShowMemberModal(true);
+              }}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Invite Member</span>
@@ -682,12 +690,41 @@ export const ProjectsPage = () => {
 
       {/* Modal: Invite Member */}
       {showMemberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowMemberModal(false);
+              setMemberError(null);
+            }
+          }}
+        >
           <div className="bg-[#101216] border border-[#2A2E37] rounded p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1 font-mono">Invite Organization Member</h3>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold text-[#E6E8EB] font-mono">Invite Organization Member</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMemberModal(false);
+                  setMemberError(null);
+                }}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
             <p className="text-xs text-[#9BA1AC] mb-4">
               Add a teammate to <span className="text-[#82AAFF] font-medium">{currentOrg?.name}</span>.
             </p>
+
+            {memberError && (
+              <div className="mb-3.5 p-2.5 rounded bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178] flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{memberError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleInviteMember} className="space-y-4">
               <div>
                 <label className="block text-xs font-mono text-[#9BA1AC] mb-1 uppercase tracking-wider text-[10px]">Teammate Email</label>
@@ -696,7 +733,10 @@ export const ProjectsPage = () => {
                   required
                   placeholder="colleague@company.com"
                   value={memberEmail}
-                  onChange={(e) => setMemberEmail(e.target.value)}
+                  onChange={(e) => {
+                    setMemberEmail(e.target.value);
+                    if (memberError) setMemberError(null);
+                  }}
                   className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C3E88D] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors"
                 />
               </div>
@@ -715,17 +755,20 @@ export const ProjectsPage = () => {
               <div className="flex justify-end space-x-3 pt-2 border-t border-[#1E2127]">
                 <button
                   type="button"
-                  onClick={() => setShowMemberModal(false)}
-                  className="px-3 py-1.5 text-xs text-[#7B818B] hover:text-[#E6E8EB]"
+                  onClick={() => {
+                    setShowMemberModal(false);
+                    setMemberError(null);
+                  }}
+                  className="px-3 py-1.5 text-xs text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold font-mono rounded"
+                  className="px-4 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold font-mono rounded cursor-pointer transition-colors disabled:opacity-50"
                 >
-                  Send Invitation
+                  {loading ? 'Sending...' : 'Send Invitation'}
                 </button>
               </div>
             </form>
