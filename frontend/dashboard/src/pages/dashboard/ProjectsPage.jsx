@@ -660,7 +660,7 @@ export const ProjectsPage = () => {
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
                     placeholder="e.g. Production Ingestion Key"
-                    className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-hidden transition-colors font-mono"
+                    className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#C792EA] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors font-mono"
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-2 border-t border-[#1E2127]">

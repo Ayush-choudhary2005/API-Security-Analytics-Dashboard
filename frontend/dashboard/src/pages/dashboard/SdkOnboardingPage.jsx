@@ -730,7 +730,7 @@ class ApiSecurityMiddleware:
                     value={userCustomKey}
                     onChange={(e) => setUserCustomKey(e.target.value)}
                     placeholder="Paste ask_... key here"
-                    className="w-full bg-[#0A0B0D] border border-[#2A2E37] rounded-xl px-3.5 py-1.5 text-xs font-mono text-[#E6E8EB] focus:outline-hidden focus:border-[#82AAFF] transition-colors"
+                    className="w-full bg-[#0A0B0D] border border-[#2A2E37] rounded-xl px-3.5 py-1.5 text-xs font-mono text-[#E6E8EB] focus:outline-none focus:border-[#82AAFF] transition-colors"
                   />
                   {userCustomKey && (
                     <button
