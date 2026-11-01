@@ -177,9 +177,9 @@ export const ThreatsPage = () => {
           <button
             onClick={handleSimulateAttack}
             disabled={simulatingAttack}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#FFCB6B]/40 text-[#FFCB6B] text-xs font-mono font-medium transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#FFCB6B]/40 text-[#FFCB6B] text-xs font-mono font-medium transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Zap className="w-3.5 h-3.5 fill-current" />
+            <Zap className={`w-3.5 h-3.5 fill-current ${simulatingAttack ? 'animate-pulse' : ''}`} />
             <span>{simulatingAttack ? 'INJECTING PROBE...' : 'SIMULATE ATTACK'}</span>
           </button>
           <button
@@ -212,7 +212,7 @@ export const ThreatsPage = () => {
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
-            className="bg-[#16181D] border border-[#1E2127] rounded-xl px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors"
+            className="bg-[#16181D] border border-[#1E2127] rounded-xl px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none focus:border-[#C792EA] font-mono transition-colors cursor-pointer"
           >
             <option value="ALL">SEVERITY: ALL</option>
             <option value="critical">CRITICAL</option>
@@ -274,7 +274,7 @@ export const ThreatsPage = () => {
                   <td className="py-2 px-3 text-right">
                     <button
                       onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
-                      className="inline-flex items-center space-x-1 text-[#82AAFF] hover:underline text-xs font-mono"
+                      className="inline-flex items-center space-x-1 text-[#82AAFF] hover:underline text-xs font-mono cursor-pointer"
                     >
                       <span>Root Cause</span>
                       <ExternalLink className="w-3 h-3" />
@@ -325,7 +325,7 @@ export const ThreatsPage = () => {
                   <td className="py-2.5 px-3 text-right">
                     <button
                       onClick={() => handleUnblock(b.ip)}
-                      className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+                      className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
                     >
                       <Unlock className="w-3 h-3 text-[#C3E88D]" />
                       <span>Unblock</span>
@@ -421,7 +421,7 @@ export const ThreatsPage = () => {
                 <button
                   type="submit"
                   disabled={blockLoading}
-                  className="px-4 py-1.5 text-xs bg-[#F07178] hover:bg-[#fa8b91] text-[#0A0B0D] font-semibold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
+                  className="px-4 py-1.5 text-xs bg-[#F07178] hover:bg-[#fa8b91] disabled:opacity-50 disabled:cursor-not-allowed text-[#0A0B0D] font-semibold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
                 >
                   {blockLoading ? 'Applying...' : 'Enforce Deny Rule'}
                 </button>
