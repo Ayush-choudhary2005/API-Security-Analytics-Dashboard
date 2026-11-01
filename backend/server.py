@@ -25,6 +25,8 @@ import os
 import io
 import uuid
 import zipfile
+import secrets
+import hmac
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for
 from flask_socketio import SocketIO, join_room, leave_room, emit
@@ -261,13 +263,11 @@ def handle_cors_preflight():
 
 
 @app.before_request
-def csrf_protect_phase1():
+def csrf_protect():
     """
-    Phase 1 CSRF Protection:
-    Enforces origin verification and custom header presence for state-changing requests
-    authenticated via cookie sessions (session['user_id']).
-    Standard cross-origin form POSTs and simple requests cannot attach custom headers
-    without triggering a CORS preflight, blocking unauthorized cross-origin mutations.
+    Phase 2 CSRF Protection — Double-Submit Cookie Defense:
+    Enforces origin verification and cryptographic Double-Submit Cookie validation
+    for state-changing requests authenticated via cookie sessions (session['user_id']).
     """
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return None
@@ -311,17 +311,25 @@ def csrf_protect_phase1():
         if referer_netloc != request.host and "*" not in allowed_origins and f"{parsed_referer.scheme}://{referer_netloc}" not in allowed_origins:
             return jsonify({"error": "Forbidden", "message": "CSRF validation failed: Referer mismatch"}), 403
 
-    # 2. Defense-in-depth: Require custom request header for state-changing actions
-    csrf_header = (
-        request.headers.get("X-Requested-With")
-        or request.headers.get("X-CSRF-Protection")
-        or request.headers.get("X-CSRF-Token")
-    )
-    if not csrf_header:
-        return jsonify({
-            "error": "Forbidden",
-            "message": "CSRF validation failed: Missing custom request header (X-Requested-With or X-CSRF-Protection)"
-        }), 403
+    # 2. Double-Submit Cookie Verification
+    session_csrf = session.get("csrf_token")
+    header_csrf = request.headers.get("X-CSRF-Token", "").strip()
+
+    if session_csrf:
+        if not header_csrf or not hmac.compare_digest(header_csrf, session_csrf):
+            return jsonify({"error": "Forbidden", "message": "CSRF validation failed: Invalid or missing CSRF token"}), 403
+    else:
+        # Fallback to defense-in-depth custom header if session token has not been generated
+        csrf_header = (
+            request.headers.get("X-Requested-With")
+            or request.headers.get("X-CSRF-Protection")
+            or header_csrf
+        )
+        if not csrf_header:
+            return jsonify({
+                "error": "Forbidden",
+                "message": "CSRF validation failed: Missing custom request header (X-Requested-With or X-CSRF-Protection)"
+            }), 403
 
     return None
 
@@ -346,6 +354,21 @@ def apply_security_headers(response):
 
     if app.config.get("SESSION_COOKIE_SECURE"):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # Phase 2 CSRF: Maintain and dispatch readable CSRF cookie for authenticated sessions
+    if session.get("user_id"):
+        if "csrf_token" not in session:
+            session["csrf_token"] = secrets.token_hex(32)
+        response.set_cookie(
+            "api_sec_csrf",
+            session["csrf_token"],
+            httponly=False,
+            samesite="Lax",
+            secure=bool(app.config.get("SESSION_COOKIE_SECURE")),
+            path="/"
+        )
+    elif "api_sec_csrf" in request.cookies:
+        response.delete_cookie("api_sec_csrf", path="/")
 
     # CSP protecting against untrusted script injection while allowing local assets & CDNs
     if "Content-Security-Policy" not in response.headers and not response.mimetype.startswith("image/"):
@@ -454,6 +477,7 @@ def auth_register():
     session.permanent = True
     session["user_id"] = user["id"]
     session["auth_time"] = now
+    session["csrf_token"] = secrets.token_hex(32)
 
     return jsonify({
         "user": user,
@@ -464,12 +488,12 @@ def auth_register():
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
     client_ip = get_client_ip()
-    if rate_limiter.is_login_rate_limited(client_ip):
-        return jsonify({"error": "Too many failed login attempts. Please try again later."}), 429
-
     data = request.get_json(silent=True) or {}
     email = data.get("email", "").strip()
     password = data.get("password", "")
+
+    if rate_limiter.is_login_rate_limited(client_ip, email=email):
+        return jsonify({"error": "Too many failed login attempts. Please try again later."}), 429
 
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
@@ -477,15 +501,16 @@ def auth_login():
     user = db.get_user_by_email(email)
     # Generic error message to prevent user enumeration
     if not user or not auth.verify_password(user["password_hash"], password):
-        rate_limiter.record_failed_login(client_ip)
+        rate_limiter.record_failed_login(client_ip, email=email)
         return jsonify({"error": "Invalid email or password"}), 401
 
-    rate_limiter.clear_failed_logins(client_ip)
+    rate_limiter.clear_failed_logins(client_ip, email=email)
     db.record_user_login(user["id"])
     now = time.time()
     session.permanent = True
     session["user_id"] = user["id"]
     session["auth_time"] = now
+    session["csrf_token"] = secrets.token_hex(32)
 
     # Safe account linking: if user had an unlinked Google OAuth attempt with matching email
     linked_google = False
@@ -664,7 +689,9 @@ def auth_google_status():
 @app.route("/api/auth/logout", methods=["POST"])
 def auth_logout():
     session.clear()
-    return jsonify({"message": "Logged out successfully"}), 200
+    resp = jsonify({"message": "Logged out successfully"})
+    resp.delete_cookie("api_sec_csrf", path="/")
+    return resp, 200
 
 
 @app.route("/api/auth/me", methods=["GET"])

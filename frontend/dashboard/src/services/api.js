@@ -12,6 +12,21 @@ const api = axios.create({
   },
 });
 
+function getCookie(name) {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+// Interceptor to attach Double-Submit X-CSRF-Token from api_sec_csrf cookie
+api.interceptors.request.use((config) => {
+  const csrfToken = getCookie('api_sec_csrf');
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken;
+  }
+  return config;
+});
+
 // Interceptor for 401 handling without infinite redirect loops
 api.interceptors.response.use(
   (response) => response,

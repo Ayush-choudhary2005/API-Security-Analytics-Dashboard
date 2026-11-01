@@ -4,9 +4,41 @@ base.py — Abstract Base Class for Notification & Incident Integrations.
 
 import abc
 import ipaddress
+import socket
 import requests
 from urllib.parse import urlparse
 from typing import Dict, Any, Tuple
+
+CGNAT_NET = ipaddress.ip_network("100.64.0.0/10")
+AWS_IMDS_IPV6 = ipaddress.ip_address("fd00:ec2::254")
+
+
+def is_prohibited_ip(ip_obj) -> Tuple[bool, str]:
+    """
+    Evaluate whether an IP address belongs to internal, private, loopback,
+    link-local, cloud metadata, or carrier-grade NAT address spaces.
+    """
+    if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped:
+        return is_prohibited_ip(ip_obj.ipv4_mapped)
+
+    if ip_obj.is_loopback:
+        return True, f"Loopback address ({ip_obj}) is prohibited"
+    if ip_obj.is_private:
+        return True, f"Private network address ({ip_obj}) is prohibited"
+    if ip_obj.is_link_local:
+        return True, f"Link-local address ({ip_obj}) is prohibited"
+    if ip_obj.is_multicast:
+        return True, f"Multicast address ({ip_obj}) is prohibited"
+    if ip_obj.is_reserved:
+        return True, f"Reserved network address ({ip_obj}) is prohibited"
+    if ip_obj.is_unspecified:
+        return True, f"Unspecified address ({ip_obj}) is prohibited"
+    if ip_obj.version == 4 and ip_obj in CGNAT_NET:
+        return True, f"Carrier-grade NAT address ({ip_obj}) is prohibited"
+    if ip_obj == AWS_IMDS_IPV6:
+        return True, f"Cloud metadata address ({ip_obj}) is prohibited"
+
+    return False, ""
 
 
 class BaseNotificationProvider(abc.ABC):
@@ -28,7 +60,10 @@ class BaseNotificationProvider(abc.ABC):
         pass
 
     def validate_url(self, url: str) -> Tuple[bool, str]:
-        """Validate destination URL format without making network requests."""
+        """
+        Validate destination URL format and verify resolved IP addresses
+        to block SSRF targeting private, internal, and cloud metadata infrastructure.
+        """
         if not url or not isinstance(url, str):
             return False, "Webhook URL is required"
         url = url.strip()
@@ -54,12 +89,33 @@ class BaseNotificationProvider(abc.ABC):
         if hostname.startswith("169.254."):
             return False, "Link-local and cloud metadata destinations are not allowed"
 
+        # 1. Direct IP Literal Validation
         try:
             ip = ipaddress.ip_address(hostname)
-            if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                return False, "Private and internal IP destinations are not allowed"
+            is_bad, reason = is_prohibited_ip(ip)
+            if is_bad:
+                return False, f"Prohibited IP destination: {reason}"
+            return True, ""
         except ValueError:
             pass
+
+        # 2. DNS Resolution Filter: Verify all resolved IP addresses
+        try:
+            addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            if not addr_info:
+                return False, f"Unable to resolve webhook destination hostname '{hostname}'"
+
+            for item in addr_info:
+                sockaddr = item[4]
+                ip_str = sockaddr[0]
+                resolved_ip = ipaddress.ip_address(ip_str)
+                is_bad, reason = is_prohibited_ip(resolved_ip)
+                if is_bad:
+                    return False, f"Webhook host '{hostname}' resolves to prohibited internal address: {reason}"
+        except socket.gaierror:
+            return False, f"DNS resolution failed for '{hostname}': host not found"
+        except Exception as e:
+            return False, f"DNS resolution verification failed for '{hostname}': {str(e)}"
 
         return True, ""
 

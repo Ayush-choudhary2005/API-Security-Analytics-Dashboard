@@ -28,8 +28,8 @@ _blocked_ips = {}
 # Set of (project_id, ip)
 _warned_ips = set()
 
-# Manually whitelisted IPs that should never be blocked
-_whitelist = {"127.0.0.1"}
+# Manually whitelisted IPs (default empty to prevent unauthenticated bypass)
+_whitelist = set()
 
 
 def _cleanup_window(key: tuple, now: float):
@@ -170,35 +170,76 @@ def block_ip(ip: str, duration_sec: int = None, reason: str = "Manually blocked"
     return True
 
 
-_login_failed_log = defaultdict(list)
-LOGIN_MAX_FAILED = 10
+_login_failed_log_ip = defaultdict(list)
+_login_failed_log_account = defaultdict(list)
+_ip_to_accounts = defaultdict(set)
+
+LOGIN_MAX_FAILED_IP = 10
+LOGIN_MAX_FAILED_ACCOUNT = 5
 LOGIN_LOCKOUT_SEC = 300  # 5 minutes
 
 
-def record_failed_login(ip: str) -> bool:
-    """Record a failed login from an IP. Returns True if now rate-limited."""
+def record_failed_login(ip: str, email: str = None) -> bool:
+    """
+    Record a failed login attempt under dual keys (IP and Account).
+    Returns True if either threshold is reached.
+    """
     now = time.time()
     cutoff = now - LOGIN_LOCKOUT_SEC
     with _lock:
-        _login_failed_log[ip] = [t for t in _login_failed_log[ip] if t > cutoff]
-        _login_failed_log[ip].append(now)
-        return len(_login_failed_log[ip]) >= LOGIN_MAX_FAILED
+        # 1. IP Bucket
+        _login_failed_log_ip[ip] = [t for t in _login_failed_log_ip[ip] if t > cutoff]
+        _login_failed_log_ip[ip].append(now)
+        ip_limited = len(_login_failed_log_ip[ip]) >= LOGIN_MAX_FAILED_IP
+
+        # 2. Account Bucket
+        account_limited = False
+        if email:
+            norm_email = email.lower().strip()
+            _login_failed_log_account[norm_email] = [t for t in _login_failed_log_account[norm_email] if t > cutoff]
+            _login_failed_log_account[norm_email].append(now)
+            _ip_to_accounts[ip].add(norm_email)
+            account_limited = len(_login_failed_log_account[norm_email]) >= LOGIN_MAX_FAILED_ACCOUNT
+
+        return ip_limited or account_limited
 
 
-def is_login_rate_limited(ip: str) -> bool:
-    """Check if an IP has exceeded the failed login threshold."""
+def is_login_rate_limited(ip: str, email: str = None) -> bool:
+    """
+    Check if either the IP or the specific target account has exceeded the failed login threshold.
+    """
     now = time.time()
     cutoff = now - LOGIN_LOCKOUT_SEC
     with _lock:
-        _login_failed_log[ip] = [t for t in _login_failed_log[ip] if t > cutoff]
-        return len(_login_failed_log[ip]) >= LOGIN_MAX_FAILED
+        _login_failed_log_ip[ip] = [t for t in _login_failed_log_ip[ip] if t > cutoff]
+        if len(_login_failed_log_ip[ip]) >= LOGIN_MAX_FAILED_IP:
+            return True
+
+        if email:
+            norm_email = email.lower().strip()
+            _login_failed_log_account[norm_email] = [t for t in _login_failed_log_account[norm_email] if t > cutoff]
+            if len(_login_failed_log_account[norm_email]) >= LOGIN_MAX_FAILED_ACCOUNT:
+                return True
+
+        return False
 
 
-def clear_failed_logins(ip: str):
-    """Clear failed login count for an IP upon successful authentication."""
+def clear_failed_logins(ip: str, email: str = None):
+    """
+    Clear failed login count for an IP and associated accounts upon successful authentication or admin reset.
+    """
     with _lock:
-        if ip in _login_failed_log:
-            del _login_failed_log[ip]
+        if ip in _login_failed_log_ip:
+            del _login_failed_log_ip[ip]
+        if email:
+            norm_email = email.lower().strip()
+            if norm_email in _login_failed_log_account:
+                del _login_failed_log_account[norm_email]
+        if ip in _ip_to_accounts:
+            for acc in _ip_to_accounts[ip]:
+                if acc in _login_failed_log_account:
+                    del _login_failed_log_account[acc]
+            del _ip_to_accounts[ip]
 
 
 def reset_state():
@@ -207,5 +248,7 @@ def reset_state():
         _request_log.clear()
         _blocked_ips.clear()
         _warned_ips.clear()
-        _login_failed_log.clear()
+        _login_failed_log_ip.clear()
+        _login_failed_log_account.clear()
+        _ip_to_accounts.clear()
 
