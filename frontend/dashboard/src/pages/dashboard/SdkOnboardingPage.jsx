@@ -791,8 +791,10 @@ class ApiSecurityMiddleware:
           
           <div className="ml-7.5 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-[#0A0B0D] border border-[#1E2127] text-xs font-mono">
-              <span className="text-[#82AAFF]">
-                📁 File location: <code className="text-[#E6E8EB] font-semibold">{frameworkGuides[framework]?.targetFile}</code>
+              <span className="text-[#82AAFF] inline-flex items-center space-x-1.5">
+                <FileCode className="w-3.5 h-3.5 text-[#82AAFF] shrink-0" />
+                <span>File location:</span>
+                <code className="text-[#E6E8EB] font-semibold">{frameworkGuides[framework]?.targetFile}</code>
               </span>
               <span className="text-[10px] text-[#C3E88D] bg-[#C3E88D]/10 px-2.5 py-0.5 rounded-full border border-[#C3E88D]/20 self-start sm:self-auto">
                 {frameworkGuides[framework]?.badge}
