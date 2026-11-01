@@ -359,7 +359,7 @@ export const ProjectsPage = () => {
                       setKeyError(null);
                       setShowNewKeyModal(true);
                     }}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Create New Key</span>
@@ -386,7 +386,7 @@ export const ProjectsPage = () => {
                           {k.key_prefix}...
                           <button
                             onClick={() => copyToClipboard(k.key_prefix, k.id)}
-                            className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] inline-flex align-middle"
+                            className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] inline-flex align-middle cursor-pointer"
                             title="Copy prefix"
                           >
                             {copiedKey === k.id ? <Check className="w-3 h-3 text-[#C3E88D]" /> : <Copy className="w-3 h-3" />}
@@ -412,17 +412,17 @@ export const ProjectsPage = () => {
                               <button
                                 onClick={() => handleRotateSingleKey(k)}
                                 disabled={loading}
-                                className="inline-flex items-center space-x-1 text-xs text-[#82AAFF] hover:text-[#9bbdff] hover:underline font-mono"
+                                className="inline-flex items-center space-x-1 text-xs text-[#82AAFF] hover:text-[#9bbdff] hover:underline font-mono cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Rotate this key (revokes current key and provisions a replacement)"
                               >
-                                <RefreshCw className="w-3 h-3" />
+                                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
                                 <span>Rotate</span>
                               </button>
                               <span className="text-[#2A2E37]">|</span>
                               <button
                                 onClick={() => handleRevokeKey(k.id)}
                                 disabled={loading}
-                                className="text-xs text-[#F07178] hover:underline font-mono"
+                                className="text-xs text-[#F07178] hover:underline font-mono cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Permanently revoke this key"
                               >
                                 Revoke
@@ -471,7 +471,7 @@ export const ProjectsPage = () => {
             </div>
             <button
               onClick={openCreateProjModal}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold font-mono transition-colors shadow-xs cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create Project</span>
@@ -488,7 +488,7 @@ export const ProjectsPage = () => {
               <div className="pt-2">
                 <button
                   onClick={openCreateProjModal}
-                  className="px-3.5 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded font-mono transition-colors"
+                  className="px-3.5 py-1.5 bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] text-xs font-semibold rounded font-mono transition-colors cursor-pointer"
                 >
                   Create Project
                 </button>
@@ -520,7 +520,7 @@ export const ProjectsPage = () => {
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => selectProject(proj)}
-                        className={`text-xs font-mono font-semibold px-3.5 py-1 rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs ${
+                        className={`text-xs font-mono font-semibold px-3.5 py-1 rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer ${
                           currentProject?.id === proj.id
                             ? 'bg-[#82AAFF] text-[#0A0B0D]'
                             : 'bg-[#16181D] text-[#9BA1AC] hover:text-[#E6E8EB] border border-[#1E2127] hover:border-[#2A2E37]'
@@ -541,7 +541,7 @@ export const ProjectsPage = () => {
                     </div>
                     <button
                       onClick={() => handleDeleteProject(proj.id, proj.name)}
-                      className="text-xs text-[#F07178] hover:text-red-400 font-mono transition-colors"
+                      className="text-xs text-[#F07178] hover:text-red-400 font-mono transition-colors cursor-pointer"
                       title="Delete project"
                     >
                       Delete
@@ -605,7 +605,7 @@ export const ProjectsPage = () => {
                       {m.role !== 'owner' && (
                         <button
                           onClick={() => handleRemoveMember(m.user_id || m.id)}
-                          className="text-xs text-[#F07178] hover:underline"
+                          className="text-xs text-[#F07178] hover:underline cursor-pointer"
                         >
                           Remove
                         </button>
