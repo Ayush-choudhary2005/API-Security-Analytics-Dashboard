@@ -236,14 +236,14 @@ export const IntegrationsPage = () => {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handleTestWebhook('slack')}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-all duration-200 hover:-translate-y-0.5 border border-[#1E2127] hover:border-[#2A2E37] shadow-xs"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-all duration-200 hover:-translate-y-0.5 border border-[#1E2127] hover:border-[#2A2E37] shadow-xs cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5 text-[#82AAFF]" />
                   <span>Send Test Alert</span>
                 </button>
                 <button
                   onClick={() => handleDeleteWebhook('slack')}
-                  className="p-1.5 rounded-lg text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors"
+                  className="p-1.5 rounded-lg text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors cursor-pointer"
                   title="Disconnect Slack"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -283,7 +283,7 @@ export const IntegrationsPage = () => {
               <button
                 type="submit"
                 disabled={slackSaving}
-                className="px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+                className="px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] disabled:opacity-50 disabled:cursor-not-allowed text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
               >
                 {slackSaving ? 'CONNECTING...' : 'CONNECT SLACK CHANNEL'}
               </button>
@@ -308,14 +308,14 @@ export const IntegrationsPage = () => {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handleTestWebhook('discord')}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-all duration-200 hover:-translate-y-0.5 border border-[#1E2127] hover:border-[#2A2E37] shadow-xs"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] text-[#9BA1AC] hover:text-[#E6E8EB] text-xs font-mono transition-all duration-200 hover:-translate-y-0.5 border border-[#1E2127] hover:border-[#2A2E37] shadow-xs cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5 text-[#82AAFF]" />
                   <span>Send Test Alert</span>
                 </button>
                 <button
                   onClick={() => handleDeleteWebhook('discord')}
-                  className="p-1.5 rounded-lg text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors"
+                  className="p-1.5 rounded-lg text-[#7B818B] hover:text-[#F07178] hover:bg-[#16181D] transition-colors cursor-pointer"
                   title="Disconnect Discord"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -355,7 +355,7 @@ export const IntegrationsPage = () => {
               <button
                 type="submit"
                 disabled={discordSaving}
-                className="px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+                className="px-5 py-2 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] disabled:opacity-50 disabled:cursor-not-allowed text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
               >
                 {discordSaving ? 'CONNECTING...' : 'CONNECT DISCORD SERVER'}
               </button>
