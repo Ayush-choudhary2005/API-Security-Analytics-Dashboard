@@ -17,7 +17,13 @@ import { telemetryService, webhookService, investigationService } from '../../se
 export const InvestigationsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const alertIdParam = searchParams.get('alert_id');
-  const { currentOrg, currentProject, openCreateOrgModal, openCreateProjModal } = useProject();
+  const {
+    currentOrg,
+    currentProject,
+    openCreateOrgModal,
+    openCreateProjModal,
+    initialLoading,
+  } = useProject();
 
   const [alerts, setAlerts] = useState([]);
   const [selectedAlertId, setSelectedAlertId] = useState(alertIdParam || '');
@@ -96,6 +102,17 @@ export const InvestigationsPage = () => {
 
   // Safe string-to-string lookup prevents type mismatch (e.g. 1 === "1")
   const selectedAlert = alerts.find((a) => String(a.id) === String(selectedAlertId));
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#C792EA] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Querying Incident Intelligence & Dossiers...
+        </p>
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return (
