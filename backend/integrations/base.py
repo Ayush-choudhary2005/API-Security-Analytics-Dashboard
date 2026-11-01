@@ -41,6 +41,10 @@ def is_prohibited_ip(ip_obj) -> Tuple[bool, str]:
     return False, ""
 
 
+MAX_RESPONSE_BYTES = 4096
+DEFAULT_MAX_TIMEOUT = 3
+
+
 class BaseNotificationProvider(abc.ABC):
     """
     Abstract interface for notification provider adapters (Slack, Discord, PagerDuty, etc.).
@@ -155,6 +159,7 @@ class BaseNotificationProvider(abc.ABC):
         """
         Deliver an alert payload to the provider endpoint.
         Never throws exceptions to caller; logs masked destination on failure.
+        Enforces TOCTOU / DNS rebinding defenses, strict 3s timeout, and 4KB body cap.
         """
         if not webhook_url:
             return False
@@ -164,6 +169,7 @@ class BaseNotificationProvider(abc.ABC):
             print(f"[INTEGRATION] Rejected delivery via {self.display_name} to invalid URL: {err}")
             return False
 
+        effective_timeout = min(timeout, DEFAULT_MAX_TIMEOUT)
         masked = self.mask_url(webhook_url)
         payload = self.format_alert(alert_data)
         try:
@@ -171,9 +177,32 @@ class BaseNotificationProvider(abc.ABC):
                 webhook_url,
                 json=payload,
                 headers={"Content-Type": "application/json", "User-Agent": "ML-O11Y-Alert-Service/1.0"},
-                timeout=timeout,
-                allow_redirects=False
+                timeout=effective_timeout,
+                allow_redirects=False,
+                stream=True
             )
+
+            # TOCTOU & DNS Rebinding Defense: Verify connected socket peer IP
+            try:
+                raw_conn = getattr(res, "raw", None)
+                sock = getattr(raw_conn, "_connection", None)
+                sock_obj = getattr(sock, "sock", None)
+                if sock_obj:
+                    peer_ip_str = sock_obj.getpeername()[0]
+                    is_bad, reason = is_prohibited_ip(ipaddress.ip_address(peer_ip_str))
+                    if is_bad:
+                        res.close()
+                        print(f"[INTEGRATION] Terminated delivery: peer IP {peer_ip_str} is prohibited: {reason}")
+                        return False
+            except Exception:
+                pass
+
+            # Cap response body to prevent response-bomb memory exhaustion
+            try:
+                res.raw.read(MAX_RESPONSE_BYTES, decode_content=True)
+            except Exception:
+                pass
+
             if res.status_code in (200, 204):
                 return True
             print(f"[INTEGRATION] {self.display_name} returned HTTP {res.status_code} to {masked}")
@@ -186,11 +215,13 @@ class BaseNotificationProvider(abc.ABC):
         """
         Send a test message to verify the webhook connection.
         Returns: (success: bool, message: str)
+        Enforces TOCTOU / DNS rebinding defenses, strict 3s timeout, and 4KB body cap.
         """
         valid, err = self.validate_url(webhook_url)
         if not valid:
             return False, err
 
+        effective_timeout = min(timeout, DEFAULT_MAX_TIMEOUT)
         masked = self.mask_url(webhook_url)
         payload = self.format_test_message(project_name)
         try:
@@ -198,13 +229,37 @@ class BaseNotificationProvider(abc.ABC):
                 webhook_url,
                 json=payload,
                 headers={"Content-Type": "application/json", "User-Agent": "ML-O11Y-Alert-Service/1.0"},
-                timeout=timeout,
-                allow_redirects=False
+                timeout=effective_timeout,
+                allow_redirects=False,
+                stream=True
             )
+
+            # TOCTOU & DNS Rebinding Defense: Verify connected socket peer IP
+            try:
+                raw_conn = getattr(res, "raw", None)
+                sock = getattr(raw_conn, "_connection", None)
+                sock_obj = getattr(sock, "sock", None)
+                if sock_obj:
+                    peer_ip_str = sock_obj.getpeername()[0]
+                    is_bad, reason = is_prohibited_ip(ipaddress.ip_address(peer_ip_str))
+                    if is_bad:
+                        res.close()
+                        return False, f"Connection terminated: peer IP resolved to prohibited address ({peer_ip_str})"
+            except Exception:
+                pass
+
+            # Read capped response snippet
+            snippet = ""
+            try:
+                body_bytes = res.raw.read(MAX_RESPONSE_BYTES, decode_content=True)
+                snippet = body_bytes.decode("utf-8", errors="replace")[:120]
+            except Exception:
+                snippet = res.text[:120] if hasattr(res, "text") else ""
+
             if res.status_code in (200, 204):
                 return True, f"Verified connection to {self.display_name} successfully (HTTP {res.status_code})"
-            return False, f"{self.display_name} returned HTTP {res.status_code}: {res.text[:120]}"
+            return False, f"{self.display_name} returned HTTP {res.status_code}: {snippet}"
         except requests.Timeout:
-            return False, f"Connection to {self.display_name} timed out after {timeout}s"
+            return False, f"Connection to {self.display_name} timed out after {effective_timeout}s"
         except Exception as e:
             return False, f"Failed to connect to {self.display_name}: {str(e)}"

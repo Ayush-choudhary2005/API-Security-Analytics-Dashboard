@@ -224,6 +224,33 @@ def is_login_rate_limited(ip: str, email: str = None) -> bool:
         return False
 
 
+def get_login_delay(ip: str, email: str = None) -> float:
+    """
+    Calculate progressive delay (in seconds) based on failed attempt count.
+    Exponentially reduces brute-force velocity on repeated failures.
+    """
+    now = time.time()
+    cutoff = now - LOGIN_LOCKOUT_SEC
+    with _lock:
+        ip_attempts = len([t for t in _login_failed_log_ip.get(ip, []) if t > cutoff])
+        acc_attempts = 0
+        if email:
+            norm_email = email.lower().strip()
+            acc_attempts = len([t for t in _login_failed_log_account.get(norm_email, []) if t > cutoff])
+
+        max_attempts = max(ip_attempts, acc_attempts)
+        if max_attempts < 3:
+            return 0.0
+        elif max_attempts == 3:
+            return 0.5
+        elif max_attempts == 4:
+            return 1.0
+        elif max_attempts == 5:
+            return 1.5
+        else:
+            return 2.0
+
+
 def clear_failed_logins(ip: str, email: str = None):
     """
     Clear failed login count for an IP and associated accounts upon successful authentication or admin reset.

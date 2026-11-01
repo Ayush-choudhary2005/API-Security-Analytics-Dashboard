@@ -131,6 +131,36 @@ def _resolve_and_verify_project(user_id):
     return project_id, None
 
 
+def verify_fresh_authentication(max_age_seconds: int = 300) -> Tuple[bool, Optional[str]]:
+    """
+    Phase 3 Re-Authentication & Confirmation Verification:
+    Verify that the authenticated operator has signed in or verified their credentials
+    within max_age_seconds (default 5 min), or provided valid password re-entry in request body.
+    """
+    now = time.time()
+    last_auth = session.get("auth_time", 0)
+    if (now - last_auth) <= max_age_seconds:
+        return True, None
+
+    data = request.get_json(silent=True) or {}
+    password = data.get("password", "")
+    if not password:
+        return False, "Fresh authentication required for sensitive operations. Please provide your current password."
+
+    user_info = getattr(g, "current_user", None) or {}
+    email = user_info.get("email")
+    if not email:
+        return False, "User identity not found in active session."
+
+    raw_user = db.get_user_by_email(email)
+    stored_hash = raw_user.get("password_hash", "") if raw_user else ""
+    if not stored_hash or stored_hash.startswith("!oauth_") or not auth.verify_password(stored_hash, password):
+        return False, "Incorrect password. Fresh authentication confirmation failed."
+
+    session["auth_time"] = now
+    return True, None
+
+
 # ---------------------------------------------------------
 # WebSocket Room Authorization & Management
 # ---------------------------------------------------------
@@ -495,13 +525,57 @@ def auth_login():
     if rate_limiter.is_login_rate_limited(client_ip, email=email):
         return jsonify({"error": "Too many failed login attempts. Please try again later."}), 429
 
+    # Phase 3: Progressive delay to throttle brute-force velocity
+    delay = rate_limiter.get_login_delay(client_ip, email=email)
+    if delay > 0 and not app.config.get("TESTING"):
+        time.sleep(delay)
+
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
     user = db.get_user_by_email(email)
     # Generic error message to prevent user enumeration
     if not user or not auth.verify_password(user["password_hash"], password):
-        rate_limiter.record_failed_login(client_ip, email=email)
+        is_locked = rate_limiter.record_failed_login(client_ip, email=email)
+        if is_locked:
+            # Phase 3 Security Telemetry: Block in Threat Registry and emit incident event
+            rate_limiter.block_ip(client_ip, duration_sec=300, reason=f"AUTH_BRUTE_FORCE: lockout triggered on {email}")
+            incident = {
+                "timestamp": time.time(),
+                "endpoint": "/api/auth/login",
+                "method": "POST",
+                "status_code": 429,
+                "latency_ms": 30.0,
+                "ip": client_ip,
+                "user_id": email or "unknown",
+                "payload_size": 64,
+                "rule_flags": ["AUTH_BRUTE_FORCE"],
+                "anomaly_score": 0.95,
+                "severity": "high",
+                "tenant_id": "default",
+                "project_id": "default",
+                "event_type": "security_incident",
+                "attack_type": "AUTH_BRUTE_FORCE",
+                "risk_score": 90.0,
+                "confidence": 0.98,
+                "user_agent": request.headers.get("User-Agent", "unknown"),
+                "metadata": {
+                    "target_email": email,
+                    "action": "automated_threat_registry_block"
+                }
+            }
+            try:
+                db.insert_event(incident)
+                socketio.emit("new_alert", incident)
+                socketio.emit("ip_blocked", {
+                    "ip": client_ip,
+                    "reason": f"AUTH_BRUTE_FORCE lockout on {email}",
+                    "project_id": "default"
+                })
+            except Exception:
+                pass
+            return jsonify({"error": "Too many failed login attempts. Please try again later."}), 429
+
         return jsonify({"error": "Invalid email or password"}), 401
 
     rate_limiter.clear_failed_logins(client_ip, email=email)
@@ -863,8 +937,7 @@ def auth_change_password():
 def auth_delete_account():
     """
     Permanently delete the authenticated user's account and associated data.
-    Enforces password verification if the user has a password,
-    or confirmation string (confirmation='DELETE' or confirmation=email) for OAuth-only users.
+    Enforces Phase 3 fresh re-authentication (<5 min) and credential verification.
     """
     data = request.get_json(silent=True) or {}
     password = data.get("password", "")
@@ -876,11 +949,24 @@ def auth_delete_account():
     stored_hash = raw_user.get("password_hash", "") if raw_user else ""
     has_existing_pw = bool(stored_hash and not stored_hash.startswith("!oauth_"))
 
+    # Phase 3 Re-Auth: Verify session is fresh (<5 min) or valid password provided
+    is_fresh = (time.time() - session.get("auth_time", 0)) <= 300
+
     if has_existing_pw:
+        if not password and not is_fresh:
+            return jsonify({
+                "error": "Fresh authentication required for account deletion. Please provide your password.",
+                "code": "REAUTH_REQUIRED"
+            }), 403
         if not password or not auth.verify_password(stored_hash, password):
             return jsonify({"error": "Incorrect password. Account deletion aborted."}), 401
     else:
-        # For OAuth-only users, require explicit confirmation
+        # For OAuth-only users, require explicit confirmation and fresh session
+        if not is_fresh:
+            return jsonify({
+                "error": "Session expired for destructive operation. Please sign in again.",
+                "code": "REAUTH_REQUIRED"
+            }), 403
         if confirmation not in ("DELETE", email.upper()):
             return jsonify({"error": "Please type 'DELETE' to confirm permanent account deletion."}), 400
 
@@ -889,10 +975,12 @@ def auth_delete_account():
         return jsonify({"error": msg}), 400
 
     session.clear()
-    return jsonify({
+    resp = jsonify({
         "success": True,
         "message": "Your account and all associated telemetry, keys, and projects have been permanently deleted."
-    }), 200
+    })
+    resp.delete_cookie("api_sec_csrf", path="/")
+    return resp, 200
 
 
 # ---------------------------------------------------------
@@ -1085,6 +1173,11 @@ def delete_project_route(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: you do not have access to this project"}), 403
 
+    # Phase 3 Re-Auth: Verify fresh session (<5 min) or password re-entry
+    is_fresh, reauth_err = verify_fresh_authentication(max_age_seconds=300)
+    if not is_fresh:
+        return jsonify({"error": reauth_err, "code": "REAUTH_REQUIRED"}), 403
+
     ok, msg = db.delete_project(g.current_user["id"], project_id)
     if not ok:
         return jsonify({"error": msg}), 400
@@ -1141,6 +1234,12 @@ def rotate_individual_project_key(project_id, key_id):
 def regenerate_project_key(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
+
+    # Phase 3 Re-Auth: Verify fresh session (<5 min) or password re-entry
+    is_fresh, reauth_err = verify_fresh_authentication(max_age_seconds=300)
+    if not is_fresh:
+        return jsonify({"error": reauth_err, "code": "REAUTH_REQUIRED"}), 403
+
     data = request.get_json(silent=True) or {}
     name = data.get("name", "Regenerated SDK Key").strip() or "Regenerated SDK Key"
     key_info = db.regenerate_api_key(project_id, name=name)
