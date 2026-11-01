@@ -25,6 +25,7 @@ import os
 import io
 import uuid
 import zipfile
+from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for
 from flask_socketio import SocketIO, join_room, leave_room, emit
 
@@ -71,6 +72,17 @@ socketio = SocketIO(
 # Demo token is only active if explicitly enabled in configuration and never in production
 API_TOKEN = "phase1-demo-token" if getattr(app_cfg, "ALLOW_DEMO_TOKEN", False) else None
 REQUIRED_FIELDS = ["endpoint", "method", "status_code", "latency_ms", "ip"]
+
+
+def get_client_ip() -> str:
+    """
+    Get trusted client IP address.
+    ProxyFix is active on app.wsgi_app, so request.remote_addr is already
+    properly resolved from trusted proxy headers according to configured hops.
+    Never read raw X-Forwarded-For headers directly to prevent IP spoofing
+    and rate limiter bypasses.
+    """
+    return (request.remote_addr or "127.0.0.1").strip()
 
 
 def _get_project_from_auth():
@@ -244,8 +256,74 @@ def handle_cors_preflight():
             resp.headers["Access-Control-Allow-Origin"] = origin
             resp.headers["Access-Control-Allow-Credentials"] = "true"
             resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key, X-Requested-With, X-CSRF-Protection, X-CSRF-Token"
             return resp
+
+
+@app.before_request
+def csrf_protect_phase1():
+    """
+    Phase 1 CSRF Protection:
+    Enforces origin verification and custom header presence for state-changing requests
+    authenticated via cookie sessions (session['user_id']).
+    Standard cross-origin form POSTs and simple requests cannot attach custom headers
+    without triggering a CORS preflight, blocking unauthorized cross-origin mutations.
+    """
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+
+    # Exempt public and token-based endpoints that do not use cookie sessions
+    exempt_paths = (
+        "/ingest",
+        "/api/auth/login",
+        "/api/auth/register",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
+        "/api/auth/verify-email",
+        "/api/auth/resend-verification",
+        "/auth/google",
+    )
+    if any(request.path.startswith(p) for p in exempt_paths):
+        return None
+
+    # Only enforce if request is authenticated via session cookie
+    if not session.get("user_id"):
+        return None
+
+    # Allow test client when TESTING config is active unless CSRF check is explicitly forced
+    if app.config.get("TESTING") and not request.headers.get("X-Force-CSRF-Check"):
+        return None
+
+    # 1. Origin / Referer Validation
+    origin = request.headers.get("Origin")
+    referer = request.headers.get("Referer")
+    cors_cfg = app.config.get("CORS_ALLOWED_ORIGINS", "*")
+    allowed_origins = [o.strip() for o in cors_cfg.split(",") if o.strip()]
+
+    if origin:
+        parsed_origin = urlparse(origin)
+        origin_netloc = parsed_origin.netloc
+        if origin_netloc != request.host and "*" not in allowed_origins and origin not in allowed_origins:
+            return jsonify({"error": "Forbidden", "message": "CSRF validation failed: Origin mismatch"}), 403
+    elif referer:
+        parsed_referer = urlparse(referer)
+        referer_netloc = parsed_referer.netloc
+        if referer_netloc != request.host and "*" not in allowed_origins and f"{parsed_referer.scheme}://{referer_netloc}" not in allowed_origins:
+            return jsonify({"error": "Forbidden", "message": "CSRF validation failed: Referer mismatch"}), 403
+
+    # 2. Defense-in-depth: Require custom request header for state-changing actions
+    csrf_header = (
+        request.headers.get("X-Requested-With")
+        or request.headers.get("X-CSRF-Protection")
+        or request.headers.get("X-CSRF-Token")
+    )
+    if not csrf_header:
+        return jsonify({
+            "error": "Forbidden",
+            "message": "CSRF validation failed: Missing custom request header (X-Requested-With or X-CSRF-Protection)"
+        }), 403
+
+    return None
 
 
 @app.after_request
@@ -264,7 +342,7 @@ def apply_security_headers(response):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key, X-Requested-With, X-CSRF-Protection, X-CSRF-Token"
 
     if app.config.get("SESSION_COOKIE_SECURE"):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -385,7 +463,7 @@ def auth_register():
 
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
-    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote_addr or "unknown"
+    client_ip = get_client_ip()
     if rate_limiter.is_login_rate_limited(client_ip):
         return jsonify({"error": "Too many failed login attempts. Please try again later."}), 429
 
@@ -1305,7 +1383,7 @@ def send_onboarding_test_event(project_id):
         "method": "GET",
         "status_code": 200,
         "latency_ms": 14.5,
-        "ip": request.remote_addr or "127.0.0.1",
+        "ip": get_client_ip(),
         "user_id": f"dev_test_{uuid.uuid4().hex[:6]}",
         "payload_size": 128,
         "project_id": project_id,
@@ -1562,9 +1640,7 @@ def ingest():
         return jsonify({"error": "Bad Request", "message": "Invalid or missing JSON object in request body"}), 400
 
     # 5. Schema Validation & Data Loss Prevention (Redaction & Field Whitelisting)
-    remote_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    if remote_ip and "," in remote_ip:
-        remote_ip = remote_ip.split(",")[0].strip()
+    remote_ip = get_client_ip()
 
     is_valid, err_msg, event = ingestion.validate_and_sanitize_event(
         raw_payload,

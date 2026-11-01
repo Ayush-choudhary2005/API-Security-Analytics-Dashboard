@@ -3,6 +3,7 @@ base.py — Abstract Base Class for Notification & Incident Integrations.
 """
 
 import abc
+import ipaddress
 import requests
 from urllib.parse import urlparse
 from typing import Dict, Any, Tuple
@@ -31,8 +32,35 @@ class BaseNotificationProvider(abc.ABC):
         if not url or not isinstance(url, str):
             return False, "Webhook URL is required"
         url = url.strip()
-        if not (url.startswith("http://") or url.startswith("https://")):
-            return False, "URL must start with http:// or https://"
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return False, "Malformed webhook URL"
+
+        if parsed.scheme.lower() != "https":
+            return False, "Only HTTPS webhook URLs are supported"
+
+        hostname = (parsed.hostname or "").strip().lower()
+        if not hostname:
+            return False, "Webhook URL must contain a valid host"
+
+        disallowed_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+        if hostname in disallowed_hosts:
+            return False, "Localhost and loopback destinations are not allowed"
+
+        if hostname.endswith((".local", ".internal", ".localhost", ".lan")):
+            return False, "Internal and private domains are not allowed"
+
+        if hostname.startswith("169.254."):
+            return False, "Link-local and cloud metadata destinations are not allowed"
+
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False, "Private and internal IP destinations are not allowed"
+        except ValueError:
+            pass
+
         return True, ""
 
     def mask_url(self, url: str) -> str:
@@ -75,6 +103,11 @@ class BaseNotificationProvider(abc.ABC):
         if not webhook_url:
             return False
 
+        valid, err = self.validate_url(webhook_url)
+        if not valid:
+            print(f"[INTEGRATION] Rejected delivery via {self.display_name} to invalid URL: {err}")
+            return False
+
         masked = self.mask_url(webhook_url)
         payload = self.format_alert(alert_data)
         try:
@@ -82,7 +115,8 @@ class BaseNotificationProvider(abc.ABC):
                 webhook_url,
                 json=payload,
                 headers={"Content-Type": "application/json", "User-Agent": "ML-O11Y-Alert-Service/1.0"},
-                timeout=timeout
+                timeout=timeout,
+                allow_redirects=False
             )
             if res.status_code in (200, 204):
                 return True
@@ -108,7 +142,8 @@ class BaseNotificationProvider(abc.ABC):
                 webhook_url,
                 json=payload,
                 headers={"Content-Type": "application/json", "User-Agent": "ML-O11Y-Alert-Service/1.0"},
-                timeout=timeout
+                timeout=timeout,
+                allow_redirects=False
             )
             if res.status_code in (200, 204):
                 return True, f"Verified connection to {self.display_name} successfully (HTTP {res.status_code})"

@@ -22,6 +22,15 @@ class DiscordProvider(BaseNotificationProvider):
         valid, err = super().validate_url(url)
         if not valid:
             return False, err
+        try:
+            parsed = urlparse(url)
+            hostname = (parsed.hostname or "").lower()
+            if hostname not in ("discord.com", "discordapp.com"):
+                return False, "Discord webhook URL host must be discord.com or discordapp.com"
+            if not parsed.path.startswith("/api/webhooks/"):
+                return False, "Discord webhook URL path must start with /api/webhooks/"
+        except Exception:
+            return False, "Invalid Discord webhook URL structure"
         return True, ""
 
     def mask_url(self, url: str) -> str:

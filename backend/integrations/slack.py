@@ -22,9 +22,15 @@ class SlackProvider(BaseNotificationProvider):
         valid, err = super().validate_url(url)
         if not valid:
             return False, err
-        if "hooks.slack.com" not in url.lower():
-            # Soft check — allow internal slack bridges if valid http/https, but standard is hooks.slack.com
-            pass
+        try:
+            parsed = urlparse(url)
+            hostname = (parsed.hostname or "").lower()
+            if hostname != "hooks.slack.com":
+                return False, "Slack webhook URL host must be hooks.slack.com"
+            if not parsed.path.startswith("/services/"):
+                return False, "Slack webhook URL path must start with /services/"
+        except Exception:
+            return False, "Invalid Slack webhook URL structure"
         return True, ""
 
     def mask_url(self, url: str) -> str:
