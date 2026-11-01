@@ -40,6 +40,7 @@ export const ProjectsPage = () => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [pageError, setPageError] = useState(null);
 
   // New Key modal
   const [newKeyRaw, setNewKeyRaw] = useState(null);
@@ -115,6 +116,7 @@ export const ProjectsPage = () => {
 
     setLoading(true);
     setKeyError(null);
+    setPageError(null);
     try {
       const res = await projectService.rotateKey(currentProject.id, key.id, `${key.name || 'Key'} (Rotated)`);
       const raw = res.data?.key?.raw_key || res.data?.raw_key;
@@ -122,12 +124,12 @@ export const ProjectsPage = () => {
         setNewKeyRaw(raw);
         setShowNewKeyModal(true);
       } else {
-        alert('Key rotated, but raw secret was not returned.');
+        setPageError('Key rotated, but raw secret was not returned.');
       }
       fetchKeys();
     } catch (err) {
       console.error('Failed to rotate key:', err);
-      alert(err.response?.data?.error || 'Failed to rotate key.');
+      setPageError(err.response?.data?.error || 'Failed to rotate key.');
     } finally {
       setLoading(false);
     }
@@ -138,11 +140,13 @@ export const ProjectsPage = () => {
     if (!window.confirm('Revoking this key will immediately reject all SDK telemetry using it. Proceed?')) {
       return;
     }
+    setPageError(null);
     try {
       await projectService.revokeKey(currentProject.id, keyId);
       fetchKeys();
     } catch (err) {
       console.error('Failed to revoke key:', err);
+      setPageError(err.response?.data?.error || 'Failed to revoke key.');
     }
   };
 
@@ -150,9 +154,10 @@ export const ProjectsPage = () => {
     if (!window.confirm(`Are you sure you want to delete project "${projectName}"? All API keys and telemetry for this project will be deleted.`)) {
       return;
     }
+    setPageError(null);
     const res = await deleteProject(projectId);
     if (!res.success) {
-      alert(res.error || 'Failed to delete project');
+      setPageError(res.error || 'Failed to delete project');
     }
   };
 
@@ -161,6 +166,7 @@ export const ProjectsPage = () => {
     if (!currentOrg?.id || !memberEmail.trim()) return;
     setLoading(true);
     setMemberError(null);
+    setPageError(null);
     try {
       await organizationService.addMember(currentOrg.id, {
         email: memberEmail.trim(),
@@ -181,11 +187,13 @@ export const ProjectsPage = () => {
   const handleRemoveMember = async (memberId) => {
     if (!currentOrg?.id) return;
     if (!window.confirm('Remove this member from the organization?')) return;
+    setPageError(null);
     try {
       await organizationService.removeMember(currentOrg.id, memberId);
       fetchMembers();
     } catch (err) {
       console.error('Failed to remove member:', err);
+      setPageError(err.response?.data?.error || 'Failed to remove member.');
     }
   };
 
@@ -273,6 +281,23 @@ export const ProjectsPage = () => {
           </button>
         </div>
       </div>
+
+      {/* Page Error Banner */}
+      {pageError && (
+        <div className="p-3.5 rounded-2xl bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178] flex items-center justify-between shadow-xs">
+          <div className="flex items-center space-x-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 text-[#F07178]" />
+            <span>{pageError}</span>
+          </div>
+          <button
+            onClick={() => setPageError(null)}
+            className="cursor-pointer text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs transition-colors ml-4"
+            aria-label="Dismiss error"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* TAB 1: SDK KEYS */}
       {activeTab === 'keys' && (
