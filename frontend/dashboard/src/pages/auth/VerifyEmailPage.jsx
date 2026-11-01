@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { CheckCircle2, AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
 import { AuthLayout } from '../../layouts/AuthLayout';
 import { authService } from '../../services/api';
 
@@ -45,7 +45,7 @@ export const VerifyEmailPage = () => {
       title="Verify Email Address"
       subtitle="Confirming your single-use cryptographic token."
     >
-      {loading ? (
+      {token && loading ? (
         <div className="py-6 text-center space-y-2.5">
           <div className="w-6 h-6 mx-auto border-2 border-[#C792EA] border-t-transparent rounded-full animate-spin"></div>
           <p className="text-xs font-mono text-[#9BA1AC]">Validating cryptographic token...</p>
@@ -60,7 +60,7 @@ export const VerifyEmailPage = () => {
           <div className="pt-2">
             <Link
               to="/login"
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold text-xs transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold text-xs transition-colors cursor-pointer"
             >
               <span>Continue to Sign In</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -86,19 +86,30 @@ export const VerifyEmailPage = () => {
               <input
                 type="text"
                 required
+                disabled={loading}
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value)}
                 placeholder="Paste verification token"
-                className="w-full bg-[#16181D] border border-[#1E2127] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] font-mono focus:outline-none focus:border-[#C792EA] transition-colors"
+                className="w-full bg-[#16181D] border border-[#1E2127] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] font-mono focus:outline-none focus:border-[#C792EA] transition-colors disabled:opacity-50"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-xs font-semibold text-[#0A0B0D] transition-colors shadow-xs"
+              disabled={loading}
+              className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-[#C792EA] hover:bg-[#d6a5f7] disabled:opacity-50 text-xs font-semibold text-[#0A0B0D] transition-colors shadow-xs cursor-pointer disabled:cursor-not-allowed"
             >
-              <span>Verify Token</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              {loading ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Verifying Token...</span>
+                </>
+              ) : (
+                <>
+                  <span>Verify Token</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
             </button>
           </form>
 
