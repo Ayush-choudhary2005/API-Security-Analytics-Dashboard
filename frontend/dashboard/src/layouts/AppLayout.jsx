@@ -131,7 +131,7 @@ export const AppLayout = ({ children }) => {
         <div className="flex items-center space-x-3 sm:space-x-4">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 text-[#9BA1AC] hover:text-[#E6E8EB] rounded transition-colors"
+            className="md:hidden p-1.5 text-[#9BA1AC] hover:text-[#E6E8EB] rounded transition-colors cursor-pointer"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -157,7 +157,7 @@ export const AppLayout = ({ children }) => {
                 setUserDropdownOpen(false);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
+              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px] cursor-pointer"
             >
               <span className="text-[#7B818B] font-mono text-[11px]">org:</span>
               <span className="truncate">{currentOrg ? currentOrg.name : 'Select Org'}</span>
@@ -177,7 +177,7 @@ export const AppLayout = ({ children }) => {
                         selectOrganization(org);
                         setOrgDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors ${
+                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors cursor-pointer ${
                         currentOrg?.id === org.id ? 'text-[#C792EA] bg-[#101216] font-semibold border border-[#C792EA]/30' : 'text-[#9BA1AC]'
                       }`}
                     >
@@ -192,7 +192,7 @@ export const AppLayout = ({ children }) => {
                       setOrgDropdownOpen(false);
                       setShowCreateOrgModal(true);
                     }}
-                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors"
+                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5 text-[#C792EA]" />
                     <span>Create Organization</span>
@@ -211,7 +211,7 @@ export const AppLayout = ({ children }) => {
                 setUserDropdownOpen(false);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px]"
+              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px] cursor-pointer"
             >
               <span className="text-[#7B818B] font-mono text-[11px]">proj:</span>
               <span className="truncate">{currentProject ? currentProject.name : 'Select Project'}</span>
@@ -231,7 +231,7 @@ export const AppLayout = ({ children }) => {
                         selectProject(proj);
                         setProjectDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors ${
+                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors cursor-pointer ${
                         currentProject?.id === proj.id ? 'text-[#82AAFF] bg-[#101216] font-semibold border border-[#82AAFF]/30' : 'text-[#9BA1AC]'
                       }`}
                     >
@@ -249,7 +249,7 @@ export const AppLayout = ({ children }) => {
                       setProjectDropdownOpen(false);
                       setShowCreateProjModal(true);
                     }}
-                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors"
+                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5 text-[#82AAFF]" />
                     <span>Create Project</span>
@@ -281,7 +281,7 @@ export const AppLayout = ({ children }) => {
                 setOrgDropdownOpen(false);
                 setProjectDropdownOpen(false);
               }}
-              className="p-1.5 text-[#9BA1AC] hover:text-[#E6E8EB] rounded hover:bg-[#16181D] border border-transparent hover:border-[#1E2127] transition-all relative"
+              className="p-1.5 text-[#9BA1AC] hover:text-[#E6E8EB] rounded hover:bg-[#16181D] border border-transparent hover:border-[#1E2127] transition-all relative cursor-pointer"
               aria-label="Security notifications"
             >
               <Bell className="w-4 h-4" />
@@ -323,7 +323,7 @@ export const AppLayout = ({ children }) => {
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold text-[#F07178] uppercase tracking-wider text-[10px] font-mono">
-                            {alt.attack_type || 'ANOMALY'}
+                            {String(alt.attack_type || 'ANOMALY').replace(/_/g, ' ')}
                           </span>
                           <span className="text-[10px] text-[#7B818B] font-mono">JUST NOW</span>
                         </div>
@@ -357,7 +357,7 @@ export const AppLayout = ({ children }) => {
                 setOrgDropdownOpen(false);
                 setProjectDropdownOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium text-[#9BA1AC] hover:text-[#E6E8EB] p-1 rounded hover:bg-[#16181D] border border-transparent hover:border-[#1E2127] transition-all"
+              className="flex items-center space-x-1.5 text-xs font-medium text-[#9BA1AC] hover:text-[#E6E8EB] p-1 rounded hover:bg-[#16181D] border border-transparent hover:border-[#1E2127] transition-all cursor-pointer"
             >
               <div className="w-6 h-6 rounded bg-[#16181D] border border-[#2A2E37] text-[#C792EA] flex items-center justify-center font-bold text-xs uppercase font-mono">
                 {user?.email?.charAt(0) || 'U'}
@@ -374,7 +374,7 @@ export const AppLayout = ({ children }) => {
                 <NavLink
                   to="/app/settings"
                   onClick={() => setUserDropdownOpen(false)}
-                  className="flex items-center space-x-2 px-3 py-2 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] hover:bg-[#1E2127] transition-colors"
+                  className="flex items-center space-x-2 px-3 py-2 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] hover:bg-[#1E2127] transition-colors cursor-pointer"
                 >
                   <Settings className="w-3.5 h-3.5 text-[#7B818B]" />
                   <span>Account & Keys</span>
@@ -382,7 +382,7 @@ export const AppLayout = ({ children }) => {
                 <div className="border-t border-[#1E2127] my-1" />
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-[#F07178] hover:bg-[#1E2127] transition-colors"
+                  className="w-full flex items-center space-x-2 px-3 py-2 text-xs text-[#F07178] hover:bg-[#1E2127] transition-colors cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Terminate Session</span>
@@ -443,7 +443,7 @@ export const AppLayout = ({ children }) => {
           <div className="p-2 border-t border-[#1E2127]">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="w-full flex items-center justify-center py-1.5 text-[11px] font-mono text-[#7B818B] hover:text-[#E6E8EB] rounded-lg hover:bg-[#16181D] transition-colors"
+              className="w-full flex items-center justify-center py-1.5 text-[11px] font-mono text-[#7B818B] hover:text-[#E6E8EB] rounded-lg hover:bg-[#16181D] transition-colors cursor-pointer"
             >
               <span>{sidebarCollapsed ? '→' : '← COLLAPSE'}</span>
             </button>
@@ -463,7 +463,7 @@ export const AppLayout = ({ children }) => {
                   <Shield className="w-4 h-4 text-[#C792EA]" />
                   <span className="font-semibold text-xs text-[#E6E8EB]">API Security Analytics</span>
                 </div>
-                <button onClick={() => setMobileMenuOpen(false)} className="text-[#9BA1AC] hover:text-white p-1">
+                <button onClick={() => setMobileMenuOpen(false)} className="text-[#9BA1AC] hover:text-white p-1 cursor-pointer">
                   <X className="w-4 h-4" />
                 </button>
               </div>
