@@ -260,7 +260,7 @@ export const SettingsPage = () => {
           <button
             type="submit"
             disabled={pwdLoading}
-            className="px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] disabled:opacity-50 text-xs font-semibold font-mono text-[#0A0B0D] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+            className="px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold font-mono text-[#0A0B0D] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
           >
             {pwdLoading
               ? 'SAVING CREDENTIAL...'
@@ -349,7 +349,7 @@ export const SettingsPage = () => {
               <button
                 type="submit"
                 disabled={deleteLoading || (!user?.has_password && deleteConfirmation.trim().toUpperCase() !== 'DELETE')}
-                className="px-5 py-2 rounded-full bg-[#F07178] hover:bg-[#e0565f] disabled:opacity-50 text-xs font-semibold font-mono text-[#0A0B0D] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
+                className="px-5 py-2 rounded-full bg-[#F07178] hover:bg-[#e0565f] disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold font-mono text-[#0A0B0D] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
               >
                 {deleteLoading ? 'DELETING ACCOUNT...' : 'CONFIRM PERMANENT DELETION'}
               </button>

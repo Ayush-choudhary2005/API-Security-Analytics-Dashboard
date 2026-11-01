@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Info } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { AuthLayout } from '../../layouts/AuthLayout';
 import { useAuth } from '../../context/AuthContext';
 
@@ -142,7 +142,7 @@ export const LoginPage = () => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-3 text-[#7B818B] hover:text-[#E6E8EB] transition-colors"
+              className="absolute right-3 top-3 text-[#7B818B] hover:text-[#E6E8EB] transition-colors cursor-pointer"
             >
               {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
@@ -152,10 +152,19 @@ export const LoginPage = () => {
         <button
           type="submit"
           disabled={loading}
-          className="group w-full mt-4 flex items-center justify-center space-x-2 py-3 px-4 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] hover:-translate-y-0.5 disabled:opacity-50 text-xs font-bold text-[#0A0B0D] transition-all duration-200 shadow-md cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C792EA]"
+          className="group w-full mt-4 flex items-center justify-center space-x-2 py-3 px-4 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold text-[#0A0B0D] transition-all duration-200 shadow-md cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C792EA]"
         >
-          <span>{loading ? 'AUTHENTICATING...' : 'SIGN IN TO CONSOLE'}</span>
-          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200" />
+          {loading ? (
+            <>
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              <span>AUTHENTICATING...</span>
+            </>
+          ) : (
+            <>
+              <span>SIGN IN TO CONSOLE</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200" />
+            </>
+          )}
         </button>
       </form>
 

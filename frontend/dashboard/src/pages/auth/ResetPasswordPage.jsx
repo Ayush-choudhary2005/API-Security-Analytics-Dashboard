@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Lock, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Lock, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { AuthLayout } from '../../layouts/AuthLayout';
 import { authService } from '../../services/api';
 
@@ -71,7 +71,7 @@ export const ResetPasswordPage = () => {
           <div className="pt-2">
             <Link
               to="/login"
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold text-xs transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold text-xs transition-colors cursor-pointer"
             >
               <span>Sign In with New Password</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -141,10 +141,19 @@ export const ResetPasswordPage = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-[#C792EA] hover:bg-[#d6a5f7] disabled:opacity-50 text-xs font-semibold text-[#0A0B0D] transition-colors shadow-xs"
+            className="w-full flex items-center justify-center space-x-1.5 py-2 px-3 rounded bg-[#C792EA] hover:bg-[#d6a5f7] disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-[#0A0B0D] transition-colors shadow-xs cursor-pointer"
           >
-            <span>{loading ? 'Updating Password...' : 'Save New Password'}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            {loading ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Updating Password...</span>
+              </>
+            ) : (
+              <>
+                <span>Save New Password</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
           </button>
 
           <div className="pt-3 border-t border-[#1E2127] text-center">
