@@ -16,7 +16,13 @@ import { useProject } from '../../context/ProjectContext';
 import { webhookService } from '../../services/api';
 
 export const IntegrationsPage = () => {
-  const { currentOrg, currentProject, openCreateOrgModal, openCreateProjModal } = useProject();
+  const {
+    currentOrg,
+    currentProject,
+    openCreateOrgModal,
+    openCreateProjModal,
+    initialLoading,
+  } = useProject();
 
   const [webhooks, setWebhooks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +134,17 @@ export const IntegrationsPage = () => {
       console.error(`Failed to delete ${provider} webhook:`, err);
     }
   };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#82AAFF] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Loading External Alert Pipelines...
+        </p>
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return (

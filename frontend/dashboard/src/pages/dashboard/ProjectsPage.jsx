@@ -32,6 +32,7 @@ export const ProjectsPage = () => {
     openCreateOrgModal,
     openCreateProjModal,
     deleteProject,
+    initialLoading,
   } = useProject();
 
   const [activeTab, setActiveTab] = useState('keys'); // 'keys', 'projects', 'members'
@@ -187,6 +188,17 @@ export const ProjectsPage = () => {
       console.error('Failed to remove member:', err);
     }
   };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#C792EA] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Loading Project Credentials & Keys...
+        </p>
+      </div>
+    );
+  }
 
   // Empty state: No workspace
   if (!currentOrg || organizations.length === 0) {

@@ -21,7 +21,14 @@ import { onboardingService, projectService } from '../../services/api';
 import { getSocket } from '../../services/socket';
 
 export const SdkOnboardingPage = () => {
-  const { currentOrg, currentProject, latestCreatedKey, openCreateOrgModal, openCreateProjModal } = useProject();
+  const {
+    currentOrg,
+    currentProject,
+    latestCreatedKey,
+    openCreateOrgModal,
+    openCreateProjModal,
+    initialLoading,
+  } = useProject();
 
   const [framework, setFramework] = useState('flask');
   const [currentStep, setCurrentStep] = useState(1);
@@ -572,6 +579,17 @@ class ApiSecurityMiddleware:
         return response`
     }
   };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#82AAFF] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Loading SDK Setup Wizard...
+        </p>
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return (
