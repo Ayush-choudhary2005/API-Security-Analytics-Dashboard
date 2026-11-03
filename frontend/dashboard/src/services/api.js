@@ -105,4 +105,9 @@ export const investigationService = {
   getPdfUrl: (alertId) => `${API_BASE_URL}/api/alerts/${alertId}/report.pdf?download=1`,
 };
 
+export const chainService = {
+  getChains: (projectId, params = {}) =>
+    api.get('/api/chains', { params: { project_id: projectId, ...params } }),
+};
+
 export default api;
