@@ -13,11 +13,13 @@ import threading
 
 # ── MITRE ATT&CK Stage Mapping ─────────────────────────────────────────────
 MITRE_MAP = {
-    "endpoint_scan": {"stage": "Reconnaissance",    "icon": "🔍", "order": 1},
-    "brute_force":   {"stage": "Credential Access", "icon": "🔑", "order": 2},
-    "request_burst": {"stage": "Impact",            "icon": "💥", "order": 3},
-    "anomaly":       {"stage": "Discovery",         "icon": "🔎", "order": 2},
-    "normal":        {"stage": "Initial Access",    "icon": "✅", "order": 4},
+    "endpoint_scan":       {"stage": "Reconnaissance",    "icon": "🔍", "order": 1},
+    "brute_force":         {"stage": "Credential Access", "icon": "🔑", "order": 2},
+    "request_burst":       {"stage": "Impact",            "icon": "💥", "order": 3},
+    "anomaly":             {"stage": "Discovery",         "icon": "🔎", "order": 2},
+    "statistical_anomaly": {"stage": "Discovery",         "icon": "🔎", "order": 2},
+    "composite_attack":    {"stage": "Multi-Stage Attack", "icon": "⚡", "order": 3},
+    "normal":              {"stage": "Initial Access",    "icon": "✅", "order": 4},
 }
 
 # Chain stays open if last alert was within this window

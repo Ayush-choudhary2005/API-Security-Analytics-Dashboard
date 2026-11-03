@@ -10,6 +10,7 @@ import {
   Terminal,
   Layers,
   Search,
+  GitBranch,
   Settings,
   Menu,
   X,
@@ -120,6 +121,7 @@ export const AppLayout = ({ children }) => {
     { label: 'SDK Integration', to: '/app/sdk', icon: Terminal },
     { label: 'Webhooks', to: '/app/integrations', icon: Layers },
     { label: 'AI Investigations', to: '/app/investigations', icon: Search },
+    { label: 'Kill Chains', to: '/app/kill-chains', icon: GitBranch },
     { label: 'Settings', to: '/app/settings', icon: Settings },
   ];
 
