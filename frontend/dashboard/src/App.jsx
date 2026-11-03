@@ -53,6 +53,9 @@ const IntegrationsPage = lazy(() =>
 const InvestigationsPage = lazy(() =>
   import('./pages/dashboard/InvestigationsPage').then((m) => ({ default: m.InvestigationsPage }))
 );
+const KillChainPage = lazy(() =>
+  import('./pages/dashboard/KillChainPage').then((m) => ({ default: m.KillChainPage }))
+);
 const SettingsPage = lazy(() =>
   import('./pages/dashboard/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
@@ -100,6 +103,7 @@ export function App() {
                             <Route path="sdk" element={<SdkOnboardingPage />} />
                             <Route path="integrations" element={<IntegrationsPage />} />
                             <Route path="investigations" element={<InvestigationsPage />} />
+                            <Route path="kill-chains" element={<KillChainPage />} />
                             <Route path="settings" element={<SettingsPage />} />
                             <Route path="*" element={<Navigate to="/app" replace />} />
                           </Routes>
