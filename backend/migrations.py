@@ -297,6 +297,35 @@ def migration_003_seed_demo_account(conn, is_pg: bool):
         )
 
 
+def migration_004_attack_chains(conn, is_pg: bool):
+    """Create attack_chains table for multi-alert kill chain correlation."""
+    text_t = "TEXT"
+    real_t = "DOUBLE PRECISION" if is_pg else "REAL"
+    int_t  = "INTEGER"
+    conn.execute(f"""
+        CREATE TABLE IF NOT EXISTS attack_chains (
+            id          {text_t} PRIMARY KEY,
+            project_id  {text_t} NOT NULL,
+            ip          {text_t} NOT NULL,
+            started_at  {real_t} NOT NULL,
+            updated_at  {real_t} NOT NULL,
+            stage_count {int_t}  NOT NULL DEFAULT 1,
+            max_risk    {real_t} NOT NULL DEFAULT 0.0,
+            status      {text_t} NOT NULL DEFAULT 'active',
+            stages      {text_t} NOT NULL DEFAULT '[]',
+            summary     {text_t}
+        );
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chains_project_ip "
+        "ON attack_chains(project_id, ip);"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chains_project_status "
+        "ON attack_chains(project_id, status, updated_at);"
+    )
+
+
 MIGRATIONS: List[Dict[str, Any]] = [
     {
         "version": "001_core_schema",
@@ -312,6 +341,11 @@ MIGRATIONS: List[Dict[str, Any]] = [
         "version": "003_seed_demo_account",
         "description": "Seed default demonstration account, organization, and credential",
         "func": migration_003_seed_demo_account,
+    },
+    {
+        "version": "004_attack_chains",
+        "description": "Create attack_chains table for multi-alert kill chain correlation",
+        "func": migration_004_attack_chains,
     },
 ]
 
