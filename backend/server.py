@@ -34,6 +34,7 @@ from flask_socketio import SocketIO, join_room, leave_room, emit
 import db
 import webhook
 import detection
+import attack_correlator
 import rate_limiter
 import auth
 from auth import login_required
@@ -1855,6 +1856,15 @@ def ingest():
                 # External notification failures must never impede detection
                 pass
 
+            # Kill Chain Stitching — correlate this alert into a multi-stage chain
+            try:
+                chain = attack_correlator.correlate(scored_event, db)
+                if chain:
+                    socketio.emit(f'chain_update_{project_id}', chain, room=room_name)
+                    socketio.emit('chain_update', chain, room=room_name)
+            except Exception:
+                pass
+
         return jsonify(scored_event), 201
 
     except Exception:
@@ -1891,6 +1901,23 @@ def alerts_recent():
         return err
     limit = int(request.args.get("limit", 50))
     return jsonify(db.get_recent_alerts(limit, project_id))
+
+
+@app.route("/api/chains", methods=["GET"])
+@login_required
+def get_chains():
+    """Return attack chains for the authenticated user's project."""
+    user_id = session.get("user_id")
+    project_id, err = _resolve_and_verify_project(user_id)
+    if err:
+        return err
+    status_filter = request.args.get("status")
+    try:
+        limit = min(int(request.args.get("limit", 50)), 200)
+    except (ValueError, TypeError):
+        limit = 50
+    chains = db.get_chains(project_id, limit=limit, status=status_filter)
+    return jsonify({"chains": chains, "count": len(chains)}), 200
 
 
 @app.route("/alerts/stats", methods=["GET"])
@@ -2101,6 +2128,20 @@ def get_alert_report(alert_id):
         "report": report,
         "pdf_url": f"/api/alerts/{alert_id}/report.pdf?download=1"
     }), 200
+
+
+# ── Kill Chain Background Resolver ──────────────────────────────────────────
+import threading as _threading
+def _chain_resolver_loop():
+    """Resolve stale attack chains every 5 minutes."""
+    while True:
+        time.sleep(300)
+        try:
+            attack_correlator.resolve_stale_chains(db)
+        except Exception:
+            pass
+_chain_resolver_thread = _threading.Thread(target=_chain_resolver_loop, daemon=True)
+_chain_resolver_thread.start()
 
 
 if __name__ == "__main__":
