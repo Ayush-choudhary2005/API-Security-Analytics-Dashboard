@@ -3,7 +3,19 @@ gunicorn_config.py — Production WSGI Configuration for Flask & Flask-SocketIO.
 """
 
 import os
+import sys
 import multiprocessing
+
+# Working directory and path resolution: ensure backend modules resolve
+# regardless of whether gunicorn is launched from repository root or backend/
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR = os.path.join(BASE_DIR, "backend") if os.path.exists(os.path.join(BASE_DIR, "backend")) else BASE_DIR
+
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
+chdir = BACKEND_DIR
+pythonpath = BACKEND_DIR
 
 # Network binding
 bind = f"0.0.0.0:{os.environ.get('PORT', '5001')}"
