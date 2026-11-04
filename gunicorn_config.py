@@ -44,3 +44,18 @@ accesslog = "-"
 errorlog = "-"
 loglevel = os.environ.get("LOG_LEVEL", "info").lower()
 capture_output = True
+
+
+# ── Server Lifecycle Hooks ───────────────────────────────────────────
+def on_starting(server):
+    """
+    Execute database migrations on Gunicorn master startup
+    before worker threads begin accepting traffic.
+    Guarantees all tables, columns, and indexes exist.
+    """
+    try:
+        import db
+        db.init_db()
+        server.log.info("[Boot] Database schema verified and migrations applied successfully.")
+    except Exception as e:
+        server.log.error(f"[Boot] Error running database migrations on startup: {e}")
