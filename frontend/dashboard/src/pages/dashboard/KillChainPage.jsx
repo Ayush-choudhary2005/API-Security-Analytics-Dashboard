@@ -141,7 +141,6 @@ export function KillChainPage() {
       const res = await chainService.getChains(currentProject.id, params);
       const list = res.data?.chains || [];
       setChains(list);
-      if (list.length > 0 && !selected) setSelected(list[0]);
     } catch (e) {
       console.error('Failed to load chains', e);
     } finally {
@@ -168,7 +167,6 @@ export function KillChainPage() {
         }
         return [chain, ...prev];
       });
-      setSelected(prev => (prev?.id === chain.id ? chain : prev));
     };
 
     const eventName = `chain_update_${currentProject.id}`;
@@ -178,6 +176,22 @@ export function KillChainPage() {
       socket.off(eventName, onUpdate);
     };
   }, [currentProject?.id]);
+
+  const displayed = filter === 'all' ? chains : chains.filter(c => c.status === filter);
+
+  // Synchronize selected chain with filtered displayed list
+  useEffect(() => {
+    if (displayed.length === 0) {
+      if (selected !== null) setSelected(null);
+    } else if (!selected || !displayed.some(c => c.id === selected.id)) {
+      setSelected(displayed[0]);
+    } else {
+      const latest = displayed.find(c => c.id === selected.id);
+      if (latest && latest !== selected) {
+        setSelected(latest);
+      }
+    }
+  }, [displayed, selected]);
 
   if (!currentOrg) {
     return (
@@ -202,8 +216,6 @@ export function KillChainPage() {
       </div>
     );
   }
-
-  const displayed = filter === 'all' ? chains : chains.filter(c => c.status === filter);
 
   return (
     <div className="h-full flex flex-col gap-4 p-4 md:p-6">
