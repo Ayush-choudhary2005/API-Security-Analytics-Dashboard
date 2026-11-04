@@ -1931,14 +1931,14 @@ def ingest():
                 # External notification failures must never impede detection
                 pass
 
-            # Kill Chain Stitching — correlate this alert into a multi-stage chain
-            try:
-                chain = attack_correlator.correlate(scored_event, db)
-                if chain:
-                    socketio.emit(f'chain_update_{project_id}', chain, room=room_name)
-                    socketio.emit('chain_update', chain, room=room_name)
-            except Exception:
-                pass
+        # Kill Chain Stitching — correlate alerts and post-attack Initial Access into a multi-stage chain
+        try:
+            chain = attack_correlator.correlate(scored_event, db)
+            if chain:
+                socketio.emit(f'chain_update_{project_id}', chain, room=room_name)
+                socketio.emit('chain_update', chain, room=room_name)
+        except Exception:
+            pass
 
         return jsonify(scored_event), 201
 
