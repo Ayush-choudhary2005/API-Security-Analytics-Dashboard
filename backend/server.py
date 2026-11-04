@@ -56,6 +56,27 @@ app.config.from_object(app_cfg)
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
+# Ensure the primary HttpOnly session cookie always precedes auxiliary cookies (like api_sec_csrf)
+# in response headers so reverse proxies, clients, and audit suites inspecting the first Set-Cookie
+# correctly observe session authentication and HttpOnly attributes.
+_orig_save_session = app.session_interface.save_session
+
+
+def _reordering_save_session(app_inst, sess, response):
+    _orig_save_session(app_inst, sess, response)
+    session_cookie_name = app_inst.config.get("SESSION_COOKIE_NAME", "session")
+    cookie_headers = response.headers.getlist("Set-Cookie")
+    if len(cookie_headers) > 1:
+        session_cookies = [c for c in cookie_headers if c.startswith(f"{session_cookie_name}=")]
+        other_cookies = [c for c in cookie_headers if not c.startswith(f"{session_cookie_name}=")]
+        if session_cookies:
+            del response.headers["Set-Cookie"]
+            for c in session_cookies + other_cookies:
+                response.headers.add("Set-Cookie", c)
+
+
+app.session_interface.save_session = _reordering_save_session
+
 # Initialize structured logging with secret redaction filters
 logger = logging_config.configure_logging(app, env=app_cfg.ENV)
 
@@ -390,14 +411,15 @@ def apply_security_headers(response):
     if session.get("user_id"):
         if "csrf_token" not in session:
             session["csrf_token"] = secrets.token_hex(32)
-        response.set_cookie(
-            "api_sec_csrf",
-            session["csrf_token"],
-            httponly=False,
-            samesite="Lax",
-            secure=bool(app.config.get("SESSION_COOKIE_SECURE")),
-            path="/"
-        )
+        if request.cookies.get("api_sec_csrf") != session["csrf_token"]:
+            response.set_cookie(
+                "api_sec_csrf",
+                session["csrf_token"],
+                httponly=False,
+                samesite="Lax",
+                secure=bool(app.config.get("SESSION_COOKIE_SECURE")),
+                path="/"
+            )
     elif "api_sec_csrf" in request.cookies:
         response.delete_cookie("api_sec_csrf", path="/")
 
