@@ -1810,16 +1810,18 @@ def get_open_chain(project_id: str, ip: str, window_sec: float) -> dict | None:
     """Return the most recent active chain for (project_id, ip) within window_sec."""
     cutoff = time.time() - window_sec
     conn = get_conn()
-    row = conn.execute(
-        """
-        SELECT * FROM attack_chains
-        WHERE project_id = ? AND ip = ? AND status = 'active' AND updated_at >= ?
-        ORDER BY updated_at DESC LIMIT 1
-        """,
-        (project_id, ip, cutoff),
-    ).fetchone()
-    conn.close()
-    return _row_to_dict(row) if row else None
+    try:
+        row = conn.execute(
+            """
+            SELECT * FROM attack_chains
+            WHERE project_id = ? AND ip = ? AND status = 'active' AND updated_at >= ?
+            ORDER BY updated_at DESC LIMIT 1
+            """,
+            (project_id, ip, cutoff),
+        ).fetchone()
+        return _row_to_dict(row) if row else None
+    finally:
+        conn.close()
 
 
 def create_chain(chain_id: str, project_id: str, ip: str,
@@ -1828,22 +1830,24 @@ def create_chain(chain_id: str, project_id: str, ip: str,
     """Insert a new attack chain and return it as a dict."""
     with _lock:
         conn = get_conn()
-        conn.execute(
-            """
-            INSERT INTO attack_chains
-                (id, project_id, ip, started_at, updated_at,
-                 stage_count, max_risk, status, stages)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)
-            """,
-            (chain_id, project_id, ip, started_at, updated_at,
-             len(stages), max_risk, json.dumps(stages)),
-        )
-        conn.commit()
-        row = conn.execute(
-            "SELECT * FROM attack_chains WHERE id = ?", (chain_id,)
-        ).fetchone()
-        conn.close()
-        return _row_to_dict(row)
+        try:
+            conn.execute(
+                """
+                INSERT INTO attack_chains
+                    (id, project_id, ip, started_at, updated_at,
+                     stage_count, max_risk, status, stages)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                """,
+                (chain_id, project_id, ip, started_at, updated_at,
+                 len(stages), max_risk, json.dumps(stages)),
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM attack_chains WHERE id = ?", (chain_id,)
+            ).fetchone()
+            return _row_to_dict(row)
+        finally:
+            conn.close()
 
 
 def update_chain(chain_id: str, stages: list,
@@ -1851,44 +1855,49 @@ def update_chain(chain_id: str, stages: list,
     """Update stages and risk score of an existing chain."""
     with _lock:
         conn = get_conn()
-        conn.execute(
-            """
-            UPDATE attack_chains
-            SET stages = ?, stage_count = ?, max_risk = ?, updated_at = ?
-            WHERE id = ?
-            """,
-            (json.dumps(stages), len(stages), max_risk, updated_at, chain_id),
-        )
-        conn.commit()
-        row = conn.execute(
-            "SELECT * FROM attack_chains WHERE id = ?", (chain_id,)
-        ).fetchone()
-        conn.close()
-        return _row_to_dict(row)
+        try:
+            conn.execute(
+                """
+                UPDATE attack_chains
+                SET stages = ?, stage_count = ?, max_risk = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (json.dumps(stages), len(stages), max_risk, updated_at, chain_id),
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM attack_chains WHERE id = ?", (chain_id,)
+            ).fetchone()
+            return _row_to_dict(row)
+        finally:
+            conn.close()
 
 
 def get_chains(project_id: str, limit: int = 50, status: str = None) -> list:
     """Fetch attack chains for a project, newest first."""
     conn = get_conn()
-    if status:
-        rows = conn.execute(
-            """
-            SELECT * FROM attack_chains
-            WHERE project_id = ? AND status = ?
-            ORDER BY updated_at DESC LIMIT ?
-            """,
-            (project_id, status, limit),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            """
-            SELECT * FROM attack_chains
-            WHERE project_id = ?
-            ORDER BY updated_at DESC LIMIT ?
-            """,
-            (project_id, limit),
-        ).fetchall()
-    conn.close()
+    try:
+        if status:
+            rows = conn.execute(
+                """
+                SELECT * FROM attack_chains
+                WHERE project_id = ? AND status = ?
+                ORDER BY updated_at DESC LIMIT ?
+                """,
+                (project_id, status, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM attack_chains
+                WHERE project_id = ?
+                ORDER BY updated_at DESC LIMIT ?
+                """,
+                (project_id, limit),
+            ).fetchall()
+    finally:
+        conn.close()
+
     result = []
     for r in rows:
         d = _row_to_dict(r)
@@ -1905,16 +1914,18 @@ def resolve_chains_before(cutoff_ts: float):
     """Mark all active chains last updated before cutoff_ts as resolved."""
     with _lock:
         conn = get_conn()
-        conn.execute(
-            """
-            UPDATE attack_chains
-            SET status = 'resolved'
-            WHERE status = 'active' AND updated_at < ?
-            """,
-            (cutoff_ts,),
-        )
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute(
+                """
+                UPDATE attack_chains
+                SET status = 'resolved'
+                WHERE status = 'active' AND updated_at < ?
+                """,
+                (cutoff_ts,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
 
 if __name__ == "__main__":
