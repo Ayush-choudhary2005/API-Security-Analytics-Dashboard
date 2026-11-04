@@ -58,12 +58,26 @@ export const InvestigationsPage = () => {
       .then((res) => {
         const raw = res.data;
         const list = Array.isArray(raw) ? raw : (raw?.alerts || []);
-        setAlerts(list);
         const exists = list.some((a) => String(a.id) === String(selectedAlertId));
-        if (!exists) {
-          const nextId = list.length > 0 ? String(list[0].id) : '';
-          setSelectedAlertId(nextId);
-          setSearchParams(nextId ? { alert_id: nextId } : {}, { replace: true });
+        if (selectedAlertId && !exists) {
+          // If an alert was requested via deep link (e.g. from Kill Chain) but is not in the latest 50 alerts,
+          // preserve it in the list so the dropdown selection and investigation trigger seamlessly
+          const deepLinkedItem = {
+            id: selectedAlertId,
+            attack_type: 'kill_chain_event',
+            method: 'ALERT',
+            endpoint: `Alert #${selectedAlertId}`,
+            created_at: Date.now() / 1000,
+            severity: 'high',
+          };
+          setAlerts([deepLinkedItem, ...list]);
+        } else {
+          setAlerts(list);
+          if (!selectedAlertId) {
+            const nextId = list.length > 0 ? String(list[0].id) : '';
+            setSelectedAlertId(nextId);
+            setSearchParams(nextId ? { alert_id: nextId } : {}, { replace: true });
+          }
         }
       })
       .catch((err) => {

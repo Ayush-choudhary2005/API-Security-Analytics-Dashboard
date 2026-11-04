@@ -98,13 +98,24 @@ function Timeline({ chain }) {
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 text-[10px] text-[#6B7280]">
-                Risk: <span className={riskColor(s.risk_score)}>{Math.round(s.risk_score)}</span>
-                {' · '}{s.attack_type?.replace(/_/g, ' ')}
-                {s.count > 1 && (
-                  <span className="text-[#82AAFF] ml-1">
-                    ({s.count} {s.attack_type === 'endpoint_scan' ? 'paths' : 'attempts'})
-                  </span>
+              <div className="mt-0.5 text-[10px] text-[#6B7280] flex items-center justify-between">
+                <div>
+                  Risk: <span className={riskColor(s.risk_score)}>{Math.round(s.risk_score)}</span>
+                  {' · '}{s.attack_type?.replace(/_/g, ' ')}
+                  {s.count > 1 && (
+                    <span className="text-[#82AAFF] ml-1">
+                      ({s.count} {s.attack_type === 'endpoint_scan' ? 'paths' : 'attempts'})
+                    </span>
+                  )}
+                </div>
+                {s.event_id && (
+                  <Link
+                    to={`/app/investigations?alert_id=${s.event_id}`}
+                    className="text-[#C792EA] hover:underline text-[10px] font-mono flex items-center gap-0.5 ml-auto"
+                    title="Investigate this stage with AI"
+                  >
+                    AI Dossier →
+                  </Link>
                 )}
               </div>
             </div>
@@ -296,6 +307,7 @@ export function KillChainPage() {
                 <div className="mt-6 pt-4 border-t border-[#2A2F3A]">
                   <Link
                     to={`/app/investigations?alert_id=${
+                      [...selected.stages].reverse().find(s => s.event_id && (s.severity === 'high' || s.severity === 'medium'))?.event_id ||
                       selected.stages[selected.stages.length - 1]?.event_id || ''
                     }`}
                     className="text-[11px] font-mono text-[#C792EA] hover:underline
