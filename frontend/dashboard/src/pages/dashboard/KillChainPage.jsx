@@ -155,7 +155,10 @@ export function KillChainPage() {
     if (!currentProject?.id) return;
     const socket = getSocket();
     if (!socket) return;
+
     const onUpdate = (chain) => {
+      if (chain?.project_id && chain.project_id !== currentProject.id) return;
+
       setChains(prev => {
         const idx = prev.findIndex(c => c.id === chain.id);
         if (idx >= 0) {
@@ -167,11 +170,12 @@ export function KillChainPage() {
       });
       setSelected(prev => (prev?.id === chain.id ? chain : prev));
     };
-    socket.on('chain_update', onUpdate);
-    socket.on(`chain_update_${currentProject.id}`, onUpdate);
+
+    const eventName = `chain_update_${currentProject.id}`;
+    socket.on(eventName, onUpdate);
+
     return () => {
-      socket.off('chain_update', onUpdate);
-      socket.off(`chain_update_${currentProject.id}`, onUpdate);
+      socket.off(eventName, onUpdate);
     };
   }, [currentProject?.id]);
 
