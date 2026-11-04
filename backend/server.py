@@ -27,8 +27,9 @@ import uuid
 import zipfile
 import secrets
 import hmac
+from typing import Tuple, Optional
 from urllib.parse import urlparse
-from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for
+from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for, has_request_context
 from flask_socketio import SocketIO, join_room, leave_room, emit
 
 import db
@@ -60,6 +61,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # in response headers so reverse proxies, clients, and audit suites inspecting the first Set-Cookie
 # correctly observe session authentication and HttpOnly attributes.
 _orig_save_session = app.session_interface.save_session
+_orig_get_cookie_secure = app.session_interface.get_cookie_secure
 
 
 def _reordering_save_session(app_inst, sess, response):
@@ -75,7 +77,15 @@ def _reordering_save_session(app_inst, sess, response):
                 response.headers.add("Set-Cookie", c)
 
 
+def _adaptive_get_cookie_secure(app_inst):
+    cfg_secure = _orig_get_cookie_secure(app_inst)
+    if has_request_context():
+        return bool(cfg_secure or request.is_secure)
+    return bool(cfg_secure)
+
+
 app.session_interface.save_session = _reordering_save_session
+app.session_interface.get_cookie_secure = _adaptive_get_cookie_secure
 
 # Initialize structured logging with secret redaction filters
 logger = logging_config.configure_logging(app, env=app_cfg.ENV)
@@ -314,6 +324,41 @@ def handle_cors_preflight():
             return resp
 
 
+def _normalize_origin(url_str: str, default_scheme: str = "https") -> Tuple[str, str, Optional[int]]:
+    """Parse and normalize scheme, hostname, and port from an origin or URL string."""
+    if not url_str:
+        return "", "", None
+    if "://" not in url_str:
+        url_str = f"{default_scheme}://{url_str}"
+    parsed = urlparse(url_str)
+    scheme = (parsed.scheme or default_scheme).lower()
+    hostname = (parsed.hostname or "").lower()
+    port = parsed.port
+    if not port:
+        if scheme == "http":
+            port = 80
+        elif scheme == "https":
+            port = 443
+    return scheme, hostname, port
+
+
+def _is_allowed_origin(source_url: str, request_host: str, request_scheme: str, allowed_origins: list) -> bool:
+    """Verify if source_url matches request origin or any configured allowed origin, normalizing default ports."""
+    source_norm = _normalize_origin(source_url, request_scheme)
+    req_norm = _normalize_origin(f"{request_scheme}://{request_host}", request_scheme)
+    if source_norm == req_norm:
+        return True
+    for allowed in allowed_origins:
+        if allowed == "*":
+            # Wildcard '*' is never permitted for CSRF origin bypass on authenticated sessions
+            continue
+        if source_url == allowed:
+            return True
+        if source_norm == _normalize_origin(allowed, "https"):
+            return True
+    return False
+
+
 @app.before_request
 def csrf_protect():
     """
@@ -324,11 +369,12 @@ def csrf_protect():
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return None
 
-    # Exempt public and token-based endpoints that do not use cookie sessions
+    # Exempt public, token-based, and session-clearing endpoints
     exempt_paths = (
         "/ingest",
         "/api/auth/login",
         "/api/auth/register",
+        "/api/auth/logout",
         "/api/auth/forgot-password",
         "/api/auth/reset-password",
         "/api/auth/verify-email",
@@ -346,21 +392,17 @@ def csrf_protect():
     if app.config.get("TESTING") and not request.headers.get("X-Force-CSRF-Check"):
         return None
 
-    # 1. Origin / Referer Validation
+    # 1. Origin / Referer Validation with scheme and port normalization
     origin = request.headers.get("Origin")
     referer = request.headers.get("Referer")
     cors_cfg = app.config.get("CORS_ALLOWED_ORIGINS", "*")
     allowed_origins = [o.strip() for o in cors_cfg.split(",") if o.strip()]
 
     if origin:
-        parsed_origin = urlparse(origin)
-        origin_netloc = parsed_origin.netloc
-        if origin_netloc != request.host and "*" not in allowed_origins and origin not in allowed_origins:
+        if not _is_allowed_origin(origin, request.host, request.scheme, allowed_origins):
             return jsonify({"error": "Forbidden", "message": "CSRF validation failed: Origin mismatch"}), 403
     elif referer:
-        parsed_referer = urlparse(referer)
-        referer_netloc = parsed_referer.netloc
-        if referer_netloc != request.host and "*" not in allowed_origins and f"{parsed_referer.scheme}://{referer_netloc}" not in allowed_origins:
+        if not _is_allowed_origin(referer, request.host, request.scheme, allowed_origins):
             return jsonify({"error": "Forbidden", "message": "CSRF validation failed: Referer mismatch"}), 403
 
     # 2. Double-Submit Cookie Verification
@@ -404,7 +446,9 @@ def apply_security_headers(response):
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key, X-Requested-With, X-CSRF-Protection, X-CSRF-Token"
 
-    if app.config.get("SESSION_COOKIE_SECURE"):
+    # Transport security adaptation for HTTPS proxies
+    cookie_secure = bool(app.config.get("SESSION_COOKIE_SECURE")) or bool(request.is_secure)
+    if (app.config.get("SESSION_COOKIE_SECURE") or request.is_secure) and (request.is_secure or app_cfg.ENV == "production"):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     # Phase 2 CSRF: Maintain and dispatch readable CSRF cookie for authenticated sessions
@@ -417,7 +461,7 @@ def apply_security_headers(response):
                 session["csrf_token"],
                 httponly=False,
                 samesite="Lax",
-                secure=bool(app.config.get("SESSION_COOKIE_SECURE")),
+                secure=cookie_secure,
                 path="/"
             )
     elif "api_sec_csrf" in request.cookies:
