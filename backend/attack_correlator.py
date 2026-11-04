@@ -59,6 +59,7 @@ def _build_stage(event: dict, stage_severity: str = None, stage_risk: float = No
         "risk_score":  risk,
         "severity":    severity,
         "event_id":    event_identifier,
+        "count":       1,
     }
 
 
@@ -118,22 +119,47 @@ def correlate(event: dict, db_module) -> dict | None:
                     stage_severity = "high"
                     stage_risk = max(risk_score, 90.0)
                     new_max_risk = max(float(existing.get("max_risk", 0.0)), 95.0)
+                    new_stage = _build_stage(
+                        event,
+                        stage_severity=stage_severity,
+                        stage_risk=stage_risk,
+                        is_initial_access=True
+                    )
+                    stages.append(new_stage)
                 else:
                     # If this is not an alert and Initial Access was already captured or not applicable, stop
                     if not is_alert:
                         return None
-                    is_initial_access = False
                     stage_severity = severity
                     stage_risk = risk_score
                     new_max_risk = max(float(existing.get("max_risk", 0.0)), risk_score)
 
-                new_stage = _build_stage(
-                    event,
-                    stage_severity=stage_severity,
-                    stage_risk=stage_risk,
-                    is_initial_access=is_initial_access
-                )
-                stages.append(new_stage)
+                    # Stage Consolidation: If the incoming alert matches the latest stage's
+                    # MITRE stage (e.g. repeated probe in an endpoint scan or repeated attempt in brute force)
+                    # and occurred within a recent window (180s), consolidate into that stage
+                    last_stage = stages[-1] if stages else None
+                    candidate_mitre = _get_mitre(event.get("attack_type", "normal"))
+
+                    if (
+                        last_stage
+                        and last_stage.get("stage") == candidate_mitre["stage"]
+                        and (now - last_stage.get("ts", now)) < 180
+                    ):
+                        last_stage["count"] = last_stage.get("count", 1) + 1
+                        last_stage["risk_score"] = max(float(last_stage.get("risk_score", 0.0)), stage_risk)
+                        last_stage["last_ts"] = now
+                        last_stage["endpoint"] = event.get("endpoint", last_stage.get("endpoint"))
+                        last_stage["status_code"] = int(event.get("status_code", last_stage.get("status_code", 0)))
+                        last_stage["event_id"] = str(event.get("id") or event.get("event_id", last_stage.get("event_id", "")))
+                    else:
+                        new_stage = _build_stage(
+                            event,
+                            stage_severity=stage_severity,
+                            stage_risk=stage_risk,
+                            is_initial_access=False
+                        )
+                        stages.append(new_stage)
+
                 stages.sort(key=lambda s: s["ts"])
 
                 _active_chain_ips.add((project_id, ip))

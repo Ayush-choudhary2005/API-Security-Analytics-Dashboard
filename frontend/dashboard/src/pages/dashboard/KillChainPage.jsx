@@ -101,6 +101,11 @@ function Timeline({ chain }) {
               <div className="mt-0.5 text-[10px] text-[#6B7280]">
                 Risk: <span className={riskColor(s.risk_score)}>{Math.round(s.risk_score)}</span>
                 {' · '}{s.attack_type?.replace(/_/g, ' ')}
+                {s.count > 1 && (
+                  <span className="text-[#82AAFF] ml-1">
+                    ({s.count} {s.attack_type === 'endpoint_scan' ? 'paths' : 'attempts'})
+                  </span>
+                )}
               </div>
             </div>
           </div>
