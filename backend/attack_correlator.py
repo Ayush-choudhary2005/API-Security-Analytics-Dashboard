@@ -26,6 +26,8 @@ MITRE_MAP = {
 CHAIN_WINDOW_SEC  = 600   # 10 minutes
 # Chain auto-resolves after this silence
 CHAIN_RESOLVE_SEC = 1800  # 30 minutes
+# Maximum stages stored per attack chain to bound memory and database storage
+MAX_CHAIN_STAGES  = 50
 
 _lock = threading.Lock()
 _active_chain_ips = set()
@@ -161,6 +163,12 @@ def correlate(event: dict, db_module) -> dict | None:
                         stages.append(new_stage)
 
                 stages.sort(key=lambda s: s["ts"])
+
+                # Enforce stage growth cap: retain initial attack vector and latest exploit stages
+                if len(stages) > MAX_CHAIN_STAGES:
+                    head_count = 10
+                    tail_count = MAX_CHAIN_STAGES - head_count
+                    stages = stages[:head_count] + stages[-tail_count:]
 
                 _active_chain_ips.add((project_id, ip))
 
