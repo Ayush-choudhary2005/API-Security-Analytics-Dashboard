@@ -488,6 +488,54 @@ Every detection and telemetry event retains canonical, server-verified tenant me
 
 ---
 
+## MITRE ATT&CK Multi-Stage Kill Chain Stitching Engine
+
+Real-world API attacks are rarely single, isolated events. Adversaries typically execute coordinated campaigns spanning reconnaissance, credential probing, and behavioral discovery before attempting unauthorized access or disruption.
+
+The platform includes a dedicated **Kill Chain Stitching Engine** (`backend/attack_correlator.py`) that correlates sequential alerts originating from the same source IP within a sliding 10-minute window (`CHAIN_WINDOW_SEC = 600s`) into a unified, chronologically ordered attack chain.
+
+### 1. MITRE ATT&CK Taxonomy Mapping
+
+Detected events and security alerts are mapped to standardized MITRE ATT&CK stages:
+
+| Attack Vector | MITRE ATT&CK Stage | Stage Order | Detection Mechanism |
+|---|---|---|---|
+| `endpoint_scan` | Reconnaissance | 1 | High endpoint cardinality from single IP within 60s |
+| `brute_force` | Credential Access | 2 | Repeated authentication failures (HTTP 401/403) within 60s |
+| `anomaly` / `statistical_anomaly` | Discovery | 2 | Unsupervised Isolation Forest statistical drift (> 2.5) |
+| `composite_attack` | Multi-Stage Attack | 3 | Simultaneous multi-rule activation within 60s |
+| `request_burst` | Impact | 3 | High-frequency volumetric request burst within 10s |
+| `initial_access` | Initial Access | 4 | Successful HTTP response (200, 201, 204, 302) following an active attack from the same IP |
+
+### 2. Post-Exploitation Initial Access Detection
+
+A unique capability of the engine is tracking whether an adversary successfully breached the API after executing reconnaissance or brute-force attacks:
+* If an IP address with an active open attack chain achieves a successful HTTP response (`200 OK`, `201 Created`, `204 No Content`, `302 Found`), the engine intercepts the transaction and appends an **Initial Access** stage.
+* The chain's risk score is immediately escalated to critical (90.0 - 95.0).
+* This transforms the alert from a routine scanning probe into an urgent compromised-account incident.
+
+### 3. Stage Consolidation & Storage Growth Bounds
+
+To prevent alert flooding and excessive database growth during prolonged brute-force or scanning attempts:
+* **Stage Consolidation:** Subsequent alerts matching the same MITRE stage within 180 seconds are consolidated into the existing stage entry. The system updates the occurrence count (e.g. "15 attempts" or "42 paths"), latest timestamp, endpoint history, and peak risk score without creating redundant timeline steps.
+* **Storage Growth Cap:** Chains enforce `MAX_CHAIN_STAGES = 50` to bound memory consumption and database row size, preventing resource exhaustion during distributed denial-of-service attempts.
+
+### 4. Lifecycle & Auto-Resolution
+
+* **Active Window:** An attack chain remains open as long as new alerts arrive within 10 minutes (`CHAIN_WINDOW_SEC = 600s`).
+* **Auto-Resolution:** A background daemon thread evaluates open chains every 5 minutes. If no hostile activity is observed for 30 minutes (`CHAIN_RESOLVE_SEC = 1800s`), the chain status transitions automatically from `active` to `resolved`.
+* **Real-Time WebSocket Broadcasts:** Any newly created stage or risk score escalation immediately emits a `chain_update_<project_id>` event to the project's WebSocket room.
+
+### 5. Interactive Kill Chain Interface (`KillChainPage`)
+
+The dashboard features a dedicated Kill Chain interface (`/app/chains`):
+* **Master-Detail Layout:** Left pane displays chain cards sorted by recency and peak risk, with live status badges (`ACTIVE` vs `RESOLVED`), stage count, and relative timestamps.
+* **Stage Timeline Stepper:** Right pane renders the chronological progression of the attack with relative elapsed time from attack origin (T+0s, T+14s), HTTP method, target endpoint, status code, risk metrics, and attempt counts.
+* **AI Dossier Deep-Linking:** Each stage provides a direct "AI Dossier" link that navigates to `/app/investigations?alert_id=<id>`, allowing security analysts to trigger an immediate Google Gemini threat investigation for that exact stage with pre-filled context.
+* **Filter Bar:** Instant filtering across `All`, `Active`, and `Resolved` attack chains.
+
+---
+
 ## Production Integrations & Notification Service
 
 The platform implements an extensible notification architecture designed to dispatch real-time security alerts to developer communication platforms without tightly coupling providers into the detection pipeline.
@@ -598,7 +646,7 @@ NotificationService (backend/integrations/service.py)
 * **Smooth 1-FPS EKG Telemetry Pulse (LiveMonitoringPage):** Real-time 60-second oscilloscope displaying instantaneous throughput (req/s), average and peak latency (ms), and error rates.
 * **React Error Boundary:** Resilient component-level fault isolation wrapping dashboard subpages for graceful crash recovery.
 
-### 6. Analytics & Alert Telemetry APIs
+### 6. Analytics, Chains & Telemetry APIs
 
 * **GET /alerts/stats (Scoped & Protected):**
   * Returns cumulative or window-scoped security metrics for the active project.
@@ -608,6 +656,10 @@ NotificationService (backend/integrations/service.py)
   * Returns chronologically contiguous, zero-filled time buckets, top endpoints, top hostile IPs, and window-scoped attack category distribution.
   * Query parameters: `?project_id=<id>&window=<30m|1h|6h|24h|7d>`.
   * Response fields: `timeline` (with `requests`, `anomalies`, `avg_latency`, `p95_latency`), `top_endpoints`, `top_ips`, `attack_distribution`, and `window`.
+* **GET /api/chains (Scoped & Protected):**
+  * Returns correlated multi-stage attack chains for the active project, stitched across MITRE ATT&CK stages.
+  * Query parameters: `?project_id=<id>&status=<active|resolved>&limit=<50>`.
+  * Response fields: `chains` (list of correlated chains with `ip`, `started_at`, `updated_at`, `max_risk`, `stages`, `status`), and `count`.
 
 ---
 
@@ -616,6 +668,7 @@ NotificationService (backend/integrations/service.py)
 ```text
 API-Security-Analytics-Dashboard/
 |-- backend/
+|   |-- attack_correlator.py    # Multi-alert Kill Chain stitching engine & MITRE ATT&CK mapper
 |   |-- auth.py                 # User authentication, registration, hashing & decorators
 |   |-- config.py               # Environment profiles (development, staging, production)
 |   |-- database.py             # PostgreSQL & SQLite persistence engine & connection pool
@@ -634,6 +687,7 @@ API-Security-Analytics-Dashboard/
 |   |   |-- discord.py          # Discord Embed notification adapter
 |   |   +-- service.py          # NotificationService router & async dispatcher
 |   |-- train_model.py          # Isolation Forest model training script
+|   |-- test_e2e_production_readiness.py          # 54-scenario End-to-End Production Readiness suite
 |   |-- test_production_tenant_isolation_suite.py # 11-test Tenant Isolation & IDOR suite
 |   |-- test_integrations_production_suite.py     # 10-test Notification Service suite
 |   |-- test_ml_detection_pipeline_suite.py       # 11-test ML detection pipeline suite
@@ -649,7 +703,7 @@ API-Security-Analytics-Dashboard/
 |       |   |   +-- common/
 |       |   |       +-- ErrorBoundary.jsx # React Error Boundary for fault recovery
 |       |   +-- pages/
-|       |       +-- dashboard/  # Overview, LiveMonitoring, Analytics, Investigations, etc.
+|       |       +-- dashboard/  # OverviewPage, LiveMonitoringPage, KillChainPage, AnalyticsPage, etc.
 |-- demo/
 |   |-- sample_app.py           # Instrumented mock E-Commerce API (Port 5002)
 |   +-- generators.py           # Realistic attack & normal traffic simulation suite
