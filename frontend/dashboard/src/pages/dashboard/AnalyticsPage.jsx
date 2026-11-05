@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   RefreshCw,
   Activity,
@@ -8,6 +8,7 @@ import {
   BarChart3,
   Layers,
   ArrowUpRight,
+  Info,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -30,30 +31,38 @@ export const AnalyticsPage = () => {
   const { currentOrg, currentProject, initialLoading, openCreateOrgModal, openCreateProjModal } = useProject();
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
+  const [windowDistribution, setWindowDistribution] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('1h');
 
-  const fetchAnalytics = async (range = timeRange) => {
+  const fetchAnalytics = useCallback(async (range) => {
     if (!currentProject?.id) return;
     setLoading(true);
     try {
       const [histRes, statsRes] = await Promise.all([
         telemetryService.getHistory(currentProject.id, range),
-        telemetryService.getAlertStats(currentProject.id),
+        telemetryService.getAlertStats(currentProject.id, range),
       ]);
       const hist = histRes.data;
-      setHistory(Array.isArray(hist) ? hist : (hist?.timeline || hist?.history || []));
+      const timeline = Array.isArray(hist) ? hist : (hist?.timeline || hist?.history || []);
+      setHistory(timeline);
       setStats(statsRes.data || null);
+
+      if (hist?.attack_distribution) {
+        setWindowDistribution(hist.attack_distribution);
+      } else if (statsRes.data?.attack_distribution) {
+        setWindowDistribution(statsRes.data.attack_distribution);
+      }
     } catch (err) {
       console.error('Error loading analytics:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentProject?.id]);
 
   useEffect(() => {
     fetchAnalytics(timeRange);
-  }, [currentProject?.id]);
+  }, [fetchAnalytics, timeRange]);
 
   const chartData = history.length > 0
     ? history.map((item) => ({
@@ -66,7 +75,7 @@ export const AnalyticsPage = () => {
       }))
     : [];
 
-  const rawDist = stats?.attack_distribution || (stats && typeof stats === 'object' && !Array.isArray(stats) ? stats : null);
+  const rawDist = windowDistribution || stats?.attack_distribution || (stats && typeof stats === 'object' && !Array.isArray(stats) ? stats : null);
   const attackTypes = rawDist
     ? Object.entries(rawDist)
         .filter(([key, count]) => count > 0 && key !== 'attack_distribution')
@@ -146,11 +155,8 @@ export const AnalyticsPage = () => {
             {['30m', '1h', '6h', '24h', '7d'].map((r) => (
               <button
                 key={r}
-                onClick={() => {
-                  setTimeRange(r);
-                  fetchAnalytics(r);
-                }}
-                className={`px-3 py-1 rounded-full text-[10px] font-mono font-medium transition-all ${
+                onClick={() => setTimeRange(r)}
+                className={`px-3 py-1 rounded-full text-[10px] font-mono font-medium transition-all cursor-pointer ${
                   timeRange === r
                     ? 'bg-[#C792EA] text-[#0A0B0D] font-bold shadow-xs'
                     : 'text-[#7B818B] hover:text-[#E6E8EB] hover:bg-[#16181D]'
@@ -164,7 +170,7 @@ export const AnalyticsPage = () => {
           <button
             onClick={() => fetchAnalytics(timeRange)}
             disabled={loading}
-            className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-[#16181D] hover:bg-[#1E2127] border border-[#1E2127] hover:border-[#2A2E37] text-xs font-mono text-[#E6E8EB] transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#82AAFF] ${loading ? 'animate-spin' : ''}`} />
             <span>SYNC DATA</span>
@@ -184,18 +190,20 @@ export const AnalyticsPage = () => {
             <span className="text-xl font-bold font-mono text-[#E6E8EB]">{totalVol.toLocaleString()}</span>
             <span className="text-[10px] font-mono text-[#9BA1AC]">reqs</span>
           </div>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">SELECTED WINDOW</p>
         </div>
 
         <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#F07178]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Flagged Anomalies</span>
+            <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Flagged Incidents</span>
             <ShieldAlert className="w-3.5 h-3.5 text-[#F07178]" />
           </div>
           <div className="mt-2.5 flex items-baseline space-x-2">
             <span className="text-xl font-bold font-mono text-[#F07178]">{totalAnom.toLocaleString()}</span>
             <span className="text-[10px] font-mono text-[#9BA1AC]">events</span>
           </div>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">NON-LOW SEVERITY</p>
         </div>
 
         <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
@@ -208,18 +216,20 @@ export const AnalyticsPage = () => {
             <span className="text-xl font-bold font-mono text-[#C792EA]">{avgLat}</span>
             <span className="text-[10px] font-mono text-[#9BA1AC]">ms</span>
           </div>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">WEIGHTED AVERAGE</p>
         </div>
 
         <div className="bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 group relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#FFCB6B]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Anomaly Ratio</span>
+            <span className="text-[10px] font-mono text-[#7B818B] uppercase tracking-wider">Incident Rate</span>
             <Zap className="w-3.5 h-3.5 text-[#FFCB6B]" />
           </div>
           <div className="mt-2.5 flex items-baseline space-x-2">
             <span className="text-xl font-bold font-mono text-[#FFCB6B]">{breachRate}%</span>
-            <span className="text-[10px] font-mono text-[#9BA1AC]">of traffic</span>
+            <span className="text-[10px] font-mono text-[#9BA1AC]">of window traffic</span>
           </div>
+          <p className="text-[10px] text-[#9BA1AC] mt-1 font-mono">ANOMALIES & THREATS</p>
         </div>
       </div>
 
@@ -282,7 +292,7 @@ export const AnalyticsPage = () => {
                 <Clock className="w-4 h-4 text-[#C792EA]" />
                 <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Average & p95 Latency Profile</h3>
               </div>
-              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Mean response latency vs 95th percentile spike latency across observation windows</p>
+              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Mean response latency vs 95th percentile spike latency. When traffic volume per bucket is uniform, p95 aligns with average.</p>
             </div>
             <span className="text-[10px] font-mono text-[#C792EA] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">AVG / p95 METRIC</span>
           </div>
@@ -321,9 +331,9 @@ export const AnalyticsPage = () => {
                 <Layers className="w-4 h-4 text-[#FFCB6B]" />
                 <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Attack Category Breakdown</h3>
               </div>
-              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Cumulative count of flagged signatures</p>
+              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">Count of flagged signatures in active {timeRange.toUpperCase()} window</p>
             </div>
-            <span className="text-[10px] font-mono text-[#FFCB6B]">CLASSIFIER HISTOGRAM</span>
+            <span className="text-[10px] font-mono text-[#FFCB6B]">WINDOWED HISTOGRAM</span>
           </div>
           <div className="h-60">
             {attackTypes.length > 0 ? (

@@ -77,7 +77,7 @@ export const projectService = {
 export const telemetryService = {
   getRecentEvents: (projectId, limit = 50) => api.get(`/events/recent?project_id=${projectId}&limit=${limit}`),
   getAlerts: (projectId, limit = 50) => api.get(`/alerts/recent?project_id=${projectId}&limit=${limit}`),
-  getAlertStats: (projectId) => api.get(`/alerts/stats?project_id=${projectId}`),
+  getAlertStats: (projectId, window) => api.get(`/alerts/stats?project_id=${projectId}${window ? `&window=${window}` : ''}`),
   getHistory: (projectId, window = '1h') => api.get(`/history?project_id=${projectId}&window=${window}`),
   getBlockedIPs: (projectId) => api.get(`/blocked-ips?project_id=${projectId}`),
   blockIP: (data) => api.post('/block-ip', data),
