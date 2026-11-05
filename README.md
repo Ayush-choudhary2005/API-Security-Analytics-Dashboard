@@ -566,14 +566,48 @@ NotificationService (backend/integrations/service.py)
 * **One-Click PDF Export:** Instantly exports the Threat Report to an executive-ready, formatted PDF document.
 
 ### 5. High-Precision Real-Time Dashboard & Analytics
-* **True Chronological Epoch Bucketing:** Replaced string-based minute grouping with continuous epoch-second math, ensuring contiguous zero-filling and eliminating gap-collapsing across all charts.
-* **Dual-Axis Timeline Visualizations:** Left Y-Axis for request velocity and anomalies; Right Y-Axis for response latency and p95 percentiles.
-* **Smooth 1-FPS EKG Telemetry Pulse:** Real-time 60-second oscilloscope displaying instantaneous throughput (req/s), average and peak latency (ms), and error rates.
-* **Multi-Window Analytics Filters:** Interactive time-range filters (`30M`, `1H`, `6H`, `24H`, `7D`) with automatic bucket resolution.
-* **Live WebSocket Telemetry Increments:** Incoming socket events update charts in real time without requiring page refreshes.
-* **React Error Boundary:** Resilient error boundary wrapping all dashboard subpages to prevent UI freezing and ensure graceful recovery.
-* **Live Threat Map:** Plots attacking IP geolocation dynamically on a dark-themed Leaflet world map.
-* **Attack Distribution Chart:** Donut chart visualizing active threat proportions (Brute Force, Scan, Burst, ML Anomaly, Composite Attack).
+
+#### Overview Security Pulse Engine (OverviewPage)
+* **Project Telemetry Stat Cards:** Displays true project-wide metrics retrieved from `GET /alerts/stats`:
+  * **Total Requests:** Cumulative volume of ingested telemetry events across project lifetime (`total_events`), updated live via WebSockets.
+  * **Threats Detected:** True database count of all non-low severity security alerts (`total_alerts`).
+  * **Active Projects:** Count of accessible projects scoped to the active organization.
+  * **Risk Score:** Peak Isolation Forest anomaly score (`max_anomaly_score`) for flagged hostile traffic.
+  * **Blocked IPs:** Count of actively enforced IP defense mitigations.
+* **Traffic & Latency Timeline:** Chronological dual-axis area chart plotting request volume (left axis) against flagged anomalies and mean response latency in milliseconds (right axis), powered by contiguous zero-filled time buckets.
+* **Attack Distribution Pie Chart:** Interactive visualization grouping classified threats by vector (Brute Force, Endpoint Scan, Request Burst, Composite Attack, and ML Statistical Anomaly).
+* **Authentic Hostile Ingress Geolocation Map (ThreatMap):**
+  * Plots only verified, real-world `[latitude, longitude]` coordinates derived from GeoIP metadata.
+  * Fabricated coordinate hashing has been eliminated: un-geocoded or private/loopback IPs (`127.0.0.1`, VPC subnets) are safely handled and indicated via an internal network overlay and count chips.
+  * Zero-threat clean state: displays a clean-traffic security overlay when zero threats are detected, never plotting benign traffic as anomalies.
+* **Live Ingest Feed:** Real-time table streaming the latest raw HTTP telemetry transactions with HTTP method, endpoint, status code, latency, and client IP.
+* **Recent Threat Detections Feed:** Chronological security audit table displaying recent alerts with severity badges, attack types, anomaly scores, source IPs, and direct "Investigate" action triggers.
+* **Active IP Defense Management:** Real-time cards displaying blocked IPs with duration timestamps and one-click unblock capabilities.
+
+#### Deep-Dive Telemetry & Risk Analytics (AnalyticsPage)
+* **Dynamic Time Windowing:** Interactive observation window selector (`30M`, `1H`, `6H`, `24H`, `7D`) recalculating bucket resolutions and statistics on demand.
+* **Window-Scoped Attack Category Histogram:** Bar chart dynamically aggregating classified attack signatures strictly within the selected time window, eliminating discrepancies between timeline metrics and attack breakdowns.
+* **Dual-Axis Request Velocity vs. Anomalies:** Area chart plotting ingestion throughput against flagged security thresholds with dedicated axes.
+* **Average & p95 Latency Profile:** Simultaneous tracking of mean response latency alongside 95th-percentile spike latency to identify tail-latency degradation.
+* **Clarified Incident Metrics:**
+  * **Aggregated Requests:** Total transaction volume in the active time window.
+  * **Flagged Incidents:** Accurate count of non-low severity events (attacks, heuristic rule breaches, and statistical outliers).
+  * **Mean Latency:** Weighted average response latency across the window.
+  * **Incident Rate:** Percentage of window throughput triggering elevated severity or anomaly flags.
+* **Reactive Lifecycle Synchronization:** Built with `useCallback` and reactive `useEffect` hooks to prevent duplicate network calls, state desynchronization, and infinite re-render loops.
+* **Smooth 1-FPS EKG Telemetry Pulse (LiveMonitoringPage):** Real-time 60-second oscilloscope displaying instantaneous throughput (req/s), average and peak latency (ms), and error rates.
+* **React Error Boundary:** Resilient component-level fault isolation wrapping dashboard subpages for graceful crash recovery.
+
+### 6. Analytics & Alert Telemetry APIs
+
+* **GET /alerts/stats (Scoped & Protected):**
+  * Returns cumulative or window-scoped security metrics for the active project.
+  * Query parameters: `?project_id=<id>&window=<30m|1h|6h|24h|7d>`.
+  * Response fields: `total_events`, `total_alerts`, `max_anomaly_score`, `attack_distribution`, and backward-compatible top-level attack counts.
+* **GET /history (Scoped & Protected):**
+  * Returns chronologically contiguous, zero-filled time buckets, top endpoints, top hostile IPs, and window-scoped attack category distribution.
+  * Query parameters: `?project_id=<id>&window=<30m|1h|6h|24h|7d>`.
+  * Response fields: `timeline` (with `requests`, `anomalies`, `avg_latency`, `p95_latency`), `top_endpoints`, `top_ips`, `attack_distribution`, and `window`.
 
 ---
 
@@ -760,6 +794,11 @@ python demo/generators.py continuous
 ---
 
 ## Running Automated Test Suites
+
+### End-to-End Production Readiness Suite (54 Scenarios)
+```bash
+python backend/test_e2e_production_readiness.py
+```
 
 ### Complete Production Tenant-Isolation & IDOR Attack Suite (11 Scenarios)
 ```bash
