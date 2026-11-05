@@ -1,34 +1,47 @@
 import React from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
-import { MapPin } from 'lucide-react';
+import { MapPin, ShieldCheck, ShieldAlert } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
-// Resolve real or fallback coordinates for IP
-const getCoordinatesForIP = (ip, rawMetadata = {}) => {
-  let meta = rawMetadata;
-  if (typeof rawMetadata === 'string') {
-    try {
-      meta = JSON.parse(rawMetadata);
-    } catch {
-      meta = {};
-    }
+// Safely parse metadata if formatted as JSON string
+const parseMetadata = (raw) => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
   }
+};
 
+// Resolve authentic geolocation coordinates. Returns null if missing or invalid.
+const getCoordinatesForIP = (ip, rawMetadata = {}) => {
+  const meta = parseMetadata(rawMetadata);
   const lat = parseFloat(meta?.latitude);
   const lng = parseFloat(meta?.longitude);
   if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
     return [lat, lng];
   }
-
-  // Deterministic coordinate pseudo-hash based on IP octets for visual plotting (fallback only)
-  const parts = String(ip || '127.0.0.1').split('.').map(p => parseInt(p, 10) || 0);
-  const fallbackLat = ((parts[0] * 3 + parts[1]) % 120) - 50; // -50 to +70
-  const fallbackLng = ((parts[2] * 4 + parts[3]) % 300) - 150; // -150 to +150
-  return [fallbackLat, fallbackLng];
+  return null;
 };
 
 export const ThreatMap = ({ threats = [] }) => {
   const center = [22.0, 77.0]; // Centered on South Asia / Global view
+
+  // Partition threats into geocoded vs un-geocoded
+  const items = threats.map((threat, idx) => {
+    const meta = parseMetadata(threat.metadata);
+    const coords = getCoordinatesForIP(threat.ip || threat.source_ip, meta);
+    return {
+      threat,
+      meta,
+      coords,
+      key: threat.id || threat.event_id || idx,
+    };
+  });
+
+  const geocoded = items.filter((item) => item.coords !== null);
+  const unmappedCount = items.length - geocoded.length;
 
   return (
     <div className="w-full h-80 rounded-md overflow-hidden border border-[#1E2127] bg-[#0A0B0D] relative">
@@ -44,23 +57,15 @@ export const ThreatMap = ({ threats = [] }) => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {threats.map((threat, idx) => {
-          let meta = threat.metadata || {};
-          if (typeof meta === 'string') {
-            try {
-              meta = JSON.parse(meta);
-            } catch {
-              meta = {};
-            }
-          }
-          const coords = getCoordinatesForIP(threat.ip || threat.source_ip, meta);
+
+        {geocoded.map(({ threat, meta, coords, key }) => {
           const isCritical = threat.severity === 'critical' || threat.severity === 'high';
           const color = isCritical ? '#F07178' : threat.severity === 'medium' ? '#FFCB6B' : '#82AAFF';
           const locationLabel = [meta.city, meta.region, meta.country].filter(Boolean).join(', ');
 
           return (
             <CircleMarker
-              key={threat.id || idx}
+              key={key}
               center={coords}
               radius={isCritical ? 7 : 4.5}
               pathOptions={{
@@ -93,6 +98,36 @@ export const ThreatMap = ({ threats = [] }) => {
           );
         })}
       </MapContainer>
+
+      {/* Overlay: Zero Hostile Ingress Threats */}
+      {threats.length === 0 && (
+        <div className="absolute inset-0 z-[400] bg-[#0A0B0D]/75 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-[#C3E88D]/10 border border-[#C3E88D]/30 flex items-center justify-center mb-3 text-[#C3E88D] shadow-lg shadow-[#C3E88D]/5">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <p className="text-sm font-semibold text-[#E6E8EB] font-mono">Zero Hostile Ingress Threats</p>
+          <p className="text-xs text-[#9BA1AC] max-w-sm mt-1 font-mono">
+            Ingress traffic is operating within baseline security parameters. Hostile origin coordinates will project here in real time when threats are flagged.
+          </p>
+        </div>
+      )}
+
+      {/* Overlay: Threats flagged but origin IPs are private/internal without GeoIP */}
+      {threats.length > 0 && geocoded.length === 0 && (
+        <div className="absolute inset-0 z-[400] bg-[#0A0B0D]/80 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-[#82AAFF]/10 border border-[#82AAFF]/30 flex items-center justify-center mb-3 text-[#82AAFF] shadow-lg shadow-[#82AAFF]/5">
+            <ShieldAlert className="w-6 h-6 text-[#F07178]" />
+          </div>
+          <p className="text-sm font-semibold text-[#E6E8EB] font-mono">
+            {threats.length} Flagged Ingress Threat{threats.length > 1 ? 's' : ''}
+          </p>
+          <p className="text-xs text-[#9BA1AC] max-w-md mt-1 font-mono">
+            Origin IPs are private/internal networks (e.g. localhost, VPC subnets) or pending GeoIP enrichment. Zero public geographic coordinates to plot on world projection.
+          </p>
+        </div>
+      )}
+
+      {/* Map Legend & Summary Footer */}
       <div className="absolute bottom-2 left-2 z-[400] bg-[#101216]/95 border border-[#1E2127] rounded px-3 py-1.5 text-[10px] font-mono text-[#9BA1AC] flex items-center space-x-3.5 shadow-2xl backdrop-blur-xs">
         <span className="flex items-center space-x-1.5">
           <span className="w-2 h-2 rounded-full bg-[#F07178] shadow-[0_0_6px_rgba(240,113,120,0.6)]"></span>
@@ -106,6 +141,11 @@ export const ThreatMap = ({ threats = [] }) => {
           <span className="w-2 h-2 rounded-full bg-[#82AAFF]"></span>
           <span>ANOMALY</span>
         </span>
+        {unmappedCount > 0 && geocoded.length > 0 && (
+          <span className="text-[10px] font-mono text-[#7B818B] border-l border-[#2A2E37] pl-3">
+            + {unmappedCount} INTERNAL / VPC
+          </span>
+        )}
       </div>
     </div>
   );

@@ -318,7 +318,7 @@ export const OverviewPage = () => {
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C792EA]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
           <span className="text-[10px] font-mono uppercase tracking-wider text-[#7B818B] block mb-1">Risk Score</span>
           <p className="text-xl font-bold text-[#C792EA] font-mono">
-            {stats?.max_anomaly_score && (events.length > 0 || stats?.total_events > 0)
+            {stats?.max_anomaly_score != null && (events.length > 0 || stats?.total_events > 0)
               ? Number(stats.max_anomaly_score).toFixed(2)
               : '0.00'}
           </p>
@@ -453,10 +453,10 @@ export const OverviewPage = () => {
             <p className="text-[11px] text-[#9BA1AC]">Live coordinate projection of hostile ingress origin IPs</p>
           </div>
           <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] border border-[#1E2127] px-2.5 py-0.5 rounded-full">
-            SOURCE: LIVE_TELEMETRY
+            SOURCE: HOSTILE INGRESS TELEMETRY
           </span>
         </div>
-        <ThreatMap threats={alerts.length > 0 ? alerts : events} />
+        <ThreatMap threats={alerts} />
       </div>
 
       {/* LIVE TABLES ROW */}
@@ -532,7 +532,7 @@ export const OverviewPage = () => {
           <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
             <div className="flex items-center space-x-2">
               <span className="w-2 h-2 rounded-full bg-[#F07178]"></span>
-              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Active Threat Detections</h3>
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">Recent Threat Detections</h3>
             </div>
             <Link to="/app/threats" className="text-xs text-[#82AAFF] hover:underline inline-flex items-center space-x-1 font-mono text-[11px]">
               <span>Threat Log</span>
