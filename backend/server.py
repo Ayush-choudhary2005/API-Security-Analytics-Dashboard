@@ -2000,7 +2000,20 @@ def alerts_stats():
     project_id, err = _resolve_and_verify_project(g.current_user["id"])
     if err:
         return err
-    return jsonify(db.get_alert_stats(project_id))
+    try:
+        window_arg = request.args.get("window")
+        window_hours = None
+        if window_arg:
+            window_map = {"30m": 0.5, "1h": 1.0, "6h": 6.0, "24h": 24.0, "7d": 168.0}
+            window_hours = window_map.get(window_arg.strip().lower())
+        return jsonify(db.get_alert_stats(project_id, window_hours=window_hours))
+    except Exception as e:
+        logger.error(f"Error handling /alerts/stats for project {project_id}: {e}", exc_info=True)
+        return jsonify({
+            "brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "composite_attack": 0, "anomaly": 0,
+            "attack_distribution": {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "composite_attack": 0, "anomaly": 0},
+            "total_events": 0, "total_alerts": 0, "max_anomaly_score": 0.0
+        })
 
 
 @app.route("/history", methods=["GET"])

@@ -1417,23 +1417,11 @@ def get_recent_alerts(limit: int = 50, tenant_id: str = "default", project_id: s
     return [_row_to_dict(r) for r in rows]
 
 
-def get_alert_stats(tenant_id: str = "default"):
-    """Returns the count of each attack type for alerts scoped to project."""
-    conn = get_conn()
-    rows = conn.execute(
-        """
-        SELECT rule_flags, severity, anomaly_score, attack_type 
-        FROM events 
-        WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
-        ORDER BY id DESC LIMIT 500
-        """,
-        (tenant_id, tenant_id),
-    ).fetchall()
-    conn.close()
-
+def _compute_attack_distribution(rows) -> dict:
+    """Returns categorized attack counts from a list of alert rows."""
     stats = {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "anomaly": 0, "composite_attack": 0}
     for r in rows:
-        flags_json = r["rule_flags"]
+        flags_json = r["rule_flags"] if isinstance(r, (dict, sqlite3.Row)) else getattr(r, "rule_flags", None)
         if not flags_json:
             flags = []
         elif isinstance(flags_json, str):
@@ -1441,8 +1429,10 @@ def get_alert_stats(tenant_id: str = "default"):
                 flags = json.loads(flags_json)
             except Exception:
                 flags = []
-        else:
+        elif isinstance(flags_json, list):
             flags = flags_json
+        else:
+            flags = []
 
         if not isinstance(flags, list):
             flags = []
@@ -1462,19 +1452,86 @@ def get_alert_stats(tenant_id: str = "default"):
             stats["request_burst"] += 1
             has_rule = True
 
-        if not has_rule and (r["anomaly_score"] > 2.5 or r["attack_type"] == "statistical_anomaly"):
+        anomaly_score = float(r["anomaly_score"]) if r["anomaly_score"] is not None else 0.0
+        attack_type = r["attack_type"] if "attack_type" in r.keys() else "normal"
+        if not has_rule and (anomaly_score > 2.5 or attack_type == "statistical_anomaly"):
             stats["anomaly"] += 1
 
-    # Keep top-level keys for test assertion backwards compatibility, and include attack_distribution key for dashboard charts
-    stats["attack_distribution"] = {
-        "brute_force": stats["brute_force"],
-        "endpoint_scan": stats["endpoint_scan"],
-        "request_burst": stats["request_burst"],
-        "composite_attack": stats["composite_attack"],
-        "anomaly": stats["anomaly"]
-    }
-
     return stats
+
+
+def get_alert_stats(tenant_id: str = "default", window_hours: float = None):
+    """
+    Returns total events, total alerts, max anomaly score, and attack distribution scoped to project.
+    Optionally window-filtered if window_hours is provided.
+    """
+    conn = get_conn()
+    try:
+        now = time.time()
+        time_filter = ""
+        params_base = [tenant_id, tenant_id]
+        if window_hours is not None and float(window_hours) > 0:
+            window_sec = float(window_hours) * 3600
+            time_filter = " AND timestamp >= ?"
+            params_base.append(now - window_sec)
+
+        # 1. Total events count in scope
+        total_events_row = conn.execute(
+            f"SELECT COUNT(*) as c FROM events WHERE (project_id = ? OR tenant_id = ?){time_filter}",
+            tuple(params_base)
+        ).fetchone()
+        total_events = total_events_row["c"] if total_events_row else 0
+
+        # 2. Total alerts (non-low severity) and max anomaly score in scope
+        summary_row = conn.execute(
+            f"""
+            SELECT COUNT(*) as alert_count, COALESCE(MAX(anomaly_score), 0.0) as max_anomaly
+            FROM events 
+            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low'{time_filter}
+            """,
+            tuple(params_base)
+        ).fetchone()
+        total_alerts = summary_row["alert_count"] if summary_row else 0
+        max_anomaly = float(summary_row["max_anomaly"]) if summary_row else 0.0
+
+        # 3. Categorized attack distribution
+        if window_hours is not None and float(window_hours) > 0:
+            rows = conn.execute(
+                f"""
+                SELECT rule_flags, severity, anomaly_score, attack_type 
+                FROM events 
+                WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low'{time_filter}
+                ORDER BY timestamp DESC LIMIT 1000
+                """,
+                tuple(params_base)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT rule_flags, severity, anomaly_score, attack_type 
+                FROM events 
+                WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
+                ORDER BY id DESC LIMIT 500
+                """,
+                (tenant_id, tenant_id),
+            ).fetchall()
+
+        stats = _compute_attack_distribution(rows)
+        # Keep top-level keys for test assertion backwards compatibility, and include attack_distribution key for dashboard charts
+        stats["attack_distribution"] = {
+            "brute_force": stats["brute_force"],
+            "endpoint_scan": stats["endpoint_scan"],
+            "request_burst": stats["request_burst"],
+            "composite_attack": stats["composite_attack"],
+            "anomaly": stats["anomaly"]
+        }
+        stats["total_events"] = total_events
+        stats["total_alerts"] = total_alerts
+        stats["max_anomaly_score"] = round(max_anomaly, 2)
+
+        return stats
+    finally:
+        conn.close()
 
 
 def get_events_since(ip: str, since_timestamp: float, tenant_id: str = None):
@@ -1636,10 +1693,22 @@ def get_historical_stats(tenant_id: str = "default", window_hours: float = 1.0):
                 "latency": avg_l,
             })
 
+        # Query non-low severity events within active window to compute window-scoped attack distribution
+        window_threats = conn.execute(
+            """
+            SELECT rule_flags, severity, anomaly_score, attack_type
+            FROM events
+            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' AND timestamp >= ? AND timestamp <= ?
+            """,
+            (tenant_id, tenant_id, anchor_start, anchor_end)
+        ).fetchall()
+        window_attack_dist = _compute_attack_distribution(window_threats)
+
         return {
             "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
             "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
             "timeline": timeline,
+            "attack_distribution": window_attack_dist,
             "window": f"{int(window_sec / 3600)}h" if window_sec >= 3600 else f"{int(window_sec / 60)}m"
         }
     except Exception as e:
@@ -1649,6 +1718,7 @@ def get_historical_stats(tenant_id: str = "default", window_hours: float = 1.0):
             "top_endpoints": [],
             "top_ips": [],
             "timeline": [],
+            "attack_distribution": {"brute_force": 0, "endpoint_scan": 0, "request_burst": 0, "composite_attack": 0, "anomaly": 0},
         }
     finally:
         conn.close()
