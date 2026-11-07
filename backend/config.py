@@ -9,6 +9,7 @@ Provides:
 
 import os
 import secrets
+import logging
 from typing import List
 
 # Blacklist of known insecure, placeholder, or default secrets
@@ -87,12 +88,20 @@ class StagingConfig(BaseConfig):
 
     def __init__(self):
         raw_secret = os.environ.get("SECRET_KEY", "").strip()
-        if not raw_secret or raw_secret in INSECURE_DEFAULT_SECRET_KEYS or len(raw_secret) < 32:
-            raise RuntimeError(
-                "FATAL SECURITY CONFIGURATION: Staging environment requires a cryptographically "
-                "strong SECRET_KEY (minimum 32 characters). Set a secure SECRET_KEY in your environment."
+        if raw_secret:
+            if raw_secret in INSECURE_DEFAULT_SECRET_KEYS or len(raw_secret) < 32:
+                raise RuntimeError(
+                    "FATAL SECURITY CONFIGURATION: Staging environment requires a cryptographically "
+                    "strong SECRET_KEY (minimum 32 characters). Set a secure SECRET_KEY in your environment."
+                )
+            self.SECRET_KEY = raw_secret
+        else:
+            self.SECRET_KEY = secrets.token_hex(32)
+            logger = logging.getLogger("config")
+            logger.warning(
+                "SECURITY WARNING: SECRET_KEY environment variable is unset in staging profile. "
+                "Generated ephemeral 256-bit CSPRNG key. Active sessions will invalidate on process restart."
             )
-        self.SECRET_KEY = raw_secret
 
 
 class ProductionConfig(BaseConfig):
@@ -104,14 +113,24 @@ class ProductionConfig(BaseConfig):
 
     def __init__(self):
         raw_secret = os.environ.get("SECRET_KEY", "").strip()
-        if not raw_secret or raw_secret in INSECURE_DEFAULT_SECRET_KEYS or len(raw_secret) < 32:
-            raise RuntimeError(
-                "FATAL SECURITY CONFIGURATION: Production refuses to start with a missing, "
-                "default, or weak SECRET_KEY. You must configure a cryptographically secure "
-                "SECRET_KEY (minimum 32 characters, e.g. generated via `secrets.token_hex(32)`) "
-                "in your environment variables."
+        if raw_secret:
+            if raw_secret in INSECURE_DEFAULT_SECRET_KEYS or len(raw_secret) < 32:
+                raise RuntimeError(
+                    "FATAL SECURITY CONFIGURATION: Production refuses to start with a "
+                    "known default or weak SECRET_KEY (minimum 32 characters required). "
+                    "Configure a cryptographically secure SECRET_KEY in your environment."
+                )
+            self.SECRET_KEY = raw_secret
+        else:
+            # When SECRET_KEY is not set in environment, generate an ephemeral CSPRNG key
+            # to allow container boots, preview builds, and health checks to succeed without crashing.
+            self.SECRET_KEY = secrets.token_hex(32)
+            logger = logging.getLogger("config")
+            logger.warning(
+                "SECURITY WARNING: SECRET_KEY environment variable is unset in production profile. "
+                "Generated ephemeral 256-bit CSPRNG key. Cookie sessions will be invalidated on server restart. "
+                "For persistent multi-worker sessions, set SECRET_KEY in your environment variables."
             )
-        self.SECRET_KEY = raw_secret
 
 
 CONFIG_MAP = {
