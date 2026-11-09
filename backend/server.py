@@ -1335,29 +1335,43 @@ def download_sdk(project_id):
     if not proj:
         return jsonify({"error": "Project not found"}), 404
 
-    # Use active key or provision a dedicated preconfigured key
+    # Key selection logic:
     raw_key = request.args.get("api_key")
-    if raw_key:
+    key_name = request.args.get("key_name", "").strip()
+    is_template = request.args.get("template", "").lower() in ("1", "true", "yes")
+
+    key_prefix_display = "N/A"
+    config_note = ""
+
+    if is_template:
+        raw_key = "<YOUR_SDK_KEY>"
+        key_name = "Environment Variable Template (No Key Provisioned)"
+        config_note = "Template mode: Set SECURITY_SDK_API_KEY in your environment"
+    elif raw_key:
         validated_proj_id = db.verify_api_key(raw_key)
         if validated_proj_id != project_id:
-            raw_key = None  # Key invalid, revoked, or belongs to another tenant; provision fresh key below
-
-    if not raw_key:
-        # Check if project has active keys or generate one
-        active_keys = [k for k in db.list_api_keys_for_project(project_id) if not k.get("revoked_at")]
-        if not active_keys:
-            key_info = db.create_api_key(project_id, name="SDK Preconfigured Key")
-            raw_key = key_info["raw_key"]
-        else:
-            # Generate a new dedicated key so download is immediately usable
-            key_info = db.create_api_key(project_id, name="SDK Download Key")
-            raw_key = key_info["raw_key"]
+            return jsonify({"error": "Forbidden: Provided api_key does not belong to this project"}), 403
+        key_prefix_display = raw_key[:16] + "..."
+        key_name = key_name or "Active Specified Key"
+        config_note = f"Configured with key prefix: {key_prefix_display} ({key_name})"
+    else:
+        # If no key was specified, check if generate_key=1 or explicit key_name was requested
+        if not key_name:
+            active_keys = [k for k in db.list_api_keys_for_project(project_id) if not k.get("revoked_at")]
+            key_name = "SDK Download Key" if active_keys else "SDK Preconfigured Key"
+        key_info = db.create_api_key(project_id, name=key_name)
+        raw_key = key_info["raw_key"]
+        key_prefix_display = raw_key[:16] + "..."
+        config_note = f"Provisioned Key: {key_name} ({key_prefix_display})"
 
     sdk_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk"))
     collector_url = request.host_url.rstrip("/")
 
     config_code = f"""# ML-O11Y Security SDK Configuration
-# Auto-generated configuration for project: {proj['name']}
+# Auto-generated configuration for project: {proj['name']} ({proj['id']})
+# Credential Mode: {config_note}
+# Generated: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}
+
 COLLECTOR_URL = "{collector_url}"
 PROJECT_ID = "{proj['id']}"
 SDK_KEY = "{raw_key}"
@@ -1427,9 +1441,12 @@ if __name__ == "__main__":
     uvicorn.run(app, port=5002)
 """
 
-    readme_code = f"""# 🛡️ ML-O11Y Security SDK
+    readme_code = f"""# ML-O11Y Security SDK
 
 Preconfigured SDK for project: **{proj['name']}** (`{proj['id']}`)
+- **Configured Key**: `{key_prefix_display}` ({key_name})
+- **Collector Endpoint**: `{collector_url}/api/telemetry/ingest`
+- **Credential Mode**: {config_note}
 
 ## Quickstart
 

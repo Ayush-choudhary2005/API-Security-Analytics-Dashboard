@@ -64,6 +64,15 @@ export const ProjectsPage = () => {
   const [memberRole, setMemberRole] = useState('member');
   const [memberError, setMemberError] = useState(null);
 
+  // SDK Download configuration modal
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadTargetProject, setDownloadTargetProject] = useState(null);
+  const [downloadOption, setDownloadOption] = useState('new'); // 'session', 'new', 'template', 'paste'
+  const [downloadKeyName, setDownloadKeyName] = useState('SDK Package Key');
+  const [downloadPastedKey, setDownloadPastedKey] = useState('');
+  const [downloadError, setDownloadError] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+
   const fetchKeys = useCallback(async () => {
     if (!currentProject?.id) return;
     try {
@@ -169,6 +178,61 @@ export const ProjectsPage = () => {
     const res = await deleteProject(projectId);
     if (!res.success) {
       setPageError(res.error || 'Failed to delete project');
+    }
+  };
+
+  const handleDownloadSdkSubmit = async (e) => {
+    e.preventDefault();
+    const targetProj = downloadTargetProject || currentProject;
+    if (!targetProj?.id) return;
+
+    setDownloadError(null);
+    setDownloading(true);
+
+    try {
+      let downloadUrl = '';
+
+      if (downloadOption === 'session') {
+        if (!latestCreatedKey) {
+          setDownloadError('No active session key available. Please select another option.');
+          setDownloading(false);
+          return;
+        }
+        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { apiKey: latestCreatedKey });
+      } else if (downloadOption === 'paste') {
+        const key = downloadPastedKey.trim();
+        if (!key || !key.startsWith('ask_')) {
+          setDownloadError('Please enter a valid SDK API key starting with ask_');
+          setDownloading(false);
+          return;
+        }
+        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { apiKey: key });
+      } else if (downloadOption === 'template') {
+        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { template: true });
+      } else if (downloadOption === 'new') {
+        const name = downloadKeyName.trim() || 'SDK Package Key';
+        const res = await projectService.createKey(targetProj.id, name);
+        const raw = res.data?.key?.raw_key || res.data?.raw_key;
+        if (!raw) {
+          setDownloadError('Key created, but raw secret was not returned.');
+          setDownloading(false);
+          return;
+        }
+        if (targetProj.id === currentProject?.id) {
+          fetchKeys();
+        }
+        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { apiKey: raw, keyName: name });
+      }
+
+      if (downloadUrl) {
+        window.open(downloadUrl, '_blank');
+        setShowDownloadModal(false);
+      }
+    } catch (err) {
+      console.error('Failed to configure SDK download:', err);
+      setDownloadError(err.response?.data?.error || 'Failed to prepare SDK download');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -642,16 +706,20 @@ export const ProjectsPage = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={projectService.downloadSdkUrl(currentProject?.id) + (latestCreatedKey ? `?api_key=${encodeURIComponent(latestCreatedKey)}` : '')}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
-                    title="Download preconfigured SDK archive containing ready-to-run middleware and config"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDownloadTargetProject(currentProject);
+                      setDownloadOption(latestCreatedKey ? 'session' : 'new');
+                      setDownloadError(null);
+                      setShowDownloadModal(true);
+                    }}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
+                    title="Configure and download SDK archive containing ready-to-run middleware and config"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download SDK (.zip)</span>
-                  </a>
+                  </button>
                   <button
                     onClick={() => {
                       setNewKeyRaw(null);
@@ -844,16 +912,20 @@ export const ProjectsPage = () => {
                       >
                         {currentProject?.id === proj.id ? 'Selected' : 'Switch Context'}
                       </button>
-                      <a
-                        href={projectService.downloadSdkUrl(proj.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-mono text-[#82AAFF] hover:text-[#a0c2ff] inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#16181D] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 hover:-translate-y-0.5"
-                        title="Download SDK archive for this project"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadTargetProject(proj);
+                          setDownloadOption(latestCreatedKey && currentProject?.id === proj.id ? 'session' : 'new');
+                          setDownloadError(null);
+                          setShowDownloadModal(true);
+                        }}
+                        className="text-xs font-mono text-[#82AAFF] hover:text-[#a0c2ff] inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#16181D] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
+                        title="Configure and download SDK archive for this project"
                       >
                         <Download className="w-3 h-3" />
                         <span>SDK</span>
-                      </a>
+                      </button>
                     </div>
                     <button
                       onClick={() => handleDeleteProject(proj.id, proj.name)}
@@ -989,7 +1061,17 @@ export const ProjectsPage = () => {
                     {copiedKey === 'modal_key' ? <Check className="w-4 h-4 text-[#C3E88D]" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
-                <div className="flex justify-end pt-2">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-2 border-t border-[#1E2127]">
+                  <a
+                    href={projectService.downloadSdkUrl(currentProject?.id, { apiKey: newKeyRaw })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-xs font-semibold text-[#0A0B0D] font-mono transition-colors w-full sm:w-auto justify-center"
+                    title="Download SDK preconfigured with this newly generated key"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download SDK with this Key</span>
+                  </a>
                   <button
                     type="button"
                     onClick={() => {
@@ -997,7 +1079,7 @@ export const ProjectsPage = () => {
                       setNewKeyRaw(null);
                       setKeyError(null);
                     }}
-                    className="px-4 py-2 rounded bg-[#C792EA] hover:bg-[#d6a5f5] text-xs font-semibold text-[#0A0B0D] font-mono cursor-pointer transition-colors"
+                    className="px-4 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-xs font-semibold text-[#0A0B0D] font-mono cursor-pointer transition-colors w-full sm:w-auto text-center"
                   >
                     I Have Saved This Key
                   </button>
@@ -1122,6 +1204,214 @@ export const ProjectsPage = () => {
                   className="px-4 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold font-mono rounded cursor-pointer transition-colors disabled:opacity-50"
                 >
                   {loading ? 'Sending...' : 'Send Invitation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: SDK Package Download Configuration */}
+      {showDownloadModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowDownloadModal(false);
+              setDownloadError(null);
+            }
+          }}
+        >
+          <div className="bg-[#101216] border border-[#2A2E37] rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#1E2127] pb-3">
+              <div className="flex items-center space-x-2 text-[#E6E8EB] font-semibold">
+                <Download className="w-5 h-5 text-[#82AAFF]" />
+                <h3 className="text-sm font-semibold text-[#E6E8EB]">Download Preconfigured SDK Package</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDownloadModal(false);
+                  setDownloadError(null);
+                }}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono cursor-pointer text-xs"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <p className="text-xs text-[#9BA1AC] font-mono">
+                Target Project:{' '}
+                <span className="text-[#82AAFF] font-semibold">
+                  {(downloadTargetProject || currentProject)?.name}
+                </span>{' '}
+                <span className="text-[#7B818B]">
+                  ({(downloadTargetProject || currentProject)?.id})
+                </span>
+              </p>
+              <p className="text-[11px] text-[#7B818B] mt-1 font-mono">
+                Select which credential to bundle into <code className="text-[#82AAFF]">config.py</code> inside the ZIP archive:
+              </p>
+            </div>
+
+            {downloadError && (
+              <div className="p-2.5 rounded bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178] flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{downloadError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleDownloadSdkSubmit} className="space-y-3">
+              <div className="space-y-2.5 font-mono text-xs">
+                {/* Option 1: Active Session Key */}
+                {latestCreatedKey && (
+                  <label
+                    className={`block p-3 rounded-xl border transition-all cursor-pointer ${
+                      downloadOption === 'session'
+                        ? 'bg-[#16181D] border-[#C3E88D] text-[#E6E8EB]'
+                        : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        name="sdkKeyOption"
+                        value="session"
+                        checked={downloadOption === 'session'}
+                        onChange={() => setDownloadOption('session')}
+                        className="text-[#C3E88D] focus:ring-0"
+                      />
+                      <span className="font-semibold text-xs text-[#E6E8EB]">Use Active Session Key</span>
+                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-[#C3E88D]/15 text-[#C3E88D] border border-[#C3E88D]/30 font-semibold">
+                        In Memory
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#7B818B] mt-1 ml-5 truncate font-mono">
+                      Bakes current unhashed secret key ({latestCreatedKey.slice(0, 16)}...) directly into package.
+                    </p>
+                  </label>
+                )}
+
+                {/* Option 2: Generate New Dedicated Key */}
+                <label
+                  className={`block p-3 rounded-xl border transition-all cursor-pointer ${
+                    downloadOption === 'new'
+                      ? 'bg-[#16181D] border-[#82AAFF] text-[#E6E8EB]'
+                      : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="sdkKeyOption"
+                      value="new"
+                      checked={downloadOption === 'new'}
+                      onChange={() => setDownloadOption('new')}
+                      className="text-[#82AAFF] focus:ring-0"
+                    />
+                    <span className="font-semibold text-xs text-[#E6E8EB]">Generate Named Key for this Package</span>
+                  </div>
+                  <p className="text-[11px] text-[#7B818B] mt-1 ml-5">
+                    Provisions a dedicated active key in this project with an explicit label.
+                  </p>
+                  {downloadOption === 'new' && (
+                    <div className="mt-2.5 ml-5">
+                      <input
+                        type="text"
+                        required
+                        value={downloadKeyName}
+                        onChange={(e) => setDownloadKeyName(e.target.value)}
+                        placeholder="e.g. Local Dev Environment SDK"
+                        className="w-full bg-[#0A0B0D] border border-[#2A2E37] focus:border-[#82AAFF] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+                      />
+                    </div>
+                  )}
+                </label>
+
+                {/* Option 3: Clean Template Mode */}
+                <label
+                  className={`block p-3 rounded-xl border transition-all cursor-pointer ${
+                    downloadOption === 'template'
+                      ? 'bg-[#16181D] border-[#C792EA] text-[#E6E8EB]'
+                      : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="sdkKeyOption"
+                      value="template"
+                      checked={downloadOption === 'template'}
+                      onChange={() => setDownloadOption('template')}
+                      className="text-[#C792EA] focus:ring-0"
+                    />
+                    <span className="font-semibold text-xs text-[#E6E8EB]">Zero-Secret Template (Environment Variables)</span>
+                    <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-[#C792EA]/15 text-[#C792EA] border border-[#C792EA]/30 font-semibold">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#7B818B] mt-1 ml-5">
+                    No plaintext key in zip. Package reads <code className="text-[#82AAFF]">SECURITY_SDK_API_KEY</code> from system environment at runtime.
+                  </p>
+                </label>
+
+                {/* Option 4: Paste Existing Secret */}
+                <label
+                  className={`block p-3 rounded-xl border transition-all cursor-pointer ${
+                    downloadOption === 'paste'
+                      ? 'bg-[#16181D] border-[#C3E88D] text-[#E6E8EB]'
+                      : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      name="sdkKeyOption"
+                      value="paste"
+                      checked={downloadOption === 'paste'}
+                      onChange={() => setDownloadOption('paste')}
+                      className="text-[#C3E88D] focus:ring-0"
+                    />
+                    <span className="font-semibold text-xs text-[#E6E8EB]">Paste Existing Key Secret</span>
+                  </div>
+                  <p className="text-[11px] text-[#7B818B] mt-1 ml-5">
+                    Paste a key secret you previously copied and saved.
+                  </p>
+                  {downloadOption === 'paste' && (
+                    <div className="mt-2.5 ml-5">
+                      <input
+                        type="text"
+                        required
+                        value={downloadPastedKey}
+                        onChange={(e) => setDownloadPastedKey(e.target.value)}
+                        placeholder="ask_proj_..."
+                        className="w-full bg-[#0A0B0D] border border-[#2A2E37] focus:border-[#C3E88D] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+                      />
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-2.5 pt-3 border-t border-[#1E2127]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDownloadModal(false);
+                    setDownloadError(null);
+                  }}
+                  className="px-3.5 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors font-mono"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={downloading}
+                  className="inline-flex items-center space-x-1.5 px-4 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] font-semibold font-mono rounded-full cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{downloading ? 'Preparing Package...' : 'Download Package (.zip)'}</span>
                 </button>
               </div>
             </form>

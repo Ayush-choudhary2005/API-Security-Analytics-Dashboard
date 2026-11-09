@@ -71,7 +71,19 @@ export const projectService = {
   rotateKey: (projectId, keyId, name) => api.post(`/api/projects/${projectId}/keys/${keyId}/rotate`, { name }),
   regenerateKey: (projectId) => api.post(`/api/projects/${projectId}/keys/regenerate`),
   revokeKey: (projectId, keyId) => api.delete(`/api/projects/${projectId}/keys/${keyId}`),
-  downloadSdkUrl: (projectId) => `${API_BASE_URL}/api/projects/${projectId}/download-sdk`,
+  downloadSdkUrl: (projectId, params = {}) => {
+    if (!projectId) return '#';
+    const searchParams = new URLSearchParams();
+    if (typeof params === 'string') {
+      searchParams.set('api_key', params);
+    } else if (params && typeof params === 'object') {
+      if (params.apiKey) searchParams.set('api_key', params.apiKey);
+      if (params.template) searchParams.set('template', '1');
+      if (params.keyName) searchParams.set('key_name', params.keyName);
+    }
+    const qs = searchParams.toString();
+    return `${API_BASE_URL}/api/projects/${projectId}/download-sdk${qs ? `?${qs}` : ''}`;
+  },
 };
 
 export const telemetryService = {
