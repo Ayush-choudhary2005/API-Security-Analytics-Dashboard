@@ -33,7 +33,10 @@ export const ThreatsPage = () => {
   const [simulatingAttack, setSimulatingAttack] = useState(false);
 
   const fetchThreatData = useCallback(async () => {
-    if (!currentProject?.id) return;
+    if (!currentProject?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [alertsRes, blockedRes] = await Promise.all([
@@ -115,12 +118,12 @@ export const ThreatsPage = () => {
     return matchSearch && matchSeverity;
   });
 
-  if (initialLoading || (loading && alerts.length === 0 && blockedIPs.length === 0)) {
+  if (initialLoading) {
     return (
       <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
         <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#F07178] rounded-full animate-spin"></div>
         <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
-          Querying Active Threat Feeds...
+          Synchronizing Workspace...
         </p>
       </div>
     );
@@ -153,6 +156,17 @@ export const ThreatsPage = () => {
             </button>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (loading && alerts.length === 0 && blockedIPs.length === 0) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#F07178] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Querying Active Threat Feeds...
+        </p>
       </div>
     );
   }

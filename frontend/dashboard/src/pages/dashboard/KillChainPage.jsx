@@ -134,7 +134,10 @@ export function KillChainPage() {
   const [filter, setFilter]     = useState('all');
 
   const load = useCallback(async () => {
-    if (!currentProject?.id) return;
+    if (!currentProject?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = filter !== 'all' ? { status: filter } : {};

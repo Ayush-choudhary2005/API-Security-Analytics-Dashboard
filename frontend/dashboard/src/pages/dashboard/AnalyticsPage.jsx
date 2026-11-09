@@ -36,7 +36,10 @@ export const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState('1h');
 
   const fetchAnalytics = useCallback(async (range) => {
-    if (!currentProject?.id) return;
+    if (!currentProject?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [histRes, statsRes] = await Promise.all([
@@ -91,12 +94,12 @@ export const AnalyticsPage = () => {
   const avgLat = totalVol > 0 ? Math.round(weightedLatencySum / totalVol) : 0;
   const breachRate = totalVol > 0 ? ((totalAnom / totalVol) * 100).toFixed(2) : '0.00';
 
-  if (initialLoading || (loading && history.length === 0 && !stats)) {
+  if (initialLoading) {
     return (
       <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
         <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#82AAFF] rounded-full animate-spin"></div>
         <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
-          Computing Telemetry & Risk Analytics...
+          Synchronizing Workspace...
         </p>
       </div>
     );
@@ -129,6 +132,17 @@ export const AnalyticsPage = () => {
             </button>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (loading && history.length === 0 && !stats) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-8 h-8 border-2 border-[#1E2127] border-t-[#82AAFF] rounded-full animate-spin"></div>
+        <p className="text-xs font-mono text-[#9BA1AC] tracking-wider uppercase text-[11px]">
+          Computing Telemetry & Risk Analytics...
+        </p>
       </div>
     );
   }

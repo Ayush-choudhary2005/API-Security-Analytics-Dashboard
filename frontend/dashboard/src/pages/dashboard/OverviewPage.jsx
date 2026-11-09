@@ -54,7 +54,10 @@ export const OverviewPage = () => {
   const [historyData, setHistoryData] = useState([]);
 
   const fetchData = useCallback(async () => {
-    if (!currentProject?.id) return;
+    if (!currentProject?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [statsRes, eventsRes, alertsRes, blockedRes, histRes] = await Promise.allSettled([
@@ -65,25 +68,53 @@ export const OverviewPage = () => {
         telemetryService.getHistory(currentProject.id),
       ]);
 
-      if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
+      if (statsRes.status === 'fulfilled') {
+        setStats(statsRes.value.data || {
+          total_events: 0,
+          total_alerts: 0,
+          max_anomaly_score: 0.0,
+          attack_distribution: {}
+        });
+      } else {
+        setStats({
+          total_events: 0,
+          total_alerts: 0,
+          max_anomaly_score: 0.0,
+          attack_distribution: {}
+        });
+      }
       if (eventsRes.status === 'fulfilled') {
         const val = eventsRes.value.data;
         setEvents(Array.isArray(val) ? val : (val?.events || []));
+      } else {
+        setEvents([]);
       }
       if (alertsRes.status === 'fulfilled') {
         const val = alertsRes.value.data;
         setAlerts(Array.isArray(val) ? val : (val?.alerts || []));
+      } else {
+        setAlerts([]);
       }
       if (blockedRes.status === 'fulfilled') {
         const val = blockedRes.value.data;
         setBlockedIPs(Array.isArray(val) ? val : (val?.blocked_ips || []));
+      } else {
+        setBlockedIPs([]);
       }
       if (histRes.status === 'fulfilled') {
         const val = histRes.value.data;
         setHistoryData(Array.isArray(val) ? val : (val?.timeline || val?.history || []));
+      } else {
+        setHistoryData([]);
       }
     } catch (err) {
       console.error('Error loading dashboard overview:', err);
+      setStats({
+        total_events: 0,
+        total_alerts: 0,
+        max_anomaly_score: 0.0,
+        attack_distribution: {}
+      });
     } finally {
       setLoading(false);
     }
@@ -187,8 +218,8 @@ export const OverviewPage = () => {
       }))
     : [];
 
-  // Loading state: While workspace/project is resolving or initial telemetry metrics are loading
-  if (initialLoading || (loading && !stats)) {
+  // 1. Initial resolution of workspaces and organizations
+  if (initialLoading) {
     return (
       <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
         <div className="relative w-10 h-10">
@@ -200,14 +231,14 @@ export const OverviewPage = () => {
             Synchronizing Security Telemetry
           </p>
           <p className="text-[10px] font-mono text-[#7B818B]">
-            Aggregating incident vectors, anomaly baselines, and active metrics...
+            Resolving workspace, projects, and active security baselines...
           </p>
         </div>
       </div>
     );
   }
 
-  // Empty state: No workspace / organization
+  // 2. Empty state: No workspace / organization
   if (!currentOrg || organizations.length === 0) {
     return (
       <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
@@ -230,7 +261,7 @@ export const OverviewPage = () => {
     );
   }
 
-  // Empty state: Workspace exists but no projects
+  // 3. Empty state: Workspace exists but no projects
   if (!currentProject || projects.length === 0) {
     return (
       <div className="py-20 text-center space-y-4 bg-[#101216] border border-[#1E2127] rounded-md p-8 max-w-xl mx-auto mt-8">
@@ -248,6 +279,26 @@ export const OverviewPage = () => {
           >
             <span>Create Project</span>
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Loading state: Active project is fetching initial metrics
+  if (loading && !stats) {
+    return (
+      <div className="min-h-[65vh] flex flex-col items-center justify-center space-y-4">
+        <div className="relative w-10 h-10">
+          <div className="absolute inset-0 border-2 border-[#1E2127] border-t-[#C792EA] rounded-full animate-spin"></div>
+          <div className="absolute inset-2 border-2 border-[#1E2127] border-b-[#82AAFF] rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.2s' }}></div>
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-xs font-mono font-medium text-[#E6E8EB] tracking-wider uppercase text-[11px]">
+            Synchronizing Security Telemetry
+          </p>
+          <p className="text-[10px] font-mono text-[#7B818B]">
+            Aggregating incident vectors, anomaly baselines, and active metrics...
+          </p>
         </div>
       </div>
     );
