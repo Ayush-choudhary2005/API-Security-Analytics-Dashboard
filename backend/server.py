@@ -1238,6 +1238,7 @@ def get_project_route(project_id):
     return jsonify({
         "project": proj,
         "keys": keys,
+        "api_keys": keys,
         "webhook": webhook_cfg,
         "event_count": event_count
     }), 200
@@ -1268,7 +1269,8 @@ def delete_project_route(project_id):
 def get_project_keys(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
-    return jsonify({"keys": db.list_api_keys_for_project(project_id)}), 200
+    keys = db.list_api_keys_for_project(project_id)
+    return jsonify({"keys": keys, "api_keys": keys}), 200
 
 
 @app.route("/api/projects/<project_id>/keys", methods=["POST"])

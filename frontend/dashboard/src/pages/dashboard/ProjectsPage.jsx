@@ -16,6 +16,9 @@ import {
   ExternalLink,
   Download,
   Building2,
+  Activity,
+  Terminal,
+  Code2,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { projectService, organizationService } from '../../services/api';
@@ -44,6 +47,11 @@ export const ProjectsPage = () => {
   const [copiedKey, setCopiedKey] = useState(null);
   const [pageError, setPageError] = useState(null);
 
+  const collectorUrl =
+    typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+      ? window.location.origin
+      : 'https://api-security-analytics-dashboard-vyfe.onrender.com';
+
   // New Key modal
   const [newKeyRaw, setNewKeyRaw] = useState(null);
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
@@ -60,7 +68,8 @@ export const ProjectsPage = () => {
     if (!currentProject?.id) return;
     try {
       const res = await projectService.get(currentProject.id);
-      setProjectKeys(res.data?.api_keys || []);
+      const keys = res.data?.keys || res.data?.api_keys || [];
+      setProjectKeys(keys);
     } catch (err) {
       console.error('Failed to load project keys:', err);
     }
@@ -279,7 +288,7 @@ export const ProjectsPage = () => {
                 : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
-            SDK API Keys
+            SDK API Keys ({projectKeys.length})
           </button>
           <button
             onClick={() => setActiveTab('members')}
@@ -522,13 +531,109 @@ export const ProjectsPage = () => {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Active Session Key Banner */}
+            {latestCreatedKey && (
+              <div className="p-4 rounded-2xl bg-[#C3E88D]/10 border border-[#C3E88D]/30 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-[#C3E88D] animate-pulse" />
+                    <span className="text-xs font-mono font-semibold text-[#C3E88D] uppercase tracking-wider">
+                      Active Provisioned Secret Key in Session
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(latestCreatedKey, 'active_session_key')}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#101216] border border-[#2A2E37] text-xs font-mono text-[#E6E8EB] hover:border-[#C3E88D] transition-colors cursor-pointer"
+                  >
+                    {copiedKey === 'active_session_key' ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey === 'active_session_key' ? 'Copied' : 'Copy Key'}</span>
+                  </button>
+                </div>
+                <div className="bg-[#0A0B0D] p-2.5 rounded-lg border border-[#1E2127] font-mono text-xs text-[#C3E88D] break-all select-all">
+                  {latestCreatedKey}
+                </div>
+                <p className="text-[11px] text-[#9BA1AC] font-mono">
+                  Copy this key immediately. For security, database stores only SHA-256 hashes; raw keys are never shown again after session expiry.
+                </p>
+              </div>
+            )}
+
+            {/* SDK Collector & Ingestion Parameters Card */}
+            <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] p-4 sm:p-5 shadow-sm transition-all duration-200 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1E2127] pb-2.5">
+                <div className="flex items-center space-x-2">
+                  <Terminal className="w-4 h-4 text-[#82AAFF]" />
+                  <h4 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
+                    SDK Collector & Ingestion Parameters
+                  </h4>
+                </div>
+                <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] px-2 py-0.5 rounded border border-[#1E2127]">
+                  REST Ingest: POST /api/telemetry/ingest
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono">
+                <div className="bg-[#0A0B0D] p-3 rounded-xl border border-[#1E2127] space-y-1">
+                  <div className="text-[10px] text-[#7B818B] uppercase">Collector Base URL</div>
+                  <div className="flex items-center justify-between text-[#82AAFF]">
+                    <span className="truncate">{collectorUrl}</span>
+                    <button
+                      onClick={() => copyToClipboard(collectorUrl, 'param_collector')}
+                      className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer"
+                      title="Copy Collector URL"
+                    >
+                      {copiedKey === 'param_collector' ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-[#0A0B0D] p-3 rounded-xl border border-[#1E2127] space-y-1">
+                  <div className="text-[10px] text-[#7B818B] uppercase">Target Project ID</div>
+                  <div className="flex items-center justify-between text-[#82AAFF]">
+                    <span className="truncate">{currentProject?.id}</span>
+                    <button
+                      onClick={() => copyToClipboard(currentProject?.id, 'param_pid')}
+                      className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer"
+                      title="Copy Project ID"
+                    >
+                      {copiedKey === 'param_pid' ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#0A0B0D] p-3 rounded-xl border border-[#1E2127] space-y-1.5 font-mono text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-[#7B818B] uppercase">Environment Variables (Bash / Docker / .env)</span>
+                  <button
+                    onClick={() =>
+                      copyToClipboard(
+                        `export SECURITY_SDK_PROJECT_ID="${currentProject?.id}"\nexport SECURITY_SDK_COLLECTOR_URL="${collectorUrl}"\nexport SECURITY_SDK_API_KEY="${latestCreatedKey || '<YOUR_SDK_KEY>'}"`,
+                        'param_env'
+                      )
+                    }
+                    className="inline-flex items-center space-x-1 text-[11px] text-[#C792EA] hover:text-[#d6a5f7] cursor-pointer"
+                  >
+                    {copiedKey === 'param_env' ? <Check className="w-3 h-3 text-[#C3E88D]" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedKey === 'param_env' ? 'Copied Snippet' : 'Copy Snippet'}</span>
+                  </button>
+                </div>
+                <div className="text-[11px] text-[#9BA1AC] space-y-0.5 select-all">
+                  <div>export SECURITY_SDK_PROJECT_ID="{currentProject?.id}"</div>
+                  <div>export SECURITY_SDK_COLLECTOR_URL="{collectorUrl}"</div>
+                  <div>export SECURITY_SDK_API_KEY="{latestCreatedKey || '<YOUR_SDK_KEY>'}"</div>
+                </div>
+              </div>
+            </div>
+
+            {/* SDK Credentials Table */}
             <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] p-5 shadow-sm transition-all duration-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-[#1E2127] pb-3">
                 <div>
                   <div className="flex items-center space-x-2">
                     <Key className="w-4 h-4 text-[#C792EA]" />
                     <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
-                      SDK Credentials: {currentProject?.name}
+                      SDK Credentials: {currentProject?.name} ({projectKeys.length})
                     </h3>
                   </div>
                   <p className="text-[11px] text-[#9BA1AC] font-mono mt-1">
@@ -568,6 +673,7 @@ export const ProjectsPage = () => {
                       <th className="py-2.5 px-4">Key Label</th>
                       <th className="py-2.5 px-4">Secret Prefix</th>
                       <th className="py-2.5 px-4">Status</th>
+                      <th className="py-2.5 px-4">Last Active</th>
                       <th className="py-2.5 px-4">Provisioned</th>
                       <th className="py-2.5 px-4 text-right">Actions</th>
                     </tr>
@@ -596,6 +702,22 @@ export const ProjectsPage = () => {
                           >
                             {k.status}
                           </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-xs">
+                          {k.last_used_at ? (
+                            <div className="flex items-center space-x-1.5">
+                              {Date.now() / 1000 - k.last_used_at < 600 ? (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-[#C3E88D] animate-pulse" />
+                                  <span className="text-[#C3E88D] font-semibold">Active now</span>
+                                </>
+                              ) : (
+                                <span className="text-[#9BA1AC]">{new Date(k.last_used_at * 1000).toLocaleString()}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[#7B818B]">Never used</span>
+                          )}
                         </td>
                         <td className="py-2.5 px-4 text-[#7B818B] text-[11px]">
                           {k.created_at ? new Date(k.created_at * 1000).toLocaleDateString() : 'Active'}
@@ -630,7 +752,7 @@ export const ProjectsPage = () => {
                     ))}
                     {projectKeys.length === 0 && (
                       <tr>
-                        <td colSpan="5" className="py-8 text-center text-[#7B818B] font-mono">
+                        <td colSpan="6" className="py-8 text-center text-[#7B818B] font-mono">
                           <span>Zero API keys generated yet.{' '}</span>
                           <button
                             type="button"

@@ -68,7 +68,7 @@ export const SdkOnboardingPage = () => {
       if (latestCreatedKey) {
         setActiveKey(latestCreatedKey);
       } else {
-        const keys = projectRes.data?.api_keys || [];
+        const keys = projectRes.data?.keys || projectRes.data?.api_keys || [];
         if (keys.length > 0) {
           setActiveKey('<YOUR_SDK_KEY>');
         }
