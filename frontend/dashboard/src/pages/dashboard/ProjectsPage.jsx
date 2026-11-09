@@ -15,6 +15,7 @@ import {
   Lock,
   ExternalLink,
   Download,
+  Building2,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { projectService, organizationService } from '../../services/api';
@@ -27,6 +28,7 @@ export const ProjectsPage = () => {
     currentProject,
     latestCreatedKey,
     setLatestCreatedKey,
+    selectOrganization,
     selectProject,
     refreshProjects,
     openCreateOrgModal,
@@ -35,7 +37,7 @@ export const ProjectsPage = () => {
     initialLoading,
   } = useProject();
 
-  const [activeTab, setActiveTab] = useState('keys'); // 'keys', 'projects', 'members'
+  const [activeTab, setActiveTab] = useState('keys'); // 'workspaces', 'keys', 'projects', 'members'
   const [projectKeys, setProjectKeys] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -243,25 +245,25 @@ export const ProjectsPage = () => {
             </span>
           </div>
           <p className="text-xs text-[#9BA1AC] mt-1 font-mono">
-            Provision SDK authentication tokens, switch projects, and grant RBAC access in {currentOrg?.name || 'Active Workspace'}.
+            Provision SDK authentication tokens, switch workspaces and projects, and grant RBAC access in {currentOrg?.name || 'Active Workspace'}.
           </p>
         </div>
 
         {/* Tab Controls */}
-        <div className="inline-flex items-center space-x-1 bg-[#101216] border border-[#1E2127] p-1 rounded-full self-start sm:self-auto font-mono text-xs">
+        <div className="inline-flex items-center space-x-1 bg-[#101216] border border-[#1E2127] p-1 rounded-full self-start sm:self-auto font-mono text-xs overflow-x-auto max-w-full">
           <button
-            onClick={() => setActiveTab('keys')}
-            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
-              activeTab === 'keys'
+            onClick={() => setActiveTab('workspaces')}
+            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 cursor-pointer ${
+              activeTab === 'workspaces'
                 ? 'bg-[#16181D] text-[#C792EA] font-semibold border border-[#2A2E37] shadow-xs'
                 : 'text-[#7B818B] hover:text-[#E6E8EB]'
             }`}
           >
-            SDK API Keys
+            Workspaces ({organizations.length})
           </button>
           <button
             onClick={() => setActiveTab('projects')}
-            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 cursor-pointer ${
               activeTab === 'projects'
                 ? 'bg-[#16181D] text-[#82AAFF] font-semibold border border-[#2A2E37] shadow-xs'
                 : 'text-[#7B818B] hover:text-[#E6E8EB]'
@@ -270,8 +272,18 @@ export const ProjectsPage = () => {
             Projects ({projects.length})
           </button>
           <button
+            onClick={() => setActiveTab('keys')}
+            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 cursor-pointer ${
+              activeTab === 'keys'
+                ? 'bg-[#16181D] text-[#C792EA] font-semibold border border-[#2A2E37] shadow-xs'
+                : 'text-[#7B818B] hover:text-[#E6E8EB]'
+            }`}
+          >
+            SDK API Keys
+          </button>
+          <button
             onClick={() => setActiveTab('members')}
-            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+            className={`px-3.5 py-1.5 rounded-full transition-all duration-200 cursor-pointer ${
               activeTab === 'members'
                 ? 'bg-[#16181D] text-[#C3E88D] font-semibold border border-[#2A2E37] shadow-xs'
                 : 'text-[#7B818B] hover:text-[#E6E8EB]'
@@ -279,6 +291,76 @@ export const ProjectsPage = () => {
           >
             Members ({members.length})
           </button>
+        </div>
+      </div>
+
+      {/* Active Workspace Governance Card */}
+      <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] p-5 shadow-sm transition-all duration-200">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#C792EA]/10 border border-[#C792EA]/30 flex items-center justify-center text-[#C792EA]">
+                <Building2 className="w-4 h-4" />
+              </div>
+              <h2 className="text-base font-bold text-[#E6E8EB] tracking-tight">{currentOrg.name}</h2>
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-[#C792EA]/10 text-[#C792EA] border border-[#C792EA]/30 font-semibold">
+                {currentOrg.role || 'OWNER'}
+              </span>
+              <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] px-2 py-0.5 rounded-full border border-[#1E2127]">
+                slug: {currentOrg.slug || 'default'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-[#9BA1AC] pt-0.5">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[#7B818B]">Workspace ID:</span>
+                <code className="text-[#82AAFF] bg-[#16181D] px-2 py-0.5 rounded border border-[#1E2127] text-[11px]">
+                  {currentOrg.id}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(currentOrg.id, 'active_org_id')}
+                  className="p-1 text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer transition-colors"
+                  title="Copy Full Workspace ID"
+                >
+                  {copiedKey === 'active_org_id' ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              {currentOrg.created_at && (
+                <span className="text-[#7B818B] text-[11px]">
+                  Created: {new Date(currentOrg.created_at * 1000).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Workspace Metrics & Quick Actions */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center space-x-4 px-4 py-2 bg-[#16181D] rounded-xl border border-[#1E2127] text-xs font-mono">
+              <div>
+                <span className="text-[#7B818B] text-[10px] block uppercase">Projects</span>
+                <span className="text-sm font-bold text-[#82AAFF]">{projects.length}</span>
+              </div>
+              <div className="w-px h-6 bg-[#1E2127]" />
+              <div>
+                <span className="text-[#7B818B] text-[10px] block uppercase">Members</span>
+                <span className="text-sm font-bold text-[#C3E88D]">{members.length}</span>
+              </div>
+              <div className="w-px h-6 bg-[#1E2127]" />
+              <div>
+                <span className="text-[#7B818B] text-[10px] block uppercase">Workspaces</span>
+                <span className="text-sm font-bold text-[#C792EA]">{organizations.length}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={openCreateOrgModal}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-xs font-semibold text-[#0A0B0D] font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Workspace</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -296,6 +378,118 @@ export const ProjectsPage = () => {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* TAB 0: WORKSPACES */}
+      {activeTab === 'workspaces' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#101216] border border-[#1E2127] p-4 rounded-2xl">
+            <div>
+              <div className="flex items-center space-x-2">
+                <Building2 className="w-4 h-4 text-[#C792EA]" />
+                <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
+                  Organization Workspaces ({organizations.length})
+                </h3>
+              </div>
+              <p className="text-[11px] text-[#9BA1AC] font-mono mt-0.5">
+                Multi-tenant isolated workspaces. Each workspace isolates its own projects, team members, and API keys.
+              </p>
+            </div>
+            <button
+              onClick={openCreateOrgModal}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer self-start sm:self-auto"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create Workspace</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {organizations.map((org) => {
+              const isActive = currentOrg?.id === org.id;
+              const projectCount = org.project_count !== undefined ? org.project_count : (isActive ? projects.length : 0);
+              const memberCount = org.member_count !== undefined ? org.member_count : (isActive ? members.length : 1);
+
+              return (
+                <div
+                  key={org.id}
+                  className={`p-5 rounded-2xl bg-[#101216] border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 ${
+                    isActive
+                      ? 'border-[#C792EA] bg-[#16181D]'
+                      : 'border-[#1E2127] hover:border-[#2A2E37]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#16181D] border border-[#2A2E37] text-[#C792EA] font-semibold">
+                      {org.role || 'OWNER'}
+                    </span>
+                    {isActive ? (
+                      <span className="text-[10px] font-mono text-[#C3E88D] uppercase tracking-wider font-semibold border border-[#C3E88D]/30 px-2 py-0.5 rounded-full bg-[#C3E88D]/10">
+                        ACTIVE WORKSPACE
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-[#7B818B]">
+                        Workspace
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-sm font-semibold text-[#E6E8EB] mb-1 truncate">{org.name}</h3>
+                  <div className="text-[11px] font-mono text-[#7B818B] mb-3">slug: {org.slug || 'default'}</div>
+
+                  <div className="space-y-2 mb-4 bg-[#0A0B0D] p-2.5 rounded-xl border border-[#1E2127] text-xs font-mono">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-[#7B818B]">Workspace ID:</span>
+                      <div className="flex items-center space-x-1">
+                        <span className="text-[#82AAFF] truncate max-w-[130px]">{org.id.slice(0, 14)}...</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(org.id, `org_${org.id}`)}
+                          className="p-1 text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer"
+                          title="Copy Full Workspace ID"
+                        >
+                          {copiedKey === `org_${org.id}` ? (
+                            <Check className="w-3 h-3 text-[#C3E88D]" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-[#9BA1AC]">
+                      <span className="text-[#7B818B]">Projects:</span>
+                      <span className="font-semibold text-[#E6E8EB]">{projectCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-[#9BA1AC]">
+                      <span className="text-[#7B818B]">Members:</span>
+                      <span className="font-semibold text-[#E6E8EB]">{memberCount}</span>
+                    </div>
+                    {org.created_at && (
+                      <div className="flex items-center justify-between text-[10px] text-[#7B818B]">
+                        <span>Created:</span>
+                        <span>{new Date(org.created_at * 1000).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-[#1E2127] flex items-center justify-between">
+                    <button
+                      onClick={() => selectOrganization(org)}
+                      disabled={isActive}
+                      className={`w-full text-xs font-mono font-semibold py-1.5 px-3 rounded-full transition-all duration-200 cursor-pointer ${
+                        isActive
+                          ? 'bg-[#1E2127] text-[#C3E88D] border border-[#C3E88D]/20 cursor-default text-center'
+                          : 'bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] hover:-translate-y-0.5 shadow-xs text-center'
+                      }`}
+                    >
+                      {isActive ? 'Current Context' : 'Switch to Workspace'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

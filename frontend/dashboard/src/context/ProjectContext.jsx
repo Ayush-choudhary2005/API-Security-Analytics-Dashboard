@@ -205,7 +205,13 @@ export const ProjectProvider = ({ children }) => {
         showCreateProjModal,
         setShowCreateProjModal,
         openCreateOrgModal: () => setShowCreateOrgModal(true),
-        openCreateProjModal: () => setShowCreateProjModal(true),
+        openCreateProjModal: () => {
+          if (!currentOrg || organizations.length === 0) {
+            setShowCreateOrgModal(true);
+          } else {
+            setShowCreateProjModal(true);
+          }
+        },
         latestCreatedKey,
         setLatestCreatedKey,
         selectOrganization,

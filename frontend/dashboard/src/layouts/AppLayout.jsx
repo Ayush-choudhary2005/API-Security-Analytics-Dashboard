@@ -61,6 +61,7 @@ export const AppLayout = ({ children }) => {
   const [newOrgName, setNewOrgName] = useState('');
   const [newProjName, setNewProjName] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
+  const [projModalError, setProjModalError] = useState(null);
 
   // Socket listener for live connection status & alerts
   useEffect(() => {
@@ -104,11 +105,19 @@ export const AppLayout = ({ children }) => {
   const handleCreateProjSubmit = async (e) => {
     e.preventDefault();
     if (!newProjName.trim()) return;
+    if (!currentOrg?.id) {
+      setProjModalError('An organization workspace is required before creating a project.');
+      return;
+    }
+    setProjModalError(null);
     const res = await createProject(newProjName.trim(), newProjDesc.trim());
     if (res.success) {
       setShowCreateProjModal(false);
       setNewProjName('');
       setNewProjDesc('');
+      setProjModalError(null);
+    } else {
+      setProjModalError(res.error || 'Failed to create project');
     }
   };
 
@@ -208,15 +217,22 @@ export const AppLayout = ({ children }) => {
           <div className="relative">
             <button
               onClick={() => {
+                if (!currentOrg || organizations.length === 0) {
+                  setShowCreateOrgModal(true);
+                  return;
+                }
                 setProjectDropdownOpen(!projectDropdownOpen);
                 setOrgDropdownOpen(false);
                 setUserDropdownOpen(false);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px] cursor-pointer"
+              className={`flex items-center space-x-1.5 text-xs font-medium bg-[#16181D] hover:bg-[#1E2127] text-[#E6E8EB] px-3 py-1.5 rounded-full border border-[#1E2127] hover:border-[#2A2E37] transition-all max-w-[160px] sm:max-w-[200px] cursor-pointer ${
+                !currentOrg || organizations.length === 0 ? 'border-dashed border-[#C792EA]/40 text-[#9BA1AC]' : ''
+              }`}
+              title={!currentOrg || organizations.length === 0 ? 'Create an organization workspace first' : 'Select project'}
             >
               <span className="text-[#7B818B] font-mono text-[11px]">proj:</span>
-              <span className="truncate">{currentProject ? currentProject.name : 'Select Project'}</span>
+              <span className="truncate">{currentProject ? currentProject.name : (!currentOrg ? 'Workspace Req.' : 'Select Project')}</span>
               <ChevronDown className="w-3.5 h-3.5 text-[#7B818B] flex-shrink-0" />
             </button>
 
@@ -225,38 +241,56 @@ export const AppLayout = ({ children }) => {
                 <div className="px-3.5 py-1.5 text-[10px] font-mono font-medium text-[#7B818B] uppercase tracking-wider border-b border-[#1E2127]">
                   Projects ({currentOrg?.name || 'Active'})
                 </div>
-                <div className="max-h-48 overflow-y-auto py-1 px-1 space-y-0.5">
-                  {projects.map((proj) => (
+                {!currentOrg || organizations.length === 0 ? (
+                  <div className="p-3 text-center space-y-2">
+                    <p className="text-xs text-[#9BA1AC]">No active workspace found.</p>
                     <button
-                      key={proj.id}
                       onClick={() => {
-                        selectProject(proj);
                         setProjectDropdownOpen(false);
+                        setShowCreateOrgModal(true);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors cursor-pointer ${
-                        currentProject?.id === proj.id ? 'text-[#82AAFF] bg-[#101216] font-semibold border border-[#82AAFF]/30' : 'text-[#9BA1AC]'
-                      }`}
+                      className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#0A0B0D] bg-[#C792EA] hover:bg-[#d6a5f7] font-semibold py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
                     >
-                      <span className="truncate">{proj.name}</span>
-                      <span className="text-[10px] text-[#7B818B] font-mono">{proj.id.slice(0, 8)}</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create Workspace</span>
                     </button>
-                  ))}
-                  {projects.length === 0 && (
-                    <div className="px-3 py-3 text-xs text-[#7B818B] text-center">No projects in organization</div>
-                  )}
-                </div>
-                <div className="border-t border-[#1E2127] p-1.5">
-                  <button
-                    onClick={() => {
-                      setProjectDropdownOpen(false);
-                      setShowCreateProjModal(true);
-                    }}
-                    className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-[#82AAFF]" />
-                    <span>Create Project</span>
-                  </button>
-                </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="max-h-48 overflow-y-auto py-1 px-1 space-y-0.5">
+                      {projects.map((proj) => (
+                        <button
+                          key={proj.id}
+                          onClick={() => {
+                            selectProject(proj);
+                            setProjectDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between hover:bg-[#1E2127] transition-colors cursor-pointer ${
+                            currentProject?.id === proj.id ? 'text-[#82AAFF] bg-[#101216] font-semibold border border-[#82AAFF]/30' : 'text-[#9BA1AC]'
+                          }`}
+                        >
+                          <span className="truncate">{proj.name}</span>
+                          <span className="text-[10px] text-[#7B818B] font-mono">{proj.id.slice(0, 8)}</span>
+                        </button>
+                      ))}
+                      {projects.length === 0 && (
+                        <div className="px-3 py-3 text-xs text-[#7B818B] text-center">No projects in organization</div>
+                      )}
+                    </div>
+                    <div className="border-t border-[#1E2127] p-1.5">
+                      <button
+                        onClick={() => {
+                          setProjectDropdownOpen(false);
+                          setShowCreateProjModal(true);
+                        }}
+                        className="w-full flex items-center justify-center space-x-1.5 text-xs text-[#E6E8EB] hover:text-white hover:bg-[#1E2127] p-1.5 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-[#82AAFF]" />
+                        <span>Create Project</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -561,7 +595,10 @@ export const AppLayout = ({ children }) => {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowCreateProjModal(false);
+            if (e.target === e.currentTarget) {
+              setShowCreateProjModal(false);
+              setProjModalError(null);
+            }
           }}
         >
           <div className="bg-[#101216] border border-[#2A2E37] rounded-md p-6 w-full max-w-md shadow-2xl">
@@ -569,54 +606,111 @@ export const AppLayout = ({ children }) => {
               <h3 className="text-sm font-semibold text-[#E6E8EB]">Create New Project</h3>
               <button
                 type="button"
-                onClick={() => setShowCreateProjModal(false)}
+                onClick={() => {
+                  setShowCreateProjModal(false);
+                  setProjModalError(null);
+                }}
                 className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
                 title="Close"
               >
                 ✕
               </button>
             </div>
-            <p className="text-xs text-[#9BA1AC] mb-4">
-              Create an isolated project within <span className="text-[#E6E8EB] font-medium">{currentOrg?.name || 'Workspace'}</span> to collect API metrics.
-            </p>
-            <form onSubmit={handleCreateProjSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Project Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Production API Gateway"
-                  value={newProjName}
-                  onChange={(e) => setNewProjName(e.target.value)}
-                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-                />
+
+            {!currentOrg || organizations.length === 0 ? (
+              <div className="space-y-4 py-2">
+                <div className="p-3.5 rounded-xl bg-[#C792EA]/10 border border-[#C792EA]/30 text-xs font-mono text-[#C792EA] flex items-start space-x-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-[#E6E8EB]">Workspace Required</p>
+                    <p className="text-[11px] text-[#9BA1AC]">
+                      An organization workspace is required before provisioning projects and API keys. Please create your workspace first.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateProjModal(false);
+                      setProjModalError(null);
+                    }}
+                    className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateProjModal(false);
+                      setProjModalError(null);
+                      setShowCreateOrgModal(true);
+                    }}
+                    className="px-3.5 py-1.5 text-xs bg-[#C792EA] hover:bg-[#d6a5f7] text-[#0A0B0D] font-semibold rounded cursor-pointer transition-colors"
+                  >
+                    Create Workspace First
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Description (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Core microservices gateway"
-                  value={newProjDesc}
-                  onChange={(e) => setNewProjDesc(e.target.value)}
-                  className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-                />
-              </div>
-              <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateProjModal(false)}
-                  className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-3.5 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] font-semibold rounded cursor-pointer transition-colors"
-                >
-                  Create Project & Key
-                </button>
-              </div>
-            </form>
+            ) : (
+              <>
+                <p className="text-xs text-[#9BA1AC] mb-4">
+                  Create an isolated project within <span className="text-[#E6E8EB] font-medium">{currentOrg?.name || 'Workspace'}</span> to collect API metrics.
+                </p>
+
+                {projModalError && (
+                  <div className="mb-3.5 p-2.5 rounded bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178] flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{projModalError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleCreateProjSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Project Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Production API Gateway"
+                      value={newProjName}
+                      onChange={(e) => {
+                        setNewProjName(e.target.value);
+                        if (projModalError) setProjModalError(null);
+                      }}
+                      className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider text-[10px]">Description (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Core microservices gateway"
+                      value={newProjDesc}
+                      onChange={(e) => setNewProjDesc(e.target.value)}
+                      className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#82AAFF] rounded px-3 py-2 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateProjModal(false);
+                        setProjModalError(null);
+                      }}
+                      className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-3.5 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbefc] text-[#0A0B0D] font-semibold rounded cursor-pointer transition-colors"
+                    >
+                      Create Project & Key
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
