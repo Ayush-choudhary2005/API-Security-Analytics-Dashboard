@@ -238,7 +238,7 @@ class GoogleOAuthTestSuite(unittest.TestCase):
         self.client.get("/auth/google/callback?code=code")
         pid = self._create_test_project_for_session("SDK Proj")
 
-        res_dl = self.client.get(f"/api/projects/{pid}/sdk/download")
+        res_dl = self.client.post(f"/api/projects/{pid}/sdk/download", json={"mode": "new"})
         self.assertEqual(res_dl.status_code, 200)
         self.assertEqual(res_dl.content_type, "application/zip")
 

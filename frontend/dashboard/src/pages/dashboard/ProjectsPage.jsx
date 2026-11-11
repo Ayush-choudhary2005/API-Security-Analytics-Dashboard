@@ -77,6 +77,12 @@ export const ProjectsPage = () => {
   const [downloadTargetProject, setDownloadTargetProject] = useState(null);
   const [downloadInitialOption, setDownloadInitialOption] = useState(undefined);
 
+  // Re-authentication modal (when deleting project after >5 min session age)
+  const [reauthPendingDelete, setReauthPendingDelete] = useState(null);
+  const [reauthMethod, setReauthMethod] = useState('password');
+  const [reauthPassword, setReauthPassword] = useState('');
+  const [reauthError, setReauthError] = useState(null);
+
   const fetchKeys = useCallback(async () => {
     if (!currentProject?.id) return;
     try {
@@ -221,7 +227,32 @@ export const ProjectsPage = () => {
     setPageError(null);
     const res = await deleteProject(projectId);
     if (!res.success) {
-      setPageError(res.error || 'Failed to delete project');
+      if (res.code === 'REAUTH_REQUIRED') {
+        setReauthPendingDelete({ id: projectId, name: projectName });
+        setReauthMethod(res.reauthMethod || 'password');
+        setReauthPassword('');
+        setReauthError(null);
+      } else {
+        setPageError(res.error || 'Failed to delete project');
+      }
+    }
+  };
+
+  const handleConfirmReauthDelete = async (e) => {
+    e.preventDefault();
+    if (!reauthPendingDelete?.id) return;
+    setLoading(true);
+    setReauthError(null);
+    try {
+      const res = await deleteProject(reauthPendingDelete.id, reauthPassword);
+      if (res.success) {
+        setReauthPendingDelete(null);
+        setReauthPassword('');
+      } else {
+        setReauthError(res.error || 'Fresh authentication failed.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1230,6 +1261,106 @@ export const ProjectsPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Re-Authentication Prompt for Sensitive Operations */}
+      {reauthPendingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setReauthPendingDelete(null);
+              setReauthPassword('');
+              setReauthError(null);
+            }
+          }}
+        >
+          <div className="bg-[#101216] border border-[#2A2E37] rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#1E2127] pb-3">
+              <div className="flex items-center space-x-2 text-[#E6E8EB] font-semibold">
+                <Lock className="w-4 h-4 text-[#F07178]" />
+                <h3 className="text-sm font-semibold font-mono">Confirm Identity to Delete Project</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setReauthPendingDelete(null);
+                  setReauthPassword('');
+                  setReauthError(null);
+                }}
+                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-[#9BA1AC] font-mono leading-relaxed">
+              Deleting <span className="text-[#E6E8EB] font-semibold">{reauthPendingDelete.name}</span> requires fresh authentication (last sign-in was over 5 minutes ago).
+            </p>
+
+            {reauthError && (
+              <div className="p-2.5 rounded bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178] flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{reauthError}</span>
+              </div>
+            )}
+
+            {reauthMethod === 'oauth' ? (
+              <div className="space-y-3">
+                <p className="text-xs text-[#E5C07B] font-mono">
+                  Your account uses Google OAuth. Please sign out and sign back in with Google to refresh your session before deleting this project.
+                </p>
+                <div className="flex justify-end pt-2 border-t border-[#1E2127]">
+                  <button
+                    type="button"
+                    onClick={() => setReauthPendingDelete(null)}
+                    className="px-4 py-1.5 text-xs bg-[#16181D] border border-[#2A2E37] text-[#E6E8EB] rounded-full font-mono cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmReauthDelete} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-mono text-[#9BA1AC] mb-1.5 uppercase tracking-wider">
+                    Account Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    autoFocus
+                    value={reauthPassword}
+                    onChange={(e) => setReauthPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full bg-[#16181D] border border-[#1E2127] focus:border-[#F07178] rounded px-3 py-2 text-xs text-[#E6E8EB] placeholder-[#7B818B] focus:outline-none transition-colors font-mono"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2.5 pt-2 border-t border-[#1E2127]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReauthPendingDelete(null);
+                      setReauthPassword('');
+                      setReauthError(null);
+                    }}
+                    className="px-3 py-1.5 text-xs text-[#7B818B] hover:text-[#E6E8EB] cursor-pointer font-mono"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-1.5 text-xs bg-[#F07178] hover:bg-[#f48b91] text-[#0A0B0D] font-semibold font-mono rounded-full cursor-pointer transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Verifying...' : 'Confirm & Delete'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

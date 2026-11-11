@@ -417,7 +417,7 @@ def run_tests():
         assert_test("Ingest with regenerated key succeeds -> HTTP 201", res_regen_ingest.status_code == 201)
 
         # 9. SDK Download Feature
-        res_download = client.get(f"/api/projects/{p1['id']}/download-sdk")
+        res_download = client.post(f"/api/projects/{p1['id']}/download-sdk", json={"mode": "new"})
         assert_test("Download SDK returns HTTP 200", res_download.status_code == 200)
         assert_test("Download Content-Type is application/zip", "application/zip" in res_download.headers.get("Content-Type", ""))
 
@@ -791,7 +791,7 @@ def run_tests():
         print("\n--- Test N: SDK Download, Zero Secret Leakage & Fresh Sample App Ingestion ---")
 
         # 1. Download SDK for Alice's Project A
-        res_dl = client.get(f"/api/projects/{proj_a_id}/download-sdk")
+        res_dl = client.post(f"/api/projects/{proj_a_id}/download-sdk", json={"mode": "new"})
         assert_test("Alice downloads SDK -> HTTP 200", res_dl.status_code == 200)
         assert_test("Download content type is application/zip", res_dl.content_type == "application/zip")
         assert_test("Attachment filename matches project id", f"mlo11y-sdk-{proj_a_id}.zip" in res_dl.headers.get("Content-Disposition", ""))
@@ -946,7 +946,10 @@ def run_tests():
         assert_test("New active key accepted immediately -> HTTP 201", res_new_ingest.status_code == 201)
 
         # Download SDK with regenerated key
-        res_dl2 = client.get(f"/api/projects/{proj_a_id}/download-sdk?api_key={new_active_key}")
+        res_dl2 = client.post(
+            f"/api/projects/{proj_a_id}/download-sdk",
+            json={"mode": "existing", "api_key": new_active_key},
+        )
         assert_test("Alice downloads updated SDK -> HTTP 200", res_dl2.status_code == 200)
         with zipfile.ZipFile(io.BytesIO(res_dl2.data), "r") as zf2:
             cfg2 = zf2.read("config.py").decode("utf-8")

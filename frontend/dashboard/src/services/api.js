@@ -66,10 +66,11 @@ export const projectService = {
   list: (orgId) => api.get(orgId ? `/api/projects?organization_id=${orgId}` : '/api/projects'),
   create: (data) => api.post('/api/projects', data),
   get: (id) => api.get(`/api/projects/${id}`),
-  delete: (id) => api.delete(`/api/projects/${id}`),
+  delete: (id, password) => api.delete(`/api/projects/${id}`, { data: password ? { password } : {} }),
   createKey: (projectId, name) => api.post(`/api/projects/${projectId}/keys`, { name }),
   rotateKey: (projectId, keyId, name) => api.post(`/api/projects/${projectId}/keys/${keyId}/rotate`, { name }),
-  regenerateKey: (projectId) => api.post(`/api/projects/${projectId}/keys/regenerate`),
+  regenerateKey: (projectId, password) =>
+    api.post(`/api/projects/${projectId}/keys/regenerate`, password ? { password } : {}),
   revokeKey: (projectId, keyId) => api.delete(`/api/projects/${projectId}/keys/${keyId}`),
   downloadSdk: async (projectId, payload = {}) => {
     if (!projectId) {
@@ -101,19 +102,6 @@ export const projectService = {
       }
       throw err;
     }
-  },
-  downloadSdkUrl: (projectId, params = {}) => {
-    if (!projectId) return '#';
-    const searchParams = new URLSearchParams();
-    if (typeof params === 'string') {
-      searchParams.set('api_key', params);
-    } else if (params && typeof params === 'object') {
-      if (params.apiKey) searchParams.set('api_key', params.apiKey);
-      if (params.template) searchParams.set('template', '1');
-      if (params.keyName) searchParams.set('key_name', params.keyName);
-    }
-    const qs = searchParams.toString();
-    return `${API_BASE_URL}/api/projects/${projectId}/download-sdk${qs ? `?${qs}` : ''}`;
   },
 };
 

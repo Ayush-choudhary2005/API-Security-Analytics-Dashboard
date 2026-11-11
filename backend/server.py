@@ -166,40 +166,47 @@ def _resolve_and_verify_project(user_id):
 def verify_fresh_authentication(max_age_seconds: int = 300) -> Tuple[bool, Optional[str]]:
     """
     Phase 3 Re-Authentication & Confirmation Verification:
-    Verify that the authenticated operator has signed in or verified their credentials
+    Verify that the authenticated operator has signed in or re-verified their credentials
     within max_age_seconds (default 5 min), or provided valid password re-entry in request body.
-    For active sessions where the frontend UI does not present an inline password prompt modal
-    (such as project deletion or SDK key regeneration), preserves operational continuity
-    so users are not abruptly locked out after 5 minutes of dashboard usage.
     """
     now = time.time()
     last_auth = session.get("auth_time", 0)
-    if (now - last_auth) <= max_age_seconds:
-        session["auth_time"] = now
+    if last_auth and (now - last_auth) <= max_age_seconds:
         return True, None
+
+    user_info = getattr(g, "current_user", None) or {}
+    email = user_info.get("email")
+    if not email:
+        return False, "User identity not found in active session."
+
+    raw_user = db.get_user_by_email(email)
+    stored_hash = raw_user.get("password_hash", "") if raw_user else ""
+    is_oauth_only = not stored_hash or stored_hash.startswith("!oauth_")
+
+    if is_oauth_only:
+        return False, "Fresh authentication required for this sensitive operation. Please sign in again with Google."
 
     data = request.get_json(silent=True) or {}
     password = data.get("password", "")
-    if password:
-        user_info = getattr(g, "current_user", None) or {}
-        email = user_info.get("email")
-        if not email:
-            return False, "User identity not found in active session."
+    if not password:
+        return False, "Fresh authentication required. Please confirm your password to continue."
 
-        raw_user = db.get_user_by_email(email)
-        stored_hash = raw_user.get("password_hash", "") if raw_user else ""
-        if not stored_hash or stored_hash.startswith("!oauth_") or not auth.verify_password(stored_hash, password):
-            return False, "Incorrect password. Fresh authentication confirmation failed."
+    if not auth.verify_password(stored_hash, password):
+        return False, "Incorrect password. Fresh authentication confirmation failed."
 
-        session["auth_time"] = now
-        return True, None
+    session["auth_time"] = now
+    return True, None
 
-    # Maintain continuity for authenticated sessions protected by CSRF tokens
-    if session.get("user_id"):
-        session["auth_time"] = now
-        return True, None
 
-    return False, "Fresh authentication required for sensitive operations. Please sign in again."
+def _reauth_method_for_current_user() -> str:
+    """Determine whether the current user re-authenticates via password or OAuth."""
+    user_info = getattr(g, "current_user", None) or {}
+    email = user_info.get("email")
+    if not email:
+        return "password"
+    raw_user = db.get_user_by_email(email)
+    stored_hash = raw_user.get("password_hash", "") if raw_user else ""
+    return "oauth" if (not stored_hash or stored_hash.startswith("!oauth_")) else "password"
 
 
 # ---------------------------------------------------------
@@ -1263,7 +1270,11 @@ def delete_project_route(project_id):
     # Phase 3 Re-Auth: Verify fresh session (<5 min) or password re-entry
     is_fresh, reauth_err = verify_fresh_authentication(max_age_seconds=300)
     if not is_fresh:
-        return jsonify({"error": reauth_err, "code": "REAUTH_REQUIRED"}), 403
+        return jsonify({
+            "error": reauth_err,
+            "code": "REAUTH_REQUIRED",
+            "reauth_method": _reauth_method_for_current_user(),
+        }), 403
 
     ok, msg = db.delete_project(g.current_user["id"], project_id)
     if not ok:
@@ -1338,7 +1349,11 @@ def regenerate_project_key(project_id):
     # Phase 3 Re-Auth: Verify fresh session (<5 min) or password re-entry
     is_fresh, reauth_err = verify_fresh_authentication(max_age_seconds=300)
     if not is_fresh:
-        return jsonify({"error": reauth_err, "code": "REAUTH_REQUIRED"}), 403
+        return jsonify({
+            "error": reauth_err,
+            "code": "REAUTH_REQUIRED",
+            "reauth_method": _reauth_method_for_current_user(),
+        }), 403
 
     data = request.get_json(silent=True) or {}
     name = data.get("name", "Regenerated SDK Key").strip() or "Regenerated SDK Key"
@@ -1546,10 +1561,13 @@ def download_sdk(project_id):
         if mode == "existing" and not raw_key:
             return jsonify({"error": "api_key is required when mode is 'existing'"}), 400
     else:
-        raw_key = (request.args.get("api_key") or "").strip()
-        key_name = (request.args.get("key_name") or "").strip()
-        is_template = request.args.get("template", "").lower() in ("1", "true", "yes")
-        mode = "template" if is_template else ("existing" if raw_key else "new")
+        if request.args.get("api_key"):
+            return jsonify({
+                "error": "Passing api_key in URL query parameters is disabled for security. Use POST /api/projects/<project_id>/download-sdk."
+            }), 400
+        raw_key = ""
+        key_name = ""
+        mode = "template"
 
     if mode != "template" and not db.user_has_project_role(g.current_user["id"], project_id, ("owner", "admin")):
         return jsonify({

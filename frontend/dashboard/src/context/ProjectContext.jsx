@@ -230,9 +230,9 @@ export const ProjectProvider = ({ children }) => {
     }
   };
 
-  const deleteProject = async (projectId) => {
+  const deleteProject = async (projectId, password) => {
     try {
-      await projectService.delete(projectId);
+      await projectService.delete(projectId, password);
       clearProjectSessionKey(projectId);
       if (newlyCreatedModalKey?.projectId === projectId) {
         setNewlyCreatedModalKey(null);
@@ -245,7 +245,12 @@ export const ProjectProvider = ({ children }) => {
       await fetchProjects(currentOrg?.id);
       return { success: true };
     } catch (err) {
-      return { success: false, error: err.response?.data?.error || 'Failed to delete project' };
+      return {
+        success: false,
+        error: err.response?.data?.error || 'Failed to delete project',
+        code: err.response?.data?.code,
+        reauthMethod: err.response?.data?.reauth_method,
+      };
     }
   };
 
