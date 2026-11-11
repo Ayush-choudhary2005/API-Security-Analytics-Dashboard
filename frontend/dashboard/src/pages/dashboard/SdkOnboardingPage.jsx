@@ -19,26 +19,33 @@ import {
 import { useProject } from '../../context/ProjectContext';
 import { onboardingService, projectService } from '../../services/api';
 import { getSocket } from '../../services/socket';
+import { SdkDownloadModal } from '../../components/sdk/SdkDownloadModal';
 
 export const SdkOnboardingPage = () => {
   const {
     currentOrg,
     currentProject,
     latestCreatedKey,
+    currentSessionKeyInfo,
     openCreateOrgModal,
     openCreateProjModal,
     initialLoading,
   } = useProject();
 
+  const orgRole = (currentOrg?.role || 'owner').toLowerCase();
+  const canManageKeys = orgRole === 'owner' || orgRole === 'admin';
+
   const [framework, setFramework] = useState('flask');
   const [currentStep, setCurrentStep] = useState(1);
   const [activeKey, setActiveKey] = useState(latestCreatedKey || '<YOUR_SDK_KEY>');
+  const [projectKeyPrefix, setProjectKeyPrefix] = useState(null);
   const [userCustomKey, setUserCustomKey] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [firstTelemetryAt, setFirstTelemetryAt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [testSending, setTestSending] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   const PRODUCTION_COLLECTOR_URL = 'https://api-security-analytics-dashboard-vyfe.onrender.com';
   const collectorUrl =
@@ -65,13 +72,14 @@ export const SdkOnboardingPage = () => {
         setFirstTelemetryAt(onboardRes.data?.first_telemetry_at);
       }
 
+      const keys = projectRes.data?.keys || projectRes.data?.api_keys || [];
+      const activeRow = keys.find((k) => k.status === 'active') || keys[0];
+      setProjectKeyPrefix(activeRow?.key_prefix || onboardRes.data?.key_prefix || null);
+
       if (latestCreatedKey) {
         setActiveKey(latestCreatedKey);
       } else {
-        const keys = projectRes.data?.keys || projectRes.data?.api_keys || [];
-        if (keys.length > 0) {
-          setActiveKey('<YOUR_SDK_KEY>');
-        }
+        setActiveKey('<YOUR_SDK_KEY>');
       }
     } catch (err) {
       console.error('Failed to load onboarding state:', err);
@@ -143,13 +151,6 @@ export const SdkOnboardingPage = () => {
   };
 
   const effectiveKey = getEffectiveKey();
-  const getDownloadSdkUrl = () => {
-    if (!currentProject?.id) return '#';
-    const param = (latestCreatedKey || userCustomKey.trim())
-      ? `?api_key=${encodeURIComponent(latestCreatedKey || userCustomKey.trim())}`
-      : '';
-    return `${projectService.downloadSdkUrl(currentProject.id)}${param}`;
-  };
 
   const zipInstallCommand = 'pip install .';
   const gitInstallCommand = 'pip install "git+https://github.com/Ayush-choudhary2005/API-Security-Analytics-Dashboard.git@auth#subdirectory=sdk"';
@@ -640,16 +641,15 @@ class ApiSecurityMiddleware:
 
         <div className="flex items-center space-x-3">
           {/* Download Preconfigured ZIP button */}
-          <a
-            href={getDownloadSdkUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
-            title="Download complete preconfigured SDK ZIP archive with pre-injected configuration and sample app"
+          <button
+            type="button"
+            onClick={() => setShowDownloadModal(true)}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
+            title="Configure credentials and download SDK ZIP archive"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Download SDK (.zip)</span>
-          </a>
+          </button>
 
           {/* Connection Status Pill */}
           <div
@@ -738,9 +738,16 @@ class ApiSecurityMiddleware:
             {/* Key input / notice */}
             {effectiveKey === '<YOUR_SDK_KEY>' ? (
               <div className="p-3.5 rounded-xl bg-[#16181D] border border-[#E5C07B]/30 space-y-2">
-                <div className="flex items-center space-x-1.5 text-xs text-[#E5C07B] font-mono">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-[#E5C07B]" />
-                  <span>Custom / Secret Key: Paste your key below to auto-fill the snippet in real time:</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#E5C07B] font-mono">
+                  <div className="flex items-center space-x-1.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-[#E5C07B]" />
+                    <span>Paste an existing key below to fill snippets, or generate one in the Download SDK modal:</span>
+                  </div>
+                  {projectKeyPrefix && (
+                    <span className="text-[11px] text-[#9BA1AC]">
+                      Active prefix: <code className="text-[#82AAFF]">{projectKeyPrefix}</code>
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
@@ -763,7 +770,11 @@ class ApiSecurityMiddleware:
             ) : (
               <div className="flex items-center space-x-2 text-[11px] text-[#C3E88D] font-mono">
                 <Check className="w-3.5 h-3.5 text-[#C3E88D]" />
-                <span>Active secret key successfully embedded into the drop-in integration snippet.</span>
+                <span>
+                  {userCustomKey.trim()
+                    ? 'Pasted SDK key embedded into the integration snippets below.'
+                    : `Active session key (${currentSessionKeyInfo?.keyName || 'SDK Key'}, ${currentSessionKeyInfo?.keyPrefix || ''}) embedded into snippets below.`}
+                </span>
               </div>
             )}
           </div>
@@ -818,15 +829,14 @@ class ApiSecurityMiddleware:
                   <span className="text-[#9BA1AC] text-[11px]">
                     Alternative: Prefer the full packaged Python SDK with background thread queuing?
                   </span>
-                  <a
-                    href={getDownloadSdkUrl()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1 text-[#82AAFF] hover:underline text-[11px]"
+                  <button
+                    type="button"
+                    onClick={() => setShowDownloadModal(true)}
+                    className="inline-flex items-center space-x-1 text-[#82AAFF] hover:underline text-[11px] cursor-pointer"
                   >
                     <Download className="w-3 h-3" />
-                    <span>Download .zip</span>
-                  </a>
+                    <span>Configure & Download .zip</span>
+                  </button>
                 </div>
                 <div className="p-2.5 rounded-lg bg-[#0A0B0D] border border-[#1E2127] text-[11px] text-[#7B818B] flex items-center justify-between">
                   <code>{gitInstallCommand}</code>
@@ -874,6 +884,24 @@ class ApiSecurityMiddleware:
           </div>
         </div>
       </div>
+
+      <SdkDownloadModal
+        isOpen={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+        targetProject={currentProject}
+        canManageKeys={canManageKeys}
+        initialOption={
+          !canManageKeys
+            ? 'template'
+            : userCustomKey.trim()
+              ? 'paste'
+              : latestCreatedKey
+                ? 'session'
+                : 'template'
+        }
+        initialPastedKey={userCustomKey.trim()}
+        onKeysUpdated={fetchOnboardingState}
+      />
     </div>
   );
 };
