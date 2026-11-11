@@ -1353,7 +1353,20 @@ def _build_sdk_zip_response(proj: dict, mode: str, raw_key: str, key_name: str, 
     sdk_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk"))
     collector_url = request.host_url.rstrip("/")
 
-    config_code = f"""# ML-O11Y Security SDK Configuration
+    if mode == "template":
+        config_code = f"""# ML-O11Y Security SDK Configuration
+# Auto-generated configuration for project: {proj['name']} ({proj['id']})
+# Credential Mode: {config_note}
+# Generated: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}
+
+import os
+
+COLLECTOR_URL = os.environ.get("SECURITY_SDK_COLLECTOR_URL", "{collector_url}")
+PROJECT_ID = "{proj['id']}"
+SDK_KEY = os.environ.get("SECURITY_SDK_API_KEY", "")
+"""
+    else:
+        config_code = f"""# ML-O11Y Security SDK Configuration
 # Auto-generated configuration for project: {proj['name']} ({proj['id']})
 # Credential Mode: {config_note}
 # Generated: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}
@@ -1427,11 +1440,13 @@ if __name__ == "__main__":
     uvicorn.run(app, port=5002)
 """
 
+    env_example_key = "<YOUR_SDK_KEY>" if mode == "template" else raw_key
+
     readme_code = f"""# ML-O11Y Security SDK
 
 Preconfigured SDK for project: **{proj['name']}** (`{proj['id']}`)
 - **Configured Key**: `{key_prefix_display}` ({key_name})
-- **Collector Endpoint**: `{collector_url}/api/telemetry/ingest`
+- **Collector Endpoint**: `{collector_url}/ingest`
 - **Credential Mode**: {config_note}
 
 ## Quickstart
@@ -1464,7 +1479,7 @@ app.add_middleware(SecurityMiddleware, collector_url=config.COLLECTOR_URL, api_k
 
 ### Option B: Zero-Hardcoding via Environment Variables
 ```bash
-export SECURITY_SDK_API_KEY="{raw_key}"
+export SECURITY_SDK_API_KEY="{env_example_key}"
 export SECURITY_SDK_COLLECTOR_URL="{collector_url}"
 ```
 Then simply:
@@ -1545,15 +1560,15 @@ def download_sdk(project_id):
     config_note = ""
 
     if mode == "template":
-        raw_key = "<YOUR_SDK_KEY>"
+        raw_key = ""
         key_name = "Environment Variable Template (No Key Provisioned)"
         config_note = "Template mode: Set SECURITY_SDK_API_KEY in your environment"
     elif mode == "existing":
-        validated_proj_id = db.verify_api_key(raw_key)
-        if validated_proj_id != project_id:
+        matched_proj = db.get_project_by_api_key(raw_key)
+        if not matched_proj or matched_proj.get("id") != project_id:
             return jsonify({"error": "Forbidden: Provided api_key does not belong to this project"}), 403
         key_prefix_display = db.format_key_prefix(raw_key)
-        key_name = key_name or "Active Specified Key"
+        key_name = key_name or matched_proj.get("key_name") or "Active Specified Key"
         config_note = f"Configured with key prefix: {key_prefix_display} ({key_name})"
     else:
         if not key_name:

@@ -1061,7 +1061,7 @@ def get_project_by_api_key(raw_key: str) -> dict:
     conn = get_conn()
     row = conn.execute(
         """
-        SELECT p.*, k.id as key_id 
+        SELECT p.*, k.id as key_id, k.name as key_name
         FROM api_keys k 
         JOIN projects p ON k.project_id = p.id 
         WHERE k.key_hash = ? AND k.revoked_at IS NULL

@@ -632,7 +632,7 @@ export const ProjectsPage = () => {
                   </h4>
                 </div>
                 <span className="text-[10px] font-mono text-[#7B818B] bg-[#16181D] px-2 py-0.5 rounded border border-[#1E2127]">
-                  REST Ingest: POST /api/telemetry/ingest
+                  REST Ingest: POST /ingest
                 </span>
               </div>
 
