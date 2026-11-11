@@ -22,6 +22,7 @@ import {
 import { useProject } from '../../context/ProjectContext';
 import { telemetryService } from '../../services/api';
 import { getSocket } from '../../services/socket';
+import { RedTeamPanel } from '../../components/RedTeamPanel';
 
 export const LiveMonitoringPage = () => {
   const { currentOrg, currentProject, initialLoading, openCreateOrgModal, openCreateProjModal } = useProject();
@@ -255,6 +256,11 @@ export const LiveMonitoringPage = () => {
         </div>
       </div>
 
+      {/* Red Team Simulator Panel */}
+      {currentProject?.id && (
+        <RedTeamPanel projectId={currentProject.id} />
+      )}
+
       {/* Real-time 1-FPS EKG Telemetry Pulse Panel */}
       <div className="rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 p-4 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1E2127]/60 pb-3">
@@ -466,7 +472,16 @@ export const LiveMonitoringPage = () => {
                       return <span className={colorClass}>{method}</span>;
                     })()}
                   </td>
-                  <td className="py-2 px-3 text-[#E6E8EB] font-sans truncate max-w-[200px]">{ev.endpoint}</td>
+                  <td className="py-2 px-3 text-[#E6E8EB] font-sans max-w-[240px]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {ev.metadata?.simulated && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-[#FFCB6B]/15 text-[#FFCB6B] border border-[#FFCB6B]/30">
+                          [SIM]
+                        </span>
+                      )}
+                      <span className="truncate">{ev.endpoint}</span>
+                    </div>
+                  </td>
                   <td className="py-2 px-3">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
