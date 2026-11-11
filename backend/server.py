@@ -36,6 +36,7 @@ import db
 import webhook
 import detection
 import attack_correlator
+import simulator
 import rate_limiter
 import auth
 from auth import login_required
@@ -2112,6 +2113,62 @@ def get_chains():
         limit = 50
     chains = db.get_chains(project_id, limit=limit, status=status_filter)
     return jsonify({"chains": chains, "count": len(chains)}), 200
+
+
+@app.route("/api/simulate", methods=["POST"])
+@login_required
+def start_simulation():
+    """
+    Launch a controlled Red Team simulation against an owned project.
+    Routes simulated traffic through _execute_ingest_pipeline with metadata.simulated=True.
+    """
+    user_id = g.current_user["id"]
+    project_id, err = _resolve_and_verify_project(user_id)
+    if err:
+        return err
+
+    if not db.user_has_project_role(user_id, project_id, ("owner", "admin", "member")):
+        return jsonify({"error": "Forbidden: viewer role cannot launch simulations"}), 403
+
+    data = request.get_json(silent=True) or {}
+    attack_type = str(data.get("attack_type", "brute_force")).strip()
+    intensity = str(data.get("intensity", "medium")).strip()
+
+    if attack_type not in simulator.VALID_ATTACK_TYPES:
+        return jsonify({"error": f"Unknown attack_type: {attack_type}"}), 400
+    if intensity not in simulator.VALID_INTENSITIES:
+        return jsonify({"error": f"Unknown intensity: {intensity}. Use low / medium / high"}), 400
+
+    def _sim_ingest(pid: str, payload: dict, remote_ip: str):
+        with app.app_context():
+            return _execute_ingest_pipeline(pid, payload, remote_ip)
+
+    ok, msg = simulator.launch(
+        project_id=project_id,
+        attack_type=attack_type,
+        intensity=intensity,
+        ingest_fn=_sim_ingest,
+    )
+    if not ok:
+        return jsonify({"error": msg}), 409
+
+    return jsonify({
+        "status":      "launched",
+        "message":     msg,
+        "attack_type": attack_type,
+        "intensity":   intensity,
+        "project_id":  project_id,
+    }), 202
+
+
+@app.route("/api/simulate/status", methods=["GET"])
+@login_required
+def simulation_status():
+    """Poll current Red Team simulation status for an owned project."""
+    project_id, err = _resolve_and_verify_project(g.current_user["id"])
+    if err:
+        return err
+    return jsonify(simulator.get_status(project_id)), 200
 
 
 @app.route("/alerts/stats", methods=["GET"])
