@@ -43,8 +43,8 @@ export const AppLayout = ({ children }) => {
     setShowCreateOrgModal,
     showCreateProjModal,
     setShowCreateProjModal,
-    latestCreatedKey,
-    setLatestCreatedKey,
+    newlyCreatedModalKey,
+    dismissNewKeyModal,
   } = useProject();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -716,11 +716,11 @@ export const AppLayout = ({ children }) => {
       )}
 
       {/* Modal: Newly Generated API Key */}
-      {latestCreatedKey && (
+      {newlyCreatedModalKey?.rawKey && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setLatestCreatedKey(null);
+            if (e.target === e.currentTarget) dismissNewKeyModal();
           }}
         >
           <div className="bg-[#101216] border border-[#C3E88D]/40 rounded-md p-6 w-full max-w-md shadow-2xl">
@@ -731,7 +731,7 @@ export const AppLayout = ({ children }) => {
               </div>
               <button
                 type="button"
-                onClick={() => setLatestCreatedKey(null)}
+                onClick={dismissNewKeyModal}
                 className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono text-xs cursor-pointer"
                 title="Close"
               >
@@ -739,14 +739,14 @@ export const AppLayout = ({ children }) => {
               </button>
             </div>
             <p className="text-xs text-[#9BA1AC] mb-3">
-              Your new project has been created and your initial SDK ingestion key has been provisioned. Copy this key now to configure your SDK.
+              Your new project has been created and your initial SDK ingestion key (<span className="text-[#E6E8EB] font-mono">{newlyCreatedModalKey.keyName}</span>) has been provisioned. Copy this key now — it remains available in memory for this session only.
             </p>
             <div className="bg-[#16181D] border border-[#2A2E37] rounded p-2.5 flex items-center justify-between mb-4 font-mono text-xs text-[#C3E88D] break-all">
-              <span>{latestCreatedKey}</span>
+              <span>{newlyCreatedModalKey.rawKey}</span>
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(latestCreatedKey);
+                  navigator.clipboard.writeText(newlyCreatedModalKey.rawKey);
                   setCopiedLatestKey(true);
                   setTimeout(() => setCopiedLatestKey(false), 2000);
                 }}
@@ -758,7 +758,7 @@ export const AppLayout = ({ children }) => {
             <div className="flex justify-end space-x-2 pt-2 border-t border-[#1E2127]">
               <button
                 type="button"
-                onClick={() => setLatestCreatedKey(null)}
+                onClick={dismissNewKeyModal}
                 className="px-3 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors"
               >
                 Close
@@ -766,7 +766,7 @@ export const AppLayout = ({ children }) => {
               <button
                 type="button"
                 onClick={() => {
-                  setLatestCreatedKey(null);
+                  dismissNewKeyModal();
                   navigate('/app/sdk');
                 }}
                 className="px-3.5 py-1.5 text-xs bg-[#C3E88D] hover:bg-[#d4f2aa] text-[#0A0B0D] font-semibold rounded cursor-pointer transition-colors"

@@ -134,10 +134,56 @@ export const ProjectProvider = ({ children }) => {
     localStorage.setItem('api_sec_current_project_id', project.id);
   };
 
-  // Modal visibility states accessible from any page/component
+  // Modal visibility & project-scoped in-memory session keys
   const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
   const [showCreateProjModal, setShowCreateProjModal] = useState(false);
-  const [latestCreatedKey, setLatestCreatedKey] = useState(null);
+  const [sessionKeysByProject, setSessionKeysByProject] = useState({});
+  const [newlyCreatedModalKey, setNewlyCreatedModalKey] = useState(null);
+
+  const setProjectSessionKey = useCallback((projectId, keyInfo) => {
+    if (!projectId || !keyInfo?.rawKey) return;
+    const rawKey = keyInfo.rawKey;
+    const keyPrefix = keyInfo.keyPrefix || (rawKey.length > 25 ? `${rawKey.slice(0, 25)}...` : rawKey);
+    setSessionKeysByProject((prev) => ({
+      ...prev,
+      [projectId]: {
+        rawKey,
+        keyName: keyInfo.keyName || 'Session SDK Key',
+        keyPrefix,
+        createdAt: keyInfo.createdAt || Date.now(),
+      },
+    }));
+  }, []);
+
+  const clearProjectSessionKey = useCallback((projectId) => {
+    if (!projectId) return;
+    setSessionKeysByProject((prev) => {
+      if (!(projectId in prev)) return prev;
+      const next = { ...prev };
+      delete next[projectId];
+      return next;
+    });
+  }, []);
+
+  const getProjectSessionKey = useCallback(
+    (projectId) => (projectId ? sessionKeysByProject[projectId] || null : null),
+    [sessionKeysByProject]
+  );
+
+  const dismissNewKeyModal = useCallback(() => {
+    setNewlyCreatedModalKey(null);
+  }, []);
+
+  // Clear all in-memory secret keys whenever user signs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSessionKeysByProject({});
+      setNewlyCreatedModalKey(null);
+    }
+  }, [isAuthenticated]);
+
+  const currentSessionKeyInfo = currentProject?.id ? sessionKeysByProject[currentProject.id] || null : null;
+  const latestCreatedKey = currentSessionKeyInfo?.rawKey || null;
 
   const createOrganization = async (name, slug) => {
     try {
@@ -162,8 +208,17 @@ export const ProjectProvider = ({ children }) => {
         description,
         organization_id: currentOrg.id,
       });
-      if (res.data?.api_key) {
-        setLatestCreatedKey(res.data.api_key);
+      const createdProjId = res.data?.project?.id;
+      if (res.data?.api_key && createdProjId) {
+        setProjectSessionKey(createdProjId, {
+          rawKey: res.data.api_key,
+          keyName: 'Default SDK Key',
+        });
+        setNewlyCreatedModalKey({
+          projectId: createdProjId,
+          rawKey: res.data.api_key,
+          keyName: 'Default SDK Key',
+        });
       }
       await fetchProjects(currentOrg.id);
       if (res.data?.project) {
@@ -178,6 +233,10 @@ export const ProjectProvider = ({ children }) => {
   const deleteProject = async (projectId) => {
     try {
       await projectService.delete(projectId);
+      clearProjectSessionKey(projectId);
+      if (newlyCreatedModalKey?.projectId === projectId) {
+        setNewlyCreatedModalKey(null);
+      }
       if (currentProject?.id === projectId) {
         leaveProjectRoom(projectId);
         setCurrentProject(null);
@@ -213,7 +272,19 @@ export const ProjectProvider = ({ children }) => {
           }
         },
         latestCreatedKey,
-        setLatestCreatedKey,
+        currentSessionKeyInfo,
+        newlyCreatedModalKey,
+        dismissNewKeyModal,
+        setProjectSessionKey,
+        clearProjectSessionKey,
+        getProjectSessionKey,
+        setLatestCreatedKey: (rawKey) => {
+          if (rawKey && currentProject?.id) {
+            setProjectSessionKey(currentProject.id, { rawKey });
+          } else if (!rawKey && currentProject?.id) {
+            clearProjectSessionKey(currentProject.id);
+          }
+        },
         selectOrganization,
         selectProject,
         createOrganization,

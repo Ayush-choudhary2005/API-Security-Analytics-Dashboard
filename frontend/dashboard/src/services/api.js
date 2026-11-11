@@ -71,6 +71,37 @@ export const projectService = {
   rotateKey: (projectId, keyId, name) => api.post(`/api/projects/${projectId}/keys/${keyId}/rotate`, { name }),
   regenerateKey: (projectId) => api.post(`/api/projects/${projectId}/keys/regenerate`),
   revokeKey: (projectId, keyId) => api.delete(`/api/projects/${projectId}/keys/${keyId}`),
+  downloadSdk: async (projectId, payload = {}) => {
+    if (!projectId) {
+      throw new Error('Project ID is required to download SDK');
+    }
+    try {
+      const response = await api.post(`/api/projects/${projectId}/download-sdk`, payload, {
+        responseType: 'blob',
+      });
+      const disposition = response.headers?.['content-disposition'] || '';
+      const filenameMatch = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+      const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : `mlo11y-sdk-${projectId}.zip`;
+      return {
+        blob: response.data,
+        filename,
+        keyMode: response.headers?.['x-sdk-key-mode'] || payload.mode || 'template',
+        keyPrefix: response.headers?.['x-sdk-key-prefix'] || 'N/A',
+        keyName: response.headers?.['x-sdk-key-name'] || payload.key_name || '',
+      };
+    } catch (err) {
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          err.response.data = parsed;
+        } catch {
+          // Keep original blob if response is not JSON
+        }
+      }
+      throw err;
+    }
+  },
   downloadSdkUrl: (projectId, params = {}) => {
     if (!projectId) return '#';
     const searchParams = new URLSearchParams();
@@ -85,6 +116,18 @@ export const projectService = {
     return `${API_BASE_URL}/api/projects/${projectId}/download-sdk${qs ? `?${qs}` : ''}`;
   },
 };
+
+export function triggerBlobDownload(blob, filename) {
+  if (typeof window === 'undefined' || !blob) return;
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename || 'mlo11y-sdk.zip';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+}
 
 export const telemetryService = {
   getRecentEvents: (projectId, limit = 50) => api.get(`/events/recent?project_id=${projectId}&limit=${limit}`),

@@ -21,7 +21,8 @@ import {
   Code2,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
-import { projectService, organizationService } from '../../services/api';
+import { projectService, organizationService, triggerBlobDownload } from '../../services/api';
+import { SdkDownloadModal } from '../../components/sdk/SdkDownloadModal';
 
 export const ProjectsPage = () => {
   const {
@@ -30,7 +31,9 @@ export const ProjectsPage = () => {
     projects,
     currentProject,
     latestCreatedKey,
-    setLatestCreatedKey,
+    currentSessionKeyInfo,
+    setProjectSessionKey,
+    clearProjectSessionKey,
     selectOrganization,
     selectProject,
     refreshProjects,
@@ -40,6 +43,9 @@ export const ProjectsPage = () => {
     initialLoading,
   } = useProject();
 
+  const orgRole = (currentOrg?.role || 'owner').toLowerCase();
+  const canManageKeys = orgRole === 'owner' || orgRole === 'admin';
+
   const [activeTab, setActiveTab] = useState('keys'); // 'workspaces', 'keys', 'projects', 'members'
   const [projectKeys, setProjectKeys] = useState([]);
   const [members, setMembers] = useState([]);
@@ -48,15 +54,17 @@ export const ProjectsPage = () => {
   const [pageError, setPageError] = useState(null);
 
   const collectorUrl =
-    typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
-      ? window.location.origin
-      : 'https://api-security-analytics-dashboard-vyfe.onrender.com';
+    import.meta.env.VITE_COLLECTOR_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '');
 
   // New Key modal
   const [newKeyRaw, setNewKeyRaw] = useState(null);
+  const [newKeyLabel, setNewKeyLabel] = useState('');
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState('Developer Key');
   const [keyError, setKeyError] = useState(null);
+  const [downloadingSingleKey, setDownloadingSingleKey] = useState(false);
 
   // Member invite modal
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -67,11 +75,7 @@ export const ProjectsPage = () => {
   // SDK Download configuration modal
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadTargetProject, setDownloadTargetProject] = useState(null);
-  const [downloadOption, setDownloadOption] = useState('new'); // 'session', 'new', 'template', 'paste'
-  const [downloadKeyName, setDownloadKeyName] = useState('SDK Package Key');
-  const [downloadPastedKey, setDownloadPastedKey] = useState('');
-  const [downloadError, setDownloadError] = useState(null);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadInitialOption, setDownloadInitialOption] = useState(undefined);
 
   const fetchKeys = useCallback(async () => {
     if (!currentProject?.id) return;
@@ -112,9 +116,16 @@ export const ProjectsPage = () => {
     setKeyError(null);
     try {
       const res = await projectService.createKey(currentProject.id, newKeyName);
-      const raw = res.data?.key?.raw_key || res.data?.raw_key;
+      const keyObj = res.data?.key || {};
+      const raw = keyObj.raw_key || res.data?.raw_key;
       if (raw) {
         setNewKeyRaw(raw);
+        setNewKeyLabel(keyObj.name || newKeyName);
+        setProjectSessionKey(currentProject.id, {
+          rawKey: raw,
+          keyName: keyObj.name || newKeyName,
+          keyPrefix: keyObj.key_prefix,
+        });
       } else {
         setKeyError('Key provisioned, but raw key secret was not returned.');
       }
@@ -138,10 +149,18 @@ export const ProjectsPage = () => {
     setKeyError(null);
     setPageError(null);
     try {
-      const res = await projectService.rotateKey(currentProject.id, key.id, `${key.name || 'Key'} (Rotated)`);
-      const raw = res.data?.key?.raw_key || res.data?.raw_key;
+      const rotatedName = `${key.name || 'Key'} (Rotated)`;
+      const res = await projectService.rotateKey(currentProject.id, key.id, rotatedName);
+      const keyObj = res.data?.key || {};
+      const raw = keyObj.raw_key || res.data?.raw_key;
       if (raw) {
         setNewKeyRaw(raw);
+        setNewKeyLabel(keyObj.name || rotatedName);
+        setProjectSessionKey(currentProject.id, {
+          rawKey: raw,
+          keyName: keyObj.name || rotatedName,
+          keyPrefix: keyObj.key_prefix,
+        });
         setShowNewKeyModal(true);
       } else {
         setPageError('Key rotated, but raw secret was not returned.');
@@ -163,10 +182,35 @@ export const ProjectsPage = () => {
     setPageError(null);
     try {
       await projectService.revokeKey(currentProject.id, keyId);
+      if (
+        currentSessionKeyInfo?.keyPrefix &&
+        projectKeys.some((k) => k.id === keyId && k.key_prefix === currentSessionKeyInfo.keyPrefix)
+      ) {
+        clearProjectSessionKey(currentProject.id);
+      }
       fetchKeys();
     } catch (err) {
       console.error('Failed to revoke key:', err);
       setPageError(err.response?.data?.error || 'Failed to revoke key.');
+    }
+  };
+
+  const handleDownloadSingleKey = async () => {
+    if (!currentProject?.id || !newKeyRaw) return;
+    setDownloadingSingleKey(true);
+    setKeyError(null);
+    try {
+      const result = await projectService.downloadSdk(currentProject.id, {
+        mode: 'existing',
+        api_key: newKeyRaw,
+        key_name: newKeyLabel || newKeyName,
+      });
+      triggerBlobDownload(result.blob, result.filename);
+    } catch (err) {
+      console.error('Failed to download SDK with new key:', err);
+      setKeyError(err.response?.data?.error || 'Failed to download SDK package.');
+    } finally {
+      setDownloadingSingleKey(false);
     }
   };
 
@@ -178,61 +222,6 @@ export const ProjectsPage = () => {
     const res = await deleteProject(projectId);
     if (!res.success) {
       setPageError(res.error || 'Failed to delete project');
-    }
-  };
-
-  const handleDownloadSdkSubmit = async (e) => {
-    e.preventDefault();
-    const targetProj = downloadTargetProject || currentProject;
-    if (!targetProj?.id) return;
-
-    setDownloadError(null);
-    setDownloading(true);
-
-    try {
-      let downloadUrl = '';
-
-      if (downloadOption === 'session') {
-        if (!latestCreatedKey) {
-          setDownloadError('No active session key available. Please select another option.');
-          setDownloading(false);
-          return;
-        }
-        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { apiKey: latestCreatedKey });
-      } else if (downloadOption === 'paste') {
-        const key = downloadPastedKey.trim();
-        if (!key || !key.startsWith('ask_')) {
-          setDownloadError('Please enter a valid SDK API key starting with ask_');
-          setDownloading(false);
-          return;
-        }
-        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { apiKey: key });
-      } else if (downloadOption === 'template') {
-        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { template: true });
-      } else if (downloadOption === 'new') {
-        const name = downloadKeyName.trim() || 'SDK Package Key';
-        const res = await projectService.createKey(targetProj.id, name);
-        const raw = res.data?.key?.raw_key || res.data?.raw_key;
-        if (!raw) {
-          setDownloadError('Key created, but raw secret was not returned.');
-          setDownloading(false);
-          return;
-        }
-        if (targetProj.id === currentProject?.id) {
-          fetchKeys();
-        }
-        downloadUrl = projectService.downloadSdkUrl(targetProj.id, { apiKey: raw, keyName: name });
-      }
-
-      if (downloadUrl) {
-        window.open(downloadUrl, '_blank');
-        setShowDownloadModal(false);
-      }
-    } catch (err) {
-      console.error('Failed to configure SDK download:', err);
-      setDownloadError(err.response?.data?.error || 'Failed to prepare SDK download');
-    } finally {
-      setDownloading(false);
     }
   };
 
@@ -598,26 +587,37 @@ export const ProjectsPage = () => {
             {/* Active Session Key Banner */}
             {latestCreatedKey && (
               <div className="p-4 rounded-2xl bg-[#C3E88D]/10 border border-[#C3E88D]/30 shadow-xs space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-[#C3E88D] animate-pulse" />
                     <span className="text-xs font-mono font-semibold text-[#C3E88D] uppercase tracking-wider">
-                      Active Provisioned Secret Key in Session
+                      Active Session Key ({currentSessionKeyInfo?.keyName || 'SDK Key'})
                     </span>
                   </div>
-                  <button
-                    onClick={() => copyToClipboard(latestCreatedKey, 'active_session_key')}
-                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#101216] border border-[#2A2E37] text-xs font-mono text-[#E6E8EB] hover:border-[#C3E88D] transition-colors cursor-pointer"
-                  >
-                    {copiedKey === 'active_session_key' ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey === 'active_session_key' ? 'Copied' : 'Copy Key'}</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(latestCreatedKey, 'active_session_key')}
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#101216] border border-[#2A2E37] text-xs font-mono text-[#E6E8EB] hover:border-[#C3E88D] transition-colors cursor-pointer"
+                    >
+                      {copiedKey === 'active_session_key' ? <Check className="w-3.5 h-3.5 text-[#C3E88D]" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'active_session_key' ? 'Copied' : 'Copy Key'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearProjectSessionKey(currentProject?.id)}
+                      className="px-2.5 py-1 rounded bg-[#101216] border border-[#2A2E37] text-xs font-mono text-[#9BA1AC] hover:text-[#F07178] hover:border-[#F07178]/40 transition-colors cursor-pointer"
+                      title="Remove plaintext key from in-memory session state"
+                    >
+                      Clear from Session
+                    </button>
+                  </div>
                 </div>
                 <div className="bg-[#0A0B0D] p-2.5 rounded-lg border border-[#1E2127] font-mono text-xs text-[#C3E88D] break-all select-all">
                   {latestCreatedKey}
                 </div>
                 <p className="text-[11px] text-[#9BA1AC] font-mono">
-                  Copy this key immediately. For security, database stores only SHA-256 hashes; raw keys are never shown again after session expiry.
+                  Scoped to <span className="text-[#E6E8EB]">{currentProject?.name}</span> in memory only. Database stores only SHA-256 hashes; raw keys are never shown again after this session ends.
                 </p>
               </div>
             )}
@@ -710,8 +710,7 @@ export const ProjectsPage = () => {
                     type="button"
                     onClick={() => {
                       setDownloadTargetProject(currentProject);
-                      setDownloadOption(latestCreatedKey ? 'session' : 'new');
-                      setDownloadError(null);
+                      setDownloadInitialOption(canManageKeys ? (latestCreatedKey ? 'session' : 'new') : 'template');
                       setShowDownloadModal(true);
                     }}
                     className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
@@ -720,17 +719,28 @@ export const ProjectsPage = () => {
                     <Download className="w-3.5 h-3.5" />
                     <span>Download SDK (.zip)</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      setNewKeyRaw(null);
-                      setKeyError(null);
-                      setShowNewKeyModal(true);
-                    }}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Create New Key</span>
-                  </button>
+                  {canManageKeys ? (
+                    <button
+                      onClick={() => {
+                        setNewKeyRaw(null);
+                        setNewKeyLabel('');
+                        setKeyError(null);
+                        setShowNewKeyModal(true);
+                      }}
+                      className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-[#0A0B0D] text-xs font-semibold font-mono transition-all duration-200 hover:-translate-y-0.5 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create New Key</span>
+                    </button>
+                  ) : (
+                    <span
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-[#16181D] text-[#7B818B] border border-[#1E2127] text-xs font-mono"
+                      title="Requires Workspace Owner or Admin role to manage keys"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Read-Only ({orgRole})</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -751,7 +761,7 @@ export const ProjectsPage = () => {
                       <tr key={k.id} className="hover:bg-[#16181D]/60 transition-colors">
                         <td className="py-2.5 px-4 text-[#E6E8EB] font-sans font-medium">{k.name}</td>
                         <td className="py-2.5 px-4 text-[#82AAFF]">
-                          {k.key_prefix}...
+                          {k.key_prefix}
                           <button
                             onClick={() => copyToClipboard(k.key_prefix, k.id)}
                             className="ml-2 text-[#7B818B] hover:text-[#E6E8EB] inline-flex align-middle cursor-pointer"
@@ -792,26 +802,32 @@ export const ProjectsPage = () => {
                         </td>
                         <td className="py-2.5 px-4 text-right font-sans">
                           {k.status === 'active' ? (
-                            <div className="inline-flex items-center space-x-2">
-                              <button
-                                onClick={() => handleRotateSingleKey(k)}
-                                disabled={loading}
-                                className="inline-flex items-center space-x-1 text-xs text-[#82AAFF] hover:text-[#9bbdff] hover:underline font-mono cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Rotate this key (revokes current key and provisions a replacement)"
-                              >
-                                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-                                <span>Rotate</span>
-                              </button>
-                              <span className="text-[#2A2E37]">|</span>
-                              <button
-                                onClick={() => handleRevokeKey(k.id)}
-                                disabled={loading}
-                                className="text-xs text-[#F07178] hover:underline font-mono cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Permanently revoke this key"
-                              >
-                                Revoke
-                              </button>
-                            </div>
+                            canManageKeys ? (
+                              <div className="inline-flex items-center space-x-2">
+                                <button
+                                  onClick={() => handleRotateSingleKey(k)}
+                                  disabled={loading}
+                                  className="inline-flex items-center space-x-1 text-xs text-[#82AAFF] hover:text-[#9bbdff] hover:underline font-mono cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Rotate this key (revokes current key and provisions a replacement)"
+                                >
+                                  <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+                                  <span>Rotate</span>
+                                </button>
+                                <span className="text-[#2A2E37]">|</span>
+                                <button
+                                  onClick={() => handleRevokeKey(k.id)}
+                                  disabled={loading}
+                                  className="text-xs text-[#F07178] hover:underline font-mono cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Permanently revoke this key"
+                                >
+                                  Revoke
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-[#7B818B] font-mono" title="Requires Owner or Admin role">
+                                Admin Only
+                              </span>
+                            )
                           ) : (
                             <span className="text-xs text-[#7B818B] font-mono">Revoked</span>
                           )}
@@ -821,19 +837,26 @@ export const ProjectsPage = () => {
                     {projectKeys.length === 0 && (
                       <tr>
                         <td colSpan="6" className="py-8 text-center text-[#7B818B] font-mono">
-                          <span>Zero API keys generated yet.{' '}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setKeyError(null);
-                              setNewKeyRaw(null);
-                              setShowNewKeyModal(true);
-                            }}
-                            className="text-[#C792EA] hover:underline font-semibold cursor-pointer"
-                          >
-                            Click here to create a new key
-                          </button>
-                          <span> to provision an ingestion credential.</span>
+                          {canManageKeys ? (
+                            <>
+                              <span>Zero API keys generated yet.{' '}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setKeyError(null);
+                                  setNewKeyRaw(null);
+                                  setNewKeyLabel('');
+                                  setShowNewKeyModal(true);
+                                }}
+                                className="text-[#C792EA] hover:underline font-semibold cursor-pointer"
+                              >
+                                Click here to create a new key
+                              </button>
+                              <span> to provision an ingestion credential.</span>
+                            </>
+                          ) : (
+                            <span>Zero API keys generated yet. Ask a Workspace Owner or Admin to provision a key.</span>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -916,8 +939,7 @@ export const ProjectsPage = () => {
                         type="button"
                         onClick={() => {
                           setDownloadTargetProject(proj);
-                          setDownloadOption(latestCreatedKey && currentProject?.id === proj.id ? 'session' : 'new');
-                          setDownloadError(null);
+                          setDownloadInitialOption(undefined);
                           setShowDownloadModal(true);
                         }}
                         className="text-xs font-mono text-[#82AAFF] hover:text-[#a0c2ff] inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#16181D] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 hover:-translate-y-0.5 cursor-pointer"
@@ -1062,21 +1084,22 @@ export const ProjectsPage = () => {
                   </button>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-2 border-t border-[#1E2127]">
-                  <a
-                    href={projectService.downloadSdkUrl(currentProject?.id, { apiKey: newKeyRaw })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] text-xs font-semibold text-[#0A0B0D] font-mono transition-colors w-full sm:w-auto justify-center"
+                  <button
+                    type="button"
+                    disabled={downloadingSingleKey}
+                    onClick={handleDownloadSingleKey}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#82AAFF] hover:bg-[#9bbdff] disabled:opacity-50 text-xs font-semibold text-[#0A0B0D] font-mono transition-colors w-full sm:w-auto justify-center cursor-pointer"
                     title="Download SDK preconfigured with this newly generated key"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Download SDK with this Key</span>
-                  </a>
+                    <span>{downloadingSingleKey ? 'Preparing...' : 'Download SDK with this Key'}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
                       setShowNewKeyModal(false);
                       setNewKeyRaw(null);
+                      setNewKeyLabel('');
                       setKeyError(null);
                     }}
                     className="px-4 py-1.5 rounded-full bg-[#C792EA] hover:bg-[#d6a5f5] text-xs font-semibold text-[#0A0B0D] font-mono cursor-pointer transition-colors w-full sm:w-auto text-center"
@@ -1212,212 +1235,14 @@ export const ProjectsPage = () => {
       )}
 
       {/* Modal: SDK Package Download Configuration */}
-      {showDownloadModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowDownloadModal(false);
-              setDownloadError(null);
-            }
-          }}
-        >
-          <div className="bg-[#101216] border border-[#2A2E37] rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-[#1E2127] pb-3">
-              <div className="flex items-center space-x-2 text-[#E6E8EB] font-semibold">
-                <Download className="w-5 h-5 text-[#82AAFF]" />
-                <h3 className="text-sm font-semibold text-[#E6E8EB]">Download Preconfigured SDK Package</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowDownloadModal(false);
-                  setDownloadError(null);
-                }}
-                className="text-[#7B818B] hover:text-[#E6E8EB] p-1 font-mono cursor-pointer text-xs"
-                title="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div>
-              <p className="text-xs text-[#9BA1AC] font-mono">
-                Target Project:{' '}
-                <span className="text-[#82AAFF] font-semibold">
-                  {(downloadTargetProject || currentProject)?.name}
-                </span>{' '}
-                <span className="text-[#7B818B]">
-                  ({(downloadTargetProject || currentProject)?.id})
-                </span>
-              </p>
-              <p className="text-[11px] text-[#7B818B] mt-1 font-mono">
-                Select which credential to bundle into <code className="text-[#82AAFF]">config.py</code> inside the ZIP archive:
-              </p>
-            </div>
-
-            {downloadError && (
-              <div className="p-2.5 rounded bg-[#F07178]/10 border border-[#F07178]/30 text-xs font-mono text-[#F07178] flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{downloadError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleDownloadSdkSubmit} className="space-y-3">
-              <div className="space-y-2.5 font-mono text-xs">
-                {/* Option 1: Active Session Key */}
-                {latestCreatedKey && (
-                  <label
-                    className={`block p-3 rounded-xl border transition-all cursor-pointer ${
-                      downloadOption === 'session'
-                        ? 'bg-[#16181D] border-[#C3E88D] text-[#E6E8EB]'
-                        : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        name="sdkKeyOption"
-                        value="session"
-                        checked={downloadOption === 'session'}
-                        onChange={() => setDownloadOption('session')}
-                        className="text-[#C3E88D] focus:ring-0"
-                      />
-                      <span className="font-semibold text-xs text-[#E6E8EB]">Use Active Session Key</span>
-                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-[#C3E88D]/15 text-[#C3E88D] border border-[#C3E88D]/30 font-semibold">
-                        In Memory
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#7B818B] mt-1 ml-5 truncate font-mono">
-                      Bakes current unhashed secret key ({latestCreatedKey.slice(0, 16)}...) directly into package.
-                    </p>
-                  </label>
-                )}
-
-                {/* Option 2: Generate New Dedicated Key */}
-                <label
-                  className={`block p-3 rounded-xl border transition-all cursor-pointer ${
-                    downloadOption === 'new'
-                      ? 'bg-[#16181D] border-[#82AAFF] text-[#E6E8EB]'
-                      : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="sdkKeyOption"
-                      value="new"
-                      checked={downloadOption === 'new'}
-                      onChange={() => setDownloadOption('new')}
-                      className="text-[#82AAFF] focus:ring-0"
-                    />
-                    <span className="font-semibold text-xs text-[#E6E8EB]">Generate Named Key for this Package</span>
-                  </div>
-                  <p className="text-[11px] text-[#7B818B] mt-1 ml-5">
-                    Provisions a dedicated active key in this project with an explicit label.
-                  </p>
-                  {downloadOption === 'new' && (
-                    <div className="mt-2.5 ml-5">
-                      <input
-                        type="text"
-                        required
-                        value={downloadKeyName}
-                        onChange={(e) => setDownloadKeyName(e.target.value)}
-                        placeholder="e.g. Local Dev Environment SDK"
-                        className="w-full bg-[#0A0B0D] border border-[#2A2E37] focus:border-[#82AAFF] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-                      />
-                    </div>
-                  )}
-                </label>
-
-                {/* Option 3: Clean Template Mode */}
-                <label
-                  className={`block p-3 rounded-xl border transition-all cursor-pointer ${
-                    downloadOption === 'template'
-                      ? 'bg-[#16181D] border-[#C792EA] text-[#E6E8EB]'
-                      : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="sdkKeyOption"
-                      value="template"
-                      checked={downloadOption === 'template'}
-                      onChange={() => setDownloadOption('template')}
-                      className="text-[#C792EA] focus:ring-0"
-                    />
-                    <span className="font-semibold text-xs text-[#E6E8EB]">Zero-Secret Template (Environment Variables)</span>
-                    <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-[#C792EA]/15 text-[#C792EA] border border-[#C792EA]/30 font-semibold">
-                      Recommended
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#7B818B] mt-1 ml-5">
-                    No plaintext key in zip. Package reads <code className="text-[#82AAFF]">SECURITY_SDK_API_KEY</code> from system environment at runtime.
-                  </p>
-                </label>
-
-                {/* Option 4: Paste Existing Secret */}
-                <label
-                  className={`block p-3 rounded-xl border transition-all cursor-pointer ${
-                    downloadOption === 'paste'
-                      ? 'bg-[#16181D] border-[#C3E88D] text-[#E6E8EB]'
-                      : 'bg-[#101216] border-[#1E2127] hover:border-[#2A2E37] text-[#9BA1AC]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      name="sdkKeyOption"
-                      value="paste"
-                      checked={downloadOption === 'paste'}
-                      onChange={() => setDownloadOption('paste')}
-                      className="text-[#C3E88D] focus:ring-0"
-                    />
-                    <span className="font-semibold text-xs text-[#E6E8EB]">Paste Existing Key Secret</span>
-                  </div>
-                  <p className="text-[11px] text-[#7B818B] mt-1 ml-5">
-                    Paste a key secret you previously copied and saved.
-                  </p>
-                  {downloadOption === 'paste' && (
-                    <div className="mt-2.5 ml-5">
-                      <input
-                        type="text"
-                        required
-                        value={downloadPastedKey}
-                        onChange={(e) => setDownloadPastedKey(e.target.value)}
-                        placeholder="ask_proj_..."
-                        className="w-full bg-[#0A0B0D] border border-[#2A2E37] focus:border-[#C3E88D] rounded px-3 py-1.5 text-xs text-[#E6E8EB] focus:outline-none transition-colors"
-                      />
-                    </div>
-                  )}
-                </label>
-              </div>
-
-              <div className="flex justify-end space-x-2.5 pt-3 border-t border-[#1E2127]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowDownloadModal(false);
-                    setDownloadError(null);
-                  }}
-                  className="px-3.5 py-1.5 text-xs text-[#9BA1AC] hover:text-[#E6E8EB] rounded cursor-pointer transition-colors font-mono"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={downloading}
-                  className="inline-flex items-center space-x-1.5 px-4 py-1.5 text-xs bg-[#82AAFF] hover:bg-[#9bbdff] text-[#0A0B0D] font-semibold font-mono rounded-full cursor-pointer transition-colors disabled:opacity-50"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{downloading ? 'Preparing Package...' : 'Download Package (.zip)'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <SdkDownloadModal
+        isOpen={showDownloadModal}
+        onClose={() => setShowDownloadModal(false)}
+        targetProject={downloadTargetProject || currentProject}
+        canManageKeys={canManageKeys}
+        initialOption={downloadInitialOption}
+        onKeysUpdated={fetchKeys}
+      />
     </div>
   );
 };
