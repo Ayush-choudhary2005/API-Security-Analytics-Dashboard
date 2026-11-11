@@ -153,4 +153,11 @@ export const chainService = {
     api.get('/api/chains', { params: { project_id: projectId, ...params } }),
 };
 
+export const simulatorService = {
+  launch: (projectId, data) =>
+    api.post('/api/simulate', { project_id: projectId, ...data }),
+  getStatus: (projectId) =>
+    api.get('/api/simulate/status', { params: { project_id: projectId } }),
+};
+
 export default api;
