@@ -13,6 +13,7 @@ import uuid
 import secrets
 import hashlib
 import re
+from collections import Counter
 from threading import Lock
 from werkzeug.security import generate_password_hash
 
@@ -1510,9 +1511,25 @@ def _compute_attack_distribution(rows) -> dict:
     return stats
 
 
+def _is_simulated_row(row) -> bool:
+    """Return True if an event row carries metadata.simulated == True (dialect-safe)."""
+    meta = row["metadata"] if isinstance(row, (dict, sqlite3.Row)) else getattr(row, "metadata", None)
+    if not meta:
+        return False
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            return False
+    if isinstance(meta, dict):
+        return bool(meta.get("simulated"))
+    return False
+
+
 def get_alert_stats(tenant_id: str = "default", window_hours: float = None):
     """
     Returns total events, total alerts, max anomaly score, and attack distribution scoped to project.
+    Excludes simulated Red Team events (metadata.simulated == True).
     Optionally window-filtered if window_hours is provided.
     """
     conn = get_conn()
@@ -1525,48 +1542,26 @@ def get_alert_stats(tenant_id: str = "default", window_hours: float = None):
             time_filter = " AND timestamp >= ?"
             params_base.append(now - window_sec)
 
-        # 1. Total events count in scope
-        total_events_row = conn.execute(
-            f"SELECT COUNT(*) as c FROM events WHERE (project_id = ? OR tenant_id = ?){time_filter}",
-            tuple(params_base)
-        ).fetchone()
-        total_events = total_events_row["c"] if total_events_row else 0
-
-        # 2. Total alerts (non-low severity) and max anomaly score in scope
-        summary_row = conn.execute(
+        order_col = "timestamp DESC" if time_filter else "id DESC"
+        all_rows = conn.execute(
             f"""
-            SELECT COUNT(*) as alert_count, COALESCE(MAX(anomaly_score), 0.0) as max_anomaly
-            FROM events 
-            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low'{time_filter}
+            SELECT rule_flags, severity, anomaly_score, attack_type, metadata
+            FROM events
+            WHERE (project_id = ? OR tenant_id = ?){time_filter}
+            ORDER BY {order_col}
             """,
-            tuple(params_base)
-        ).fetchone()
-        total_alerts = summary_row["alert_count"] if summary_row else 0
-        max_anomaly = float(summary_row["max_anomaly"]) if summary_row else 0.0
+            tuple(params_base),
+        ).fetchall()
 
-        # 3. Categorized attack distribution
-        if window_hours is not None and float(window_hours) > 0:
-            rows = conn.execute(
-                f"""
-                SELECT rule_flags, severity, anomaly_score, attack_type 
-                FROM events 
-                WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low'{time_filter}
-                ORDER BY timestamp DESC LIMIT 1000
-                """,
-                tuple(params_base)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT rule_flags, severity, anomaly_score, attack_type 
-                FROM events 
-                WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
-                ORDER BY id DESC LIMIT 500
-                """,
-                (tenant_id, tenant_id),
-            ).fetchall()
+        non_sim_rows = [r for r in all_rows if not _is_simulated_row(r)]
+        total_events = len(non_sim_rows)
 
-        stats = _compute_attack_distribution(rows)
+        alert_rows = [r for r in non_sim_rows if r["severity"] != "low"]
+        total_alerts = len(alert_rows)
+        max_anomaly = max((float(r["anomaly_score"] or 0.0) for r in alert_rows), default=0.0)
+
+        dist_limit = 1000 if (window_hours is not None and float(window_hours) > 0) else 500
+        stats = _compute_attack_distribution(alert_rows[:dist_limit])
         # Keep top-level keys for test assertion backwards compatibility, and include attack_distribution key for dashboard charts
         stats["attack_distribution"] = {
             "brute_force": stats["brute_force"],
@@ -1606,53 +1601,62 @@ def get_events_since(ip: str, since_timestamp: float, tenant_id: str = None):
 
 
 def get_all_events_count(tenant_id: str = "default"):
-    """Total event count for a project/tenant."""
+    """Total non-simulated event count for a project/tenant."""
     conn = get_conn()
-    count = conn.execute(
-        "SELECT COUNT(*) as c FROM events WHERE project_id = ? OR tenant_id = ?",
-        (tenant_id, tenant_id),
-    ).fetchone()["c"]
-    conn.close()
-    return count
+    try:
+        rows = conn.execute(
+            "SELECT metadata FROM events WHERE project_id = ? OR tenant_id = ?",
+            (tenant_id, tenant_id),
+        ).fetchall()
+        return sum(1 for r in rows if not _is_simulated_row(r))
+    finally:
+        conn.close()
 
 
 def get_historical_stats(tenant_id: str = "default", window_hours: float = 1.0):
     """
     Fetches aggregated historical data for the analytics and overview dashboard tabs scoped to project.
+    Excludes simulated Red Team events (metadata.simulated == True).
     Generates contiguous, zero-filled, chronologically ordered time buckets with request counts,
     anomalies, and authentic latency statistics (mean + p95).
     """
     conn = get_conn()
     try:
-        top_endpoints = conn.execute(
+        alert_meta_rows = conn.execute(
             """
-            SELECT endpoint, count(*) as count 
-            FROM events 
-            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
-            GROUP BY endpoint ORDER BY count DESC LIMIT 5
+            SELECT endpoint, ip, metadata
+            FROM events
+            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low'
             """,
             (tenant_id, tenant_id),
         ).fetchall()
 
-        top_ips = conn.execute(
-            """
-            SELECT ip, count(*) as count 
-            FROM events 
-            WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' 
-            GROUP BY ip ORDER BY count DESC LIMIT 5
-            """,
-            (tenant_id, tenant_id),
-        ).fetchall()
+        endpoint_counts = Counter()
+        ip_counts = Counter()
+        for r in alert_meta_rows:
+            if _is_simulated_row(r):
+                continue
+            if r["endpoint"]:
+                endpoint_counts[r["endpoint"]] += 1
+            if r["ip"]:
+                ip_counts[r["ip"]] += 1
+
+        top_endpoints = [{"endpoint": ep, "count": cnt} for ep, cnt in endpoint_counts.most_common(5)]
+        top_ips = [{"ip": ip_addr, "count": cnt} for ip_addr, cnt in ip_counts.most_common(5)]
 
         now = time.time()
         window_sec = max(600, int(float(window_hours) * 3600))
 
-        # Check latest event timestamp so testing data recorded earlier is accurately framed
-        max_row = conn.execute(
-            "SELECT max(timestamp) as max_ts FROM events WHERE (project_id = ? OR tenant_id = ?)",
-            (tenant_id, tenant_id)
-        ).fetchone()
-        latest_ts = max_row["max_ts"] if max_row and max_row["max_ts"] else None
+        # Check latest non-simulated event timestamp so testing data recorded earlier is accurately framed
+        ts_rows = conn.execute(
+            "SELECT timestamp, metadata FROM events WHERE (project_id = ? OR tenant_id = ?) ORDER BY timestamp DESC",
+            (tenant_id, tenant_id),
+        ).fetchall()
+        latest_ts = None
+        for r in ts_rows:
+            if not _is_simulated_row(r) and r["timestamp"] is not None:
+                latest_ts = r["timestamp"]
+                break
 
         anchor_end = now
         if latest_ts and (now - latest_ts) > window_sec:
@@ -1676,8 +1680,8 @@ def get_historical_stats(tenant_id: str = "default", window_hours: float = 1.0):
         # Query events in this active window
         events_in_window = conn.execute(
             """
-            SELECT timestamp, latency_ms, severity 
-            FROM events 
+            SELECT timestamp, latency_ms, severity, metadata
+            FROM events
             WHERE (project_id = ? OR tenant_id = ?) AND timestamp >= ? AND timestamp <= ?
             ORDER BY timestamp ASC
             """,
@@ -1704,8 +1708,10 @@ def get_historical_stats(tenant_id: str = "default", window_hours: float = 1.0):
             }
             curr += bucket_size
 
-        # Aggregate events into buckets
+        # Aggregate non-simulated events into buckets
         for r in events_in_window:
+            if _is_simulated_row(r):
+                continue
             ts = r["timestamp"]
             b_key = int(ts // bucket_size) * bucket_size
             if b_key in buckets:
@@ -1744,19 +1750,20 @@ def get_historical_stats(tenant_id: str = "default", window_hours: float = 1.0):
             })
 
         # Query non-low severity events within active window to compute window-scoped attack distribution
-        window_threats = conn.execute(
+        window_threats_raw = conn.execute(
             """
-            SELECT rule_flags, severity, anomaly_score, attack_type
+            SELECT rule_flags, severity, anomaly_score, attack_type, metadata
             FROM events
             WHERE (project_id = ? OR tenant_id = ?) AND severity != 'low' AND timestamp >= ? AND timestamp <= ?
             """,
             (tenant_id, tenant_id, anchor_start, anchor_end)
         ).fetchall()
+        window_threats = [r for r in window_threats_raw if not _is_simulated_row(r)]
         window_attack_dist = _compute_attack_distribution(window_threats)
 
         return {
-            "top_endpoints": [{"endpoint": r["endpoint"], "count": r["count"]} for r in top_endpoints],
-            "top_ips": [{"ip": r["ip"], "count": r["count"]} for r in top_ips],
+            "top_endpoints": top_endpoints,
+            "top_ips": top_ips,
             "timeline": timeline,
             "attack_distribution": window_attack_dist,
             "window": f"{int(window_sec / 3600)}h" if window_sec >= 3600 else f"{int(window_sec / 60)}m"

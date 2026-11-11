@@ -1905,6 +1905,123 @@ def delete_provider_integration_route(project_id, provider):
 # Telemetry Ingestion (Called by SDK via Bearer API Key)
 # ---------------------------------------------------------
 
+def _execute_ingest_pipeline(project_id: str, raw_payload: dict, remote_addr: str = "127.0.0.1") -> Tuple[dict, int]:
+    """
+    Core telemetry validation, rate-limiting, ML scoring, persistence, WebSocket
+    broadcast, and kill-chain correlation pipeline shared by /ingest and simulator.
+    """
+    is_valid, err_msg, event = ingestion.validate_and_sanitize_event(
+        raw_payload,
+        project_id=project_id,
+        remote_addr=remote_addr,
+    )
+    if not is_valid:
+        return {"error": "Bad Request", "message": err_msg}, 400
+
+    # Replay & Duplicate Event Detection (Sliding Window LRU + TTL)
+    dedup_fingerprint = f"{project_id}:{event['event_id']}"
+    if ingestion.dedup_cache.is_duplicate(dedup_fingerprint):
+        return {
+            "status": "duplicate_ignored",
+            "message": "Telemetry event already processed",
+            "event_id": event["event_id"],
+        }, 202
+
+    # Safe Execution Pipeline — Never Expose Internal Server Errors
+    try:
+        ip = event["ip"]
+        rate_status = rate_limiter.record_request(ip, project_id=project_id)
+        room_name = f"project_{project_id}"
+
+        if rate_status.get("blocked"):
+            if rate_status.get("auto_blocked"):
+                try:
+                    socketio.emit(f'ip_blocked_{project_id}', {
+                        "ip": ip,
+                        "reason": rate_status["reason"],
+                        "project_id": project_id,
+                    }, room=room_name)
+                    socketio.emit('ip_blocked', {
+                        "ip": ip,
+                        "reason": rate_status["reason"],
+                        "project_id": project_id,
+                    }, room=room_name)
+                except Exception:
+                    pass
+            return {"error": "rate limited", "detail": rate_status}, 429
+
+        # Warn dashboard if IP is approaching the limit
+        if rate_status.get("warning"):
+            try:
+                socketio.emit(f'ip_warning_{project_id}', {
+                    "ip": ip,
+                    "count": rate_status["count"],
+                    "limit": rate_status["limit"],
+                    "project_id": project_id,
+                }, room=room_name)
+                socketio.emit('ip_warning', {
+                    "ip": ip,
+                    "count": rate_status["count"],
+                    "limit": rate_status["limit"],
+                    "project_id": project_id,
+                }, room=room_name)
+            except Exception:
+                pass
+
+        # Run detection inline (feature computation + rules + score + fusion)
+        scored_event = detection.score_event(event)
+
+        event_id = db.insert_event(scored_event)
+        scored_event["id"] = event_id
+
+        # Push to dashboard via WebSocket (strictly scoped to project room)
+        try:
+            socketio.emit(f'new_event_{project_id}', scored_event, room=room_name)
+            socketio.emit('new_event', scored_event, room=room_name)
+            socketio.emit(f'onboarding_telemetry_{project_id}', {
+                "status": "received",
+                "project_id": project_id,
+                "event": scored_event,
+            }, room=room_name)
+        except Exception:
+            # WebSocket failure must never fail ingestion
+            pass
+
+        is_simulated = bool((scored_event.get("metadata") or {}).get("simulated"))
+
+        # If it's an alert (medium or high) and NOT suppressed by cooldown, dispatch alert notifications
+        if scored_event.get("severity") in ("medium", "high") and not scored_event.get("alert_suppressed"):
+            try:
+                socketio.emit(f'new_alert_{project_id}', scored_event, room=room_name)
+                socketio.emit('new_alert', scored_event, room=room_name)
+            except Exception:
+                pass
+
+            # Never spam external Slack/Discord/Email webhooks for simulated Red Team traffic
+            if not is_simulated:
+                try:
+                    notification_service.dispatch_project_alerts(
+                        scored_event, project_id=project_id, sender_fn=webhook.send_alert
+                    )
+                except Exception:
+                    # External notification failures must never impede detection
+                    pass
+
+        # Kill Chain Stitching — correlate alerts and post-attack Initial Access into a multi-stage chain
+        try:
+            chain = attack_correlator.correlate(scored_event, db)
+            if chain:
+                socketio.emit(f'chain_update_{project_id}', chain, room=room_name)
+        except Exception:
+            pass
+
+        return scored_event, 201
+
+    except Exception:
+        # Never expose internal errors or tracebacks
+        return {"error": "Internal server error"}, 500
+
+
 @app.route("/ingest", methods=["POST"])
 def ingest():
     # 1. Prevent oversized payloads (64KB max)
@@ -1943,109 +2060,10 @@ def ingest():
     if raw_payload is None or not isinstance(raw_payload, dict):
         return jsonify({"error": "Bad Request", "message": "Invalid or missing JSON object in request body"}), 400
 
-    # 5. Schema Validation & Data Loss Prevention (Redaction & Field Whitelisting)
+    # 5-7. Run shared validation, deduplication, rate-limiting, ML scoring, storage, and notifications
     remote_ip = get_client_ip()
-
-    is_valid, err_msg, event = ingestion.validate_and_sanitize_event(
-        raw_payload,
-        project_id=project_id,
-        remote_addr=remote_ip
-    )
-    if not is_valid:
-        return jsonify({"error": "Bad Request", "message": err_msg}), 400
-
-    # 6. Replay & Duplicate Event Detection (Sliding Window LRU + TTL)
-    dedup_fingerprint = f"{project_id}:{event['event_id']}"
-    if ingestion.dedup_cache.is_duplicate(dedup_fingerprint):
-        return jsonify({
-            "status": "duplicate_ignored",
-            "message": "Telemetry event already processed",
-            "event_id": event["event_id"]
-        }), 202
-
-    # 7. Safe Execution Pipeline — Never Expose Internal Server Errors
-    try:
-        # Check rate limiter — block abusive end-user IPs for this project
-        ip = event["ip"]
-        rate_status = rate_limiter.record_request(ip, project_id=project_id)
-        room_name = f"project_{project_id}"
-
-        if rate_status.get("blocked"):
-            if rate_status.get("auto_blocked"):
-                socketio.emit(f'ip_blocked_{project_id}', {
-                    "ip": ip,
-                    "reason": rate_status["reason"],
-                    "project_id": project_id
-                }, room=room_name)
-                socketio.emit('ip_blocked', {
-                    "ip": ip,
-                    "reason": rate_status["reason"],
-                    "project_id": project_id
-                }, room=room_name)
-            return jsonify({"error": "rate limited", "detail": rate_status}), 429
-
-        # Warn dashboard if IP is approaching the limit
-        if rate_status.get("warning"):
-            socketio.emit(f'ip_warning_{project_id}', {
-                "ip": ip,
-                "count": rate_status["count"],
-                "limit": rate_status["limit"],
-                "project_id": project_id
-            }, room=room_name)
-            socketio.emit('ip_warning', {
-                "ip": ip,
-                "count": rate_status["count"],
-                "limit": rate_status["limit"],
-                "project_id": project_id
-            }, room=room_name)
-
-        # Run detection inline (feature computation + rules + score + fusion)
-        scored_event = detection.score_event(event)
-
-        event_id = db.insert_event(scored_event)
-        scored_event["id"] = event_id
-
-        # Push to dashboard via WebSocket (strictly scoped to project room)
-        try:
-            socketio.emit(f'new_event_{project_id}', scored_event, room=room_name)
-            socketio.emit('new_event', scored_event, room=room_name)
-            socketio.emit(f'onboarding_telemetry_{project_id}', {
-                "status": "received",
-                "project_id": project_id,
-                "event": scored_event
-            }, room=room_name)
-        except Exception as ws_err:
-            # WebSocket failure must never fail ingestion
-            pass
-
-        # If it's an alert (medium or high) and NOT suppressed by cooldown, dispatch alert notifications
-        if scored_event.get("severity") in ("medium", "high") and not scored_event.get("alert_suppressed"):
-            try:
-                socketio.emit(f'new_alert_{project_id}', scored_event, room=room_name)
-                socketio.emit('new_alert', scored_event, room=room_name)
-            except Exception as ws_alert_err:
-                pass
-
-            # Dispatch automated alerts across all active project integrations via NotificationService
-            try:
-                notification_service.dispatch_project_alerts(scored_event, project_id=project_id, sender_fn=webhook.send_alert)
-            except Exception as hook_err:
-                # External notification failures must never impede detection
-                pass
-
-        # Kill Chain Stitching — correlate alerts and post-attack Initial Access into a multi-stage chain
-        try:
-            chain = attack_correlator.correlate(scored_event, db)
-            if chain:
-                socketio.emit(f'chain_update_{project_id}', chain, room=room_name)
-        except Exception:
-            pass
-
-        return jsonify(scored_event), 201
-
-    except Exception:
-        # Never expose internal errors or tracebacks
-        return jsonify({"error": "Internal server error"}), 500
+    body, status_code = _execute_ingest_pipeline(project_id, raw_payload, remote_ip)
+    return jsonify(body), status_code
 
 
 @app.route("/api/webhook_test", methods=["POST"])
