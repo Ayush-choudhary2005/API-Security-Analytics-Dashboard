@@ -454,6 +454,7 @@ def apply_security_headers(response):
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key, X-Requested-With, X-CSRF-Protection, X-CSRF-Token"
+        response.headers["Access-Control-Expose-Headers"] = "Content-Disposition, X-SDK-Key-Mode, X-SDK-Key-Prefix, X-SDK-Key-Name"
 
     # Transport security adaptation for HTTPS proxies
     cookie_secure = bool(app.config.get("SESSION_COOKIE_SECURE")) or bool(request.is_secure)
@@ -1199,6 +1200,13 @@ def list_projects():
     return jsonify({"projects": projects}), 200
 
 
+def _no_store(response):
+    """Prevent browser and intermediary caching of responses containing SDK secrets."""
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.route("/api/projects", methods=["POST"])
 @login_required
 def create_project_route():
@@ -1222,7 +1230,9 @@ def create_project_route():
         return jsonify({"error": str(ve)}), 400
 
     key_info = db.create_api_key(proj["id"], name="Default SDK Key")
-    return jsonify({"project": proj, "api_key": key_info["raw_key"]}), 201
+    resp = jsonify({"project": proj, "api_key": key_info["raw_key"]})
+    resp.status_code = 201
+    return _no_store(resp)
 
 
 @app.route("/api/projects/<project_id>", methods=["GET"])
@@ -1278,10 +1288,14 @@ def get_project_keys(project_id):
 def create_project_key(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
+    if not db.user_has_project_role(g.current_user["id"], project_id, ("owner", "admin")):
+        return jsonify({"error": "Forbidden: only workspace owners and admins can manage SDK keys"}), 403
     data = request.get_json(silent=True) or {}
     name = data.get("name", "New SDK Key").strip() or "New SDK Key"
     key_info = db.create_api_key(project_id, name=name)
-    return jsonify({"key": key_info}), 201
+    resp = jsonify({"key": key_info})
+    resp.status_code = 201
+    return _no_store(resp)
 
 
 @app.route("/api/projects/<project_id>/keys/<int:key_id>", methods=["DELETE"])
@@ -1290,6 +1304,8 @@ def create_project_key(project_id):
 def revoke_project_key(project_id, key_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
+    if not db.user_has_project_role(g.current_user["id"], project_id, ("owner", "admin")):
+        return jsonify({"error": "Forbidden: only workspace owners and admins can revoke SDK keys"}), 403
     ok = db.revoke_api_key(key_id, project_id)
     return jsonify({"success": ok}), 200
 
@@ -1299,12 +1315,16 @@ def revoke_project_key(project_id, key_id):
 def rotate_individual_project_key(project_id, key_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
+    if not db.user_has_project_role(g.current_user["id"], project_id, ("owner", "admin")):
+        return jsonify({"error": "Forbidden: only workspace owners and admins can rotate SDK keys"}), 403
     data = request.get_json(silent=True) or {}
     name = data.get("name")
     key_info = db.rotate_single_api_key(key_id, project_id, new_name=name)
     if not key_info:
         return jsonify({"error": "Key not found"}), 404
-    return jsonify({"key": key_info, "message": "API key rotated successfully"}), 201
+    resp = jsonify({"key": key_info, "message": "API key rotated successfully"})
+    resp.status_code = 201
+    return _no_store(resp)
 
 
 @app.route("/api/projects/<project_id>/keys/regenerate", methods=["POST"])
@@ -1312,6 +1332,8 @@ def rotate_individual_project_key(project_id, key_id):
 def regenerate_project_key(project_id):
     if not db.user_owns_project(g.current_user["id"], project_id):
         return jsonify({"error": "Forbidden: access denied"}), 403
+    if not db.user_has_project_role(g.current_user["id"], project_id, ("owner", "admin")):
+        return jsonify({"error": "Forbidden: only workspace owners and admins can regenerate SDK keys"}), 403
 
     # Phase 3 Re-Auth: Verify fresh session (<5 min) or password re-entry
     is_fresh, reauth_err = verify_fresh_authentication(max_age_seconds=300)
@@ -1321,49 +1343,13 @@ def regenerate_project_key(project_id):
     data = request.get_json(silent=True) or {}
     name = data.get("name", "Regenerated SDK Key").strip() or "Regenerated SDK Key"
     key_info = db.regenerate_api_key(project_id, name=name)
-    return jsonify({"key": key_info, "message": "API key regenerated successfully"}), 201
+    resp = jsonify({"key": key_info, "message": "API key regenerated successfully"})
+    resp.status_code = 201
+    return _no_store(resp)
 
 
-@app.route("/api/projects/<project_id>/download-sdk", methods=["GET"])
-@app.route("/api/projects/<project_id>/sdk/download", methods=["GET"])
-@login_required
-def download_sdk(project_id):
-    if not db.user_owns_project(g.current_user["id"], project_id):
-        return jsonify({"error": "Forbidden: access denied"}), 403
-
-    proj = db.get_project_by_id(project_id)
-    if not proj:
-        return jsonify({"error": "Project not found"}), 404
-
-    # Key selection logic:
-    raw_key = request.args.get("api_key")
-    key_name = request.args.get("key_name", "").strip()
-    is_template = request.args.get("template", "").lower() in ("1", "true", "yes")
-
-    key_prefix_display = "N/A"
-    config_note = ""
-
-    if is_template:
-        raw_key = "<YOUR_SDK_KEY>"
-        key_name = "Environment Variable Template (No Key Provisioned)"
-        config_note = "Template mode: Set SECURITY_SDK_API_KEY in your environment"
-    elif raw_key:
-        validated_proj_id = db.verify_api_key(raw_key)
-        if validated_proj_id != project_id:
-            return jsonify({"error": "Forbidden: Provided api_key does not belong to this project"}), 403
-        key_prefix_display = raw_key[:16] + "..."
-        key_name = key_name or "Active Specified Key"
-        config_note = f"Configured with key prefix: {key_prefix_display} ({key_name})"
-    else:
-        # If no key was specified, check if generate_key=1 or explicit key_name was requested
-        if not key_name:
-            active_keys = [k for k in db.list_api_keys_for_project(project_id) if not k.get("revoked_at")]
-            key_name = "SDK Download Key" if active_keys else "SDK Preconfigured Key"
-        key_info = db.create_api_key(project_id, name=key_name)
-        raw_key = key_info["raw_key"]
-        key_prefix_display = raw_key[:16] + "..."
-        config_note = f"Provisioned Key: {key_name} ({key_prefix_display})"
-
+def _build_sdk_zip_response(proj: dict, mode: str, raw_key: str, key_name: str, key_prefix_display: str, config_note: str):
+    """Assemble the preconfigured SDK ZIP archive and attach no-store + metadata headers."""
     sdk_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk"))
     collector_url = request.host_url.rstrip("/")
 
@@ -1509,12 +1495,76 @@ SecurityMiddleware(app)
     buf.seek(0)
 
     zip_filename = f"mlo11y-sdk-{proj['id']}.zip"
-    return send_file(
+    response = send_file(
         buf,
         mimetype="application/zip",
         as_attachment=True,
         download_name=zip_filename
     )
+    response.headers["X-SDK-Key-Mode"] = mode
+    response.headers["X-SDK-Key-Prefix"] = key_prefix_display
+    response.headers["X-SDK-Key-Name"] = key_name
+    return _no_store(response)
+
+
+@app.route("/api/projects/<project_id>/download-sdk", methods=["GET", "POST"])
+@app.route("/api/projects/<project_id>/sdk/download", methods=["GET", "POST"])
+@login_required
+def download_sdk(project_id):
+    if not db.user_owns_project(g.current_user["id"], project_id):
+        return jsonify({"error": "Forbidden: access denied"}), 403
+
+    proj = db.get_project_by_id(project_id)
+    if not proj:
+        return jsonify({"error": "Project not found"}), 404
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        mode = str(data.get("mode", "")).strip().lower()
+        raw_key = str(data.get("api_key") or "").strip()
+        key_name = str(data.get("key_name") or "").strip()
+        is_template = bool(data.get("template")) or mode == "template"
+        if not mode:
+            mode = "template" if is_template else ("existing" if raw_key else "new")
+        if mode not in ("template", "existing", "new"):
+            return jsonify({"error": "Invalid SDK download mode. Expected 'template', 'existing', or 'new'."}), 400
+        if mode == "existing" and not raw_key:
+            return jsonify({"error": "api_key is required when mode is 'existing'"}), 400
+    else:
+        raw_key = (request.args.get("api_key") or "").strip()
+        key_name = (request.args.get("key_name") or "").strip()
+        is_template = request.args.get("template", "").lower() in ("1", "true", "yes")
+        mode = "template" if is_template else ("existing" if raw_key else "new")
+
+    if mode != "template" and not db.user_has_project_role(g.current_user["id"], project_id, ("owner", "admin")):
+        return jsonify({
+            "error": "Forbidden: only workspace owners and admins can download preconfigured secret keys; use template mode instead."
+        }), 403
+
+    key_prefix_display = "N/A"
+    config_note = ""
+
+    if mode == "template":
+        raw_key = "<YOUR_SDK_KEY>"
+        key_name = "Environment Variable Template (No Key Provisioned)"
+        config_note = "Template mode: Set SECURITY_SDK_API_KEY in your environment"
+    elif mode == "existing":
+        validated_proj_id = db.verify_api_key(raw_key)
+        if validated_proj_id != project_id:
+            return jsonify({"error": "Forbidden: Provided api_key does not belong to this project"}), 403
+        key_prefix_display = db.format_key_prefix(raw_key)
+        key_name = key_name or "Active Specified Key"
+        config_note = f"Configured with key prefix: {key_prefix_display} ({key_name})"
+    else:
+        if not key_name:
+            active_keys = [k for k in db.list_api_keys_for_project(project_id) if not k.get("revoked_at")]
+            key_name = "SDK Download Key" if active_keys else "SDK Preconfigured Key"
+        key_info = db.create_api_key(project_id, name=key_name)
+        raw_key = key_info["raw_key"]
+        key_prefix_display = key_info["key_prefix"]
+        config_note = f"Provisioned Key: {key_name} ({key_prefix_display})"
+
+    return _build_sdk_zip_response(proj, mode, raw_key, key_name, key_prefix_display, config_note)
 
 
 # ---------------------------------------------------------

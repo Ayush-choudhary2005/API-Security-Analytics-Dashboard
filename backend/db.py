@@ -933,6 +933,49 @@ def user_owns_project(user_id: str, project_id: str) -> bool:
     return user_has_project_access(user_id, project_id)
 
 
+def get_user_project_role(user_id: str, project_id: str) -> str:
+    """
+    Return the user's effective role ('owner', 'admin', 'member', 'viewer')
+    for the project's organization, or None if the user has no access.
+    """
+    if not user_id or not project_id:
+        return None
+
+    effective_pid = "proj_demo_default" if project_id in ("phase1-demo-token", "default") else project_id
+    conn = get_conn()
+    proj = conn.execute(
+        "SELECT organization_id, user_id FROM projects WHERE id = ?",
+        (effective_pid,),
+    ).fetchone()
+    if not proj:
+        conn.close()
+        return None
+
+    org_id = proj["organization_id"]
+    if org_id:
+        row_org = conn.execute(
+            "SELECT role FROM organization_members WHERE organization_id = ? AND user_id = ?",
+            (org_id, user_id),
+        ).fetchone()
+        if row_org and row_org["role"]:
+            conn.close()
+            return str(row_org["role"]).strip().lower()
+
+    # Fallback for legacy/direct projects without an organization membership row
+    is_direct_owner = (proj["user_id"] == user_id)
+    conn.close()
+    return "owner" if is_direct_owner else None
+
+
+def user_has_project_role(user_id: str, project_id: str, allowed_roles) -> bool:
+    """Enforce RBAC role check for mutating project and SDK credential operations."""
+    role = get_user_project_role(user_id, project_id)
+    if not role:
+        return False
+    normalized = {str(r).strip().lower() for r in allowed_roles}
+    return role in normalized
+
+
 def delete_project(user_id: str, project_id: str) -> tuple:
     """
     Delete a project if the user has authorized access in that organization.
@@ -968,6 +1011,13 @@ def delete_project(user_id: str, project_id: str) -> tuple:
 # API Key Operations
 # ---------------------------------------------------------
 
+def format_key_prefix(raw_key: str) -> str:
+    """Format a consistent, distinguishing display prefix for an SDK key."""
+    if not raw_key:
+        return "N/A"
+    return raw_key[:25] + "..." if len(raw_key) > 25 else raw_key
+
+
 def create_api_key(project_id: str, name: str = "Default Key", raw_key: str = None) -> dict:
     """
     Generate an API key for a project. Returns the raw key once for display.
@@ -978,7 +1028,7 @@ def create_api_key(project_id: str, name: str = "Default Key", raw_key: str = No
         clean_pid = project_id.replace("proj_", "")
         random_secret = secrets.token_hex(16)
         raw_key = f"ask_{clean_pid}_{random_secret}"
-    key_prefix = raw_key[:18] + "..." if len(raw_key) > 18 else raw_key
+    key_prefix = format_key_prefix(raw_key)
     key_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
     now = time.time()
 
