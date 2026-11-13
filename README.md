@@ -536,6 +536,84 @@ The dashboard features a dedicated Kill Chain interface (`/app/chains`):
 
 ---
 
+## In-Dashboard Red Team Simulator (Active Adversary Emulation)
+
+The platform includes an integrated **Red Team Simulator** (`backend/simulator.py` and `frontend/dashboard/src/components/RedTeamPanel.jsx`) embedded directly into the **Live Stream** monitoring console (`/app/live`). Security operators can fire controlled attack vectors against their project with a single click and observe the ML detection engine, deterministic rule evaluation, rate limiters, WebSocket streams, and Kill Chain correlation pipeline respond in real time—without running terminal commands or external traffic scripts.
+
+### 1. In-Process Adversary Emulation Architecture
+
+```text
+┌────────────────────────────────────────────────────────┐
+│  🎯 Red Team Simulator                        [BETA]   │
+│                                                        │
+│  Attack Type:  [ Brute Force ▼ ]                       │
+│  Intensity:    ●●○○○  Low (8 req)                      │
+│                                                        │
+│  [ ▶ Launch Attack ]                                   │
+│                                                        │
+│  Status:  🔴 ACTIVE — 8 / 8 requests fired            │
+│  Alerts Fired: 2  ·  Auto-Blocked: No                  │
+│                                                        │
+│  ⚠ Events tagged [SIM] — excluded from analytics stats │
+└────────────────────────────────────────────────────────┘
+```
+
+```text
+[Operator Dashboard: RedTeamPanel]
+         │
+         │ POST /api/simulate (RBAC: Owner/Admin/Member + CSRF Verified)
+         ▼
+[server.py: start_simulation()]
+         │
+         │ Spawns background daemon thread (simulator.py: launch())
+         ▼
+[simulator.py: _run_simulation()]
+         │
+         ├── Atomic state reservation & TOCTOU race protection
+         ├── Sequential payload construction with metadata={"simulated": True}
+         ├── RFC 5737 TEST-NET-1 Attacker IPs (192.0.2.1, 192.0.2.2, 192.0.2.3)
+         │
+         ▼
+[_execute_ingest_pipeline()] (Identical production ingestion engine)
+         │
+         ├── Schema validation & DLP secret sanitization
+         ├── Ingestion rate limiter & Replay deduplication
+         ├── Sliding-window IP rate limiter & auto-block evaluation
+         ├── ML anomaly scoring (Isolation Forest + Baseline Tracker)
+         ├── Deterministic heuristic rule evaluation
+         ├── events table persistence (tagged simulated=True)
+         ├── Project WebSocket broadcast (new_event, new_alert, chain_update)
+         └── External Webhook Suppression (Zero Slack/Discord alert spam)
+```
+
+### 2. Attack Vectors & Detection Alignment
+
+Each attack vector is specifically calibrated against backend detection thresholds (`backend/detection.py` and `backend/rate_limiter.py`):
+
+| Attack Vector | Simulated Signature | Attacker IP | Backend Detection Threshold | Pipeline Response |
+|---|---|---|---|---|
+| **Brute Force** | Repeated failed logins (`POST /api/login`, status `401`) | `192.0.2.1` | `BRUTE_FORCE_THRESHOLD = 5` failed auths / 60s | Rules flag `brute_force`, anomaly score spikes, and severity escalates to `medium`/`high`. |
+| **Endpoint Scan** | Rapid path traversal (`GET /api/probe{i}`, status `404`) | `192.0.2.2` | `SCAN_THRESHOLD = 15` unique endpoints / 60s | Rules flag `endpoint_scan`, detecting cardinality entropy across non-static paths. |
+| **Request Burst** | Volumetric burst flood (`GET /api/products`, status `200`) | `192.0.2.3` | `BURST_THRESHOLD = 30` requests / 10s & `MAX_REQUESTS = 50` / 60s | Flags `request_burst`. High intensity crosses 50 requests, triggering the firewall rate limiter to automatically block `192.0.2.3` (`429 Too Many Requests`). |
+
+### 3. Calibrated Intensity Presets
+
+| Intensity | Brute Force (`BRUTE_FORCE_THRESHOLD = 5`) | Endpoint Scan (`SCAN_THRESHOLD = 15`) | Request Burst (`BURST_THRESHOLD = 30`, `MAX_REQUESTS = 50`) |
+|---|---|---|---|
+| **Low** | 8 requests @ 0.45s delay (clears > 5) | 18 requests @ 0.35s delay (clears > 15) | 33 requests @ 0.15s delay (clears > 30 within 10s) |
+| **Medium** | 16 requests @ 0.25s delay | 26 requests @ 0.22s delay | 40 requests @ 0.10s delay |
+| **High** | 30 requests @ 0.12s delay | 40 requests @ 0.12s delay | 52 requests @ 0.06s delay (exceeds 50 reqs -> triggers auto-block) |
+
+### 4. Zero-Contamination & Safety Guarantees
+
+* **Analytics Contamination Defense:** All simulated events carry `metadata={"simulated": True}`. Dialect-safe filtering in `backend/db.py` completely isolates simulated traffic from `GET /alerts/stats`, `GET /history`, and `get_all_events_count()`, preserving pristine production analytics, latency averages, and KPI cards.
+* **Notification Silencing:** The notification router detects `metadata.simulated` and suppresses outbound Slack, Discord, and email webhook dispatches.
+* **Visual `[SIM]` Badging:** The live telemetry stream table highlights simulated requests with dedicated amber `[SIM]` tags for complete audit transparency.
+* **RFC 5737 Reserved Network Safe Harbor:** Simulations use documented documentation-net addresses (`192.0.2.1`, `192.0.2.2`, `192.0.2.3`), preventing pollution of the GeoIP threat map and external IP reputation lookups.
+* **Multi-Tenant RBAC:** The simulation trigger (`POST /api/simulate`) enforces role-based access control, requiring `owner`, `admin`, or `member` workspace roles while rejecting unauthenticated users (`401`) and read-only `viewer` accounts (`403`).
+
+---
+
 ## Production Integrations & Notification Service
 
 The platform implements an extensible notification architecture designed to dispatch real-time security alerts to developer communication platforms without tightly coupling providers into the detection pipeline.
@@ -646,20 +724,32 @@ NotificationService (backend/integrations/service.py)
 * **Smooth 1-FPS EKG Telemetry Pulse (LiveMonitoringPage):** Real-time 60-second oscilloscope displaying instantaneous throughput (req/s), average and peak latency (ms), and error rates.
 * **React Error Boundary:** Resilient component-level fault isolation wrapping dashboard subpages for graceful crash recovery.
 
-### 6. Analytics, Chains & Telemetry APIs
+### 6. In-Dashboard Red Team Simulator (Adversary Emulation)
+* **Interactive Live Monitoring Integration (`RedTeamPanel`):** Collapsible panel directly inside `/app/live` enabling one-click execution of Brute Force, Endpoint Scan, and Request Burst attack vectors without opening terminal tools.
+* **Synchronous State Feedback:** 4-tile live readout tracking fired requests against preset totals, detected alerts, automated IP blocks, and execution status (`ACTIVE`, `DONE`, `FAILED`).
+* **Complete System Safety:** Tags all generated events with `metadata.simulated=True`, excludes them from analytics reporting and KPI cards, suppresses outgoing webhooks, and uses isolated RFC 5737 IP spaces (`192.0.2.0/24`).
+
+### 7. Analytics, Chains, Simulator & Telemetry APIs
 
 * **GET /alerts/stats (Scoped & Protected):**
   * Returns cumulative or window-scoped security metrics for the active project.
   * Query parameters: `?project_id=<id>&window=<30m|1h|6h|24h|7d>`.
-  * Response fields: `total_events`, `total_alerts`, `max_anomaly_score`, `attack_distribution`, and backward-compatible top-level attack counts.
+  * Response fields: `total_events`, `total_alerts`, `max_anomaly_score`, `attack_distribution`, and backward-compatible top-level attack counts. Excludes simulated Red Team events.
 * **GET /history (Scoped & Protected):**
   * Returns chronologically contiguous, zero-filled time buckets, top endpoints, top hostile IPs, and window-scoped attack category distribution.
   * Query parameters: `?project_id=<id>&window=<30m|1h|6h|24h|7d>`.
-  * Response fields: `timeline` (with `requests`, `anomalies`, `avg_latency`, `p95_latency`), `top_endpoints`, `top_ips`, `attack_distribution`, and `window`.
+  * Response fields: `timeline` (with `requests`, `anomalies`, `avg_latency`, `p95_latency`), `top_endpoints`, `top_ips`, `attack_distribution`, and `window`. Excludes simulated Red Team events.
 * **GET /api/chains (Scoped & Protected):**
   * Returns correlated multi-stage attack chains for the active project, stitched across MITRE ATT&CK stages.
   * Query parameters: `?project_id=<id>&status=<active|resolved>&limit=<50>`.
   * Response fields: `chains` (list of correlated chains with `ip`, `started_at`, `updated_at`, `max_risk`, `stages`, `status`), and `count`.
+* **POST /api/simulate (RBAC: Owner/Admin/Member + CSRF Verified):**
+  * Dispatches an asynchronous Red Team simulation against an owned project.
+  * JSON body: `{"attack_type": "brute_force" | "endpoint_scan" | "request_burst", "intensity": "low" | "medium" | "high", "project_id": "<id>"}`.
+  * Returns `202 Accepted` on launch, `400 Bad Request` on invalid parameters, `403 Forbidden` for viewer roles, and `409 Conflict` if a simulation is already active.
+* **GET /api/simulate/status (Scoped & Protected):**
+  * Polls current simulation execution state for the target project.
+  * Response fields: `running`, `attack_type`, `intensity`, `requests_total`, `requests_fired`, `requests_failed`, `alerts_fired`, `auto_blocked`, `started_at`, `finished_at`, and `error`.
 
 ---
 
@@ -678,6 +768,7 @@ API-Security-Analytics-Dashboard/
 |   |-- logging_config.py       # Structured logging & automatic secret scrubbing
 |   |-- migrations.py           # Schema migrations & production indexing engine
 |   |-- rate_limiter.py         # Ingestion rate limiter & login brute-force defense
+|   |-- simulator.py            # Red Team simulation engine & controlled attack generator
 |   |-- google_auth.py          # Google OAuth 2.0 / OpenID Connect client integration
 |   |-- server.py               # Main Flask & SocketIO application server
 |   |-- webhook.py              # Backward-compatible webhook dispatcher facade
@@ -700,6 +791,7 @@ API-Security-Analytics-Dashboard/
 |   +-- dashboard/              # Production React + Vite SaaS Frontend Application
 |       |-- src/
 |       |   |-- components/
+|       |   |   |-- RedTeamPanel.jsx  # Collapsible Red Team attack simulation panel
 |       |   |   +-- common/
 |       |   |       +-- ErrorBoundary.jsx # React Error Boundary for fault recovery
 |       |   +-- pages/
@@ -842,6 +934,14 @@ Simulates normal web visitors alongside automated hackers executing Brute Force 
 ```bash
 python demo/generators.py continuous
 ```
+
+### Alternative: In-Dashboard Red Team Simulator (Zero External Terminals)
+You can also launch controlled adversary attacks directly from the web interface without running Terminals 2 or 3:
+1. Start the server (Terminal 1): `python backend/server.py`
+2. Open `http://127.0.0.1:5001/app/live` and log in.
+3. Expand the **Red Team Simulator [BETA]** panel located directly above the Live Pulse chart.
+4. Select an attack vector (**Brute Force**, **Endpoint Scan**, or **Request Burst**) and intensity, then click **Launch Attack**.
+5. Watch the telemetry stream, EKG chart, rule triggers, auto-blocks, and Kill Chain correlation respond live in real time.
 
 > **Watch the Live Defense:** Open the dashboard on `http://127.0.0.1:5001`. Normal requests render as a smooth line. As soon as attack spikes occur, the ML engine raises alerts, the attacking IP is plotted on the world map, auto-blocking triggers (`429`), and you can click **"Investigate"** to receive an AI threat analysis and PDF report.
 
