@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings,
@@ -15,10 +15,14 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  Cpu,
+  RefreshCw,
+  Sparkles,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
-import { authService } from '../../services/api';
+import { authService, trainingService } from '../../services/api';
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
@@ -42,6 +46,50 @@ export const SettingsPage = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+
+  // ML Autonomous Self-Learning State
+  const [mlStatus, setMlStatus] = useState(null);
+  const [mlLoading, setMlLoading] = useState(false);
+  const [retrainSuccess, setRetrainSuccess] = useState(null);
+  const [retrainError, setRetrainError] = useState(null);
+
+  useEffect(() => {
+    fetchTrainingStatus();
+    const interval = setInterval(fetchTrainingStatus, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchTrainingStatus = async () => {
+    try {
+      const res = await trainingService.getStatus();
+      setMlStatus(res.data);
+    } catch {
+      // Keep existing state if offline
+    }
+  };
+
+  const handleTriggerRetrain = async () => {
+    setMlLoading(true);
+    setRetrainSuccess(null);
+    setRetrainError(null);
+    try {
+      const res = await trainingService.triggerRetrain();
+      setRetrainSuccess(
+        res.data?.message || 'Autonomous model retraining initiated on latest traffic patterns.'
+      );
+      setTimeout(fetchTrainingStatus, 1500);
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setRetrainSuccess('Model retraining is already running in background.');
+      } else {
+        setRetrainError(
+          err.response?.data?.message || err.response?.data?.error || 'Failed to trigger model retraining.'
+        );
+      }
+    } finally {
+      setMlLoading(false);
+    }
+  };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -269,6 +317,115 @@ export const SettingsPage = () => {
               : 'CREATE PASSWORD'}
           </button>
         </form>
+      </div>
+
+      {/* Autonomous Machine Learning & Continuous Self-Learning */}
+      <div className="p-5.5 rounded-2xl bg-[#101216] border border-[#1E2127] hover:border-[#2A2E37] transition-all duration-200 shadow-sm">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#1E2127]">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#C792EA]/10 border border-[#C792EA]/20 flex items-center justify-center text-[#C792EA]">
+              <Cpu className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-[#E6E8EB] flex items-center space-x-2">
+                <span>Autonomous AI / Machine Learning Engine</span>
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono bg-[#16181D] text-[#C792EA] border border-[#C792EA]/30">
+                  <Sparkles className="w-2.5 h-2.5 mr-1" />
+                  <span>ISOLATION_FOREST</span>
+                </span>
+              </h3>
+              <p className="text-xs text-[#9BA1AC] font-mono mt-0.5">
+                Continuous unsupervised anomaly detection. Automatically retrains weights on recent traffic without downtime.
+              </p>
+            </div>
+          </div>
+          <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-mono border ${
+            mlStatus?.in_progress
+              ? 'bg-[#FFCB6B]/10 text-[#FFCB6B] border-[#FFCB6B]/30 animate-pulse'
+              : 'bg-[#C3E88D]/10 text-[#C3E88D] border-[#C3E88D]/30'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full mr-1 ${
+              mlStatus?.in_progress ? 'bg-[#FFCB6B] animate-ping' : 'bg-[#C3E88D]'
+            }`} />
+            <span>{mlStatus?.in_progress ? 'RETRAINING IN PROGRESS' : 'MODEL ACTIVE'}</span>
+          </span>
+        </div>
+
+        {/* Telemetry & Model Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div className="p-3.5 rounded-xl bg-[#16181D] border border-[#1E2127]">
+            <span className="text-[10px] font-mono text-[#9BA1AC] uppercase tracking-wider block mb-1">
+              Model Last Trained
+            </span>
+            <span className="text-xs font-mono font-medium text-[#E6E8EB]">
+              {mlStatus?.last_trained
+                ? new Date(mlStatus.last_trained * 1000).toLocaleString()
+                : 'Baseline Synthesized Prior'}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#16181D] border border-[#1E2127]">
+            <span className="text-[10px] font-mono text-[#9BA1AC] uppercase tracking-wider block mb-1">
+              Autonomous Trigger Threshold
+            </span>
+            <span className="text-xs font-mono font-medium text-[#82AAFF] flex items-center space-x-1">
+              <Activity className="w-3.5 h-3.5 mr-1 text-[#82AAFF]" />
+              <span>{mlStatus?.events_since_last_train || 0} / {mlStatus?.threshold_events || 250} Events</span>
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#16181D] border border-[#1E2127]">
+            <span className="text-[10px] font-mono text-[#9BA1AC] uppercase tracking-wider block mb-1">
+              Periodic Adaptation Cycle
+            </span>
+            <span className="text-xs font-mono font-medium text-[#C792EA]">
+              Hourly Daemon (3600s Schedule)
+            </span>
+          </div>
+        </div>
+
+        {/* Feature Vectors */}
+        <div className="p-3 rounded-xl bg-[#16181D]/60 border border-[#1E2127] mb-4">
+          <span className="text-[10px] font-mono text-[#9BA1AC] uppercase tracking-wider block mb-1.5">
+            Evaluated Traffic Feature Vectors
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {['latency_ms', 'failed_auth_count', 'unique_endpoints', 'request_count_10s'].map((f) => (
+              <span key={f} className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#101216] text-[#9BA1AC] border border-[#2A2E37]">
+                {f}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {retrainSuccess && (
+          <div className="mb-4 p-3.5 rounded-xl bg-[#101216] border border-[#C3E88D]/40 text-[#C3E88D] text-xs font-mono flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[#C3E88D]" />
+            <span>{retrainSuccess}</span>
+          </div>
+        )}
+
+        {retrainError && (
+          <div className="mb-4 p-3.5 rounded-xl bg-[#101216] border border-[#F07178]/40 text-[#F07178] text-xs font-mono flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#F07178]" />
+            <span>{retrainError}</span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-1">
+          <p className="text-[11px] font-mono text-[#7B818B]">
+            Trigger manual retraining on latest logs or let the autonomous daemon self-adapt in background.
+          </p>
+          <button
+            type="button"
+            onClick={handleTriggerRetrain}
+            disabled={mlLoading || mlStatus?.in_progress}
+            className="px-5 py-2 rounded-full bg-[#C792EA] hover:bg-[#b078d6] disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold font-mono text-[#0A0B0D] transition-all duration-200 hover:-translate-y-0.5 shadow-xs flex items-center space-x-2 cursor-pointer flex-shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-[#0A0B0D] ${mlLoading || mlStatus?.in_progress ? 'animate-spin' : ''}`} />
+            <span>{mlLoading || mlStatus?.in_progress ? 'RETRAINING MODEL...' : 'INITIATE SELF-LEARNING'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Danger Zone: Permanent Account Deletion */}

@@ -160,4 +160,9 @@ export const simulatorService = {
     api.get('/api/simulate/status', { params: { project_id: projectId } }),
 };
 
+export const trainingService = {
+  getStatus: () => api.get('/api/training_status'),
+  triggerRetrain: () => api.post('/api/retrain'),
+};
+
 export default api;

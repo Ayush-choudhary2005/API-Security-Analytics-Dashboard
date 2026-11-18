@@ -109,7 +109,7 @@
 ---
 
 ### Stage 4 Verification Record
-* **Status:** COMPLETED & VERIFIED
+* **Status:** COMPLETED & VERIFIED (Commit `8fb4d63`)
 * **Files Modified:**
   - `backend/investigator.py`:
     - Expanded `GEMINI_MODELS` from 3 to 7 models: `['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-2.0-flash-lite', 'gemini-2.5-pro']`.
@@ -120,3 +120,22 @@
 * **Zero Disruption Guarantee:**
   - Existing `generate_threat_report` and `generate_fallback_threat_report` signatures preserved.
   - PDF export and report serialization remain 100% compatible.
+
+---
+
+### Stage 5 Verification Record
+* **Status:** COMPLETED & VERIFIED
+* **Files Modified:**
+  - `frontend/dashboard/src/services/api.js`:
+    - Added `trainingService` with `getStatus()` and `triggerRetrain()`.
+  - `frontend/dashboard/src/pages/dashboard/SettingsPage.jsx`:
+    - Added `trainingService` import and Lucide icons (`Cpu`, `RefreshCw`, `Sparkles`, `Activity`).
+    - Added ML model status polling state (15s interval) and handler for manual retraining.
+    - Added dedicated, theme-consistent "Autonomous Machine Learning & Self-Learning Engine" card.
+    - Card renders model architecture, last trained timestamp, autonomous threshold progress (X / 250 Events), periodic hourly schedule, evaluated feature vector pills, and an active spin button.
+* **Test & Build Results:**
+  - `npm run build` executed and compiled client environment into `dist/` in 766ms with 0 errors.
+  - Server successfully routes and serves the compiled bundle at `http://127.0.0.1:5001/`.
+* **Zero Disruption Guarantee:**
+  - Exclusively added to `SettingsPage.jsx`.
+  - Zero modifications to `OverviewPage`, `KillChainPage`, `LiveMonitoringPage`, `ProjectsPage`, `ThreatsPage`, or any routing.
