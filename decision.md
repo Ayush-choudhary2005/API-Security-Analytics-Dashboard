@@ -91,7 +91,7 @@
 ---
 
 ### Stage 3 Verification Record
-* **Status:** COMPLETED & VERIFIED
+* **Status:** COMPLETED & VERIFIED (Commit `3ec9192`)
 * **Files Modified:**
   - `backend/server.py`:
     - Added `record_ingest_for_learning()` to track new events ingested.
@@ -105,3 +105,18 @@
 * **Zero Disruption Guarantee:**
   - Preserved existing `_chain_resolver_thread`.
   - No external endpoints or authentication mechanisms were modified.
+
+---
+
+### Stage 4 Verification Record
+* **Status:** COMPLETED & VERIFIED
+* **Files Modified:**
+  - `backend/investigator.py`:
+    - Expanded `GEMINI_MODELS` from 3 to 7 models: `['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-2.0-flash-lite', 'gemini-2.5-pro']`.
+    - Added model failover warning logging and successful model attribution.
+* **Test Results:**
+  - Models array verified with 7 distinct Google AI Studio models prioritizing lightweight/fast variants.
+  - Verified graceful heuristic fallback mode when API key is unconfigured or if all models fail.
+* **Zero Disruption Guarantee:**
+  - Existing `generate_threat_report` and `generate_fallback_threat_report` signatures preserved.
+  - PDF export and report serialization remain 100% compatible.
