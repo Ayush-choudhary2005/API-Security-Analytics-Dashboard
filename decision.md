@@ -207,3 +207,8 @@
 * **Zero Disruption Guarantee:**
   - Leaflet div markers use `pointer-events: none !important` and `interactive={false}`, ensuring mouse clicks, map dragging, zooming, and vector popup inspections remain completely unimpeded.
   - If zero coordinates or threats exist, graceful zero-state overlays render as before.
+
+---
+
+### Authentication Note & Demo Accounts
+* Both `demo@mlo11y.local` (password `demopassword123`) and `demo@example.com` (password `DemoPassword123!`) are permanently seeded in the local SQLite database (`events.db`) with full owner access to the demo workspace and projects.
