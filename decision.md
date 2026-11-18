@@ -170,7 +170,7 @@
 ---
 
 ### Phase B Verification Record: Early Warning Threat Radar on Overview Page
-* **Status:** COMPLETED & VERIFIED
+* **Status:** COMPLETED & VERIFIED (Commit `859f131`)
 * **Files Modified:**
   - `backend/rate_limiter.py`: Added `get_warning_ips()` returning IPs in warning zone (15 <= count <= 50 req/min).
   - `backend/server.py`: Added `GET /api/threat-radar` endpoint protected by `@login_required`.
@@ -185,3 +185,25 @@
 * **Zero Disruption Guarantee:**
   - If no IPs are in warning threshold, layout remains clean and unobtrusive.
   - Existing `OverviewPage` metrics, charts, and table logic remain untouched.
+
+---
+
+### Phase C Verification Record: Cyber War Room Anomaly Shockwaves & Sonar Ripples
+* **Status:** COMPLETED & VERIFIED
+* **Files Modified:**
+  - `frontend/dashboard/src/index.css`:
+    - Added high-performance CSS keyframe animations (`@keyframes sonarPulse`) for pulsating concentric radar shockwaves.
+    - Defined custom div marker styles (`.sonar-beacon`, `.sonar-wave-1`, `.sonar-wave-2`, `.sonar-core`) with distinct glows for critical (crimson `#F07178`) and warning (amber `#FFCB6B`) threat events.
+    - Added `prefers-reduced-motion` accessibility support.
+  - `frontend/dashboard/src/components/ThreatMap.jsx`:
+    - Added memoized Leaflet `divIcon` markers (`criticalSonarIcon`, `warningSonarIcon`).
+    - Rendered non-blocking sonar ripple markers for ingress threats with high severity (`critical`/`high`), high anomaly scores ($\ge 2.0$), or risk scores ($\ge 70$).
+    - Preserved full interactivity and detailed vector popup inspections on underlying `CircleMarker`.
+    - Added Cyber War Room HUD status overlay badge (`CYBER RADAR [X ACTIVE SHOCKWAVES]`) and updated the map legend with the radar shockwave indicator.
+* **Test & Build Results:**
+  - Production SPA compiled cleanly via Vite (`npm run build`) in 433ms.
+  - Backend ML Detection Suite (`test_ml_detection_pipeline_suite.py`): 11/11 tests passed.
+  - Production SDK Suite (`test_production_sdk_suite.py`): 8/8 tests passed.
+* **Zero Disruption Guarantee:**
+  - Leaflet div markers use `pointer-events: none !important` and `interactive={false}`, ensuring mouse clicks, map dragging, zooming, and vector popup inspections remain completely unimpeded.
+  - If zero coordinates or threats exist, graceful zero-state overlays render as before.

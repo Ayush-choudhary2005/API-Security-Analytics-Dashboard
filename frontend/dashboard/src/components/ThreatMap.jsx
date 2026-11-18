@@ -1,6 +1,7 @@
-import React from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
-import { MapPin, ShieldCheck, ShieldAlert } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import { MapPin, ShieldCheck, ShieldAlert, Radio } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // Safely parse metadata if formatted as JSON string
@@ -15,10 +16,10 @@ const parseMetadata = (raw) => {
 };
 
 // Resolve authentic geolocation coordinates. Returns null if missing or invalid.
-const getCoordinatesForIP = (ip, rawMetadata = {}) => {
+const getCoordinatesForIP = (threat, rawMetadata = {}) => {
   const meta = parseMetadata(rawMetadata);
-  const lat = parseFloat(meta?.latitude);
-  const lng = parseFloat(meta?.longitude);
+  const lat = parseFloat(threat?.latitude ?? meta?.latitude);
+  const lng = parseFloat(threat?.longitude ?? meta?.longitude);
   if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
     return [lat, lng];
   }
@@ -28,10 +29,45 @@ const getCoordinatesForIP = (ip, rawMetadata = {}) => {
 export const ThreatMap = ({ threats = [] }) => {
   const center = [22.0, 77.0]; // Centered on South Asia / Global view
 
+  // Module-level styled divIcons for cyber shockwaves / sonar ripple beacons
+  const criticalSonarIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: 'custom-sonar-marker',
+        html: `
+          <div class="sonar-beacon sonar-ripple-critical">
+            <span class="sonar-wave sonar-wave-1"></span>
+            <span class="sonar-wave sonar-wave-2"></span>
+            <span class="sonar-core"></span>
+          </div>
+        `,
+        iconSize: [48, 48],
+        iconAnchor: [24, 24],
+      }),
+    []
+  );
+
+  const warningSonarIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: 'custom-sonar-marker',
+        html: `
+          <div class="sonar-beacon sonar-ripple-warning">
+            <span class="sonar-wave sonar-wave-1"></span>
+            <span class="sonar-wave sonar-wave-2"></span>
+            <span class="sonar-core"></span>
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      }),
+    []
+  );
+
   // Partition threats into geocoded vs un-geocoded
   const items = threats.map((threat, idx) => {
     const meta = parseMetadata(threat.metadata);
-    const coords = getCoordinatesForIP(threat.ip || threat.source_ip, meta);
+    const coords = getCoordinatesForIP(threat, meta);
     return {
       threat,
       meta,
@@ -42,6 +78,16 @@ export const ThreatMap = ({ threats = [] }) => {
 
   const geocoded = items.filter((item) => item.coords !== null);
   const unmappedCount = items.length - geocoded.length;
+
+  const criticalCount = geocoded.filter((item) => {
+    const t = item.threat;
+    return (
+      t.severity === 'critical' ||
+      t.severity === 'high' ||
+      (t.anomaly_score && Number(t.anomaly_score) >= 2.0) ||
+      (t.risk_score && Number(t.risk_score) >= 70)
+    );
+  }).length;
 
   return (
     <div className="w-full h-80 rounded-md overflow-hidden border border-[#1E2127] bg-[#0A0B0D] relative">
@@ -59,45 +105,97 @@ export const ThreatMap = ({ threats = [] }) => {
         />
 
         {geocoded.map(({ threat, meta, coords, key }) => {
-          const isCritical = threat.severity === 'critical' || threat.severity === 'high';
-          const color = isCritical ? '#F07178' : threat.severity === 'medium' ? '#FFCB6B' : '#82AAFF';
+          const isCritical =
+            threat.severity === 'critical' ||
+            threat.severity === 'high' ||
+            (threat.anomaly_score && Number(threat.anomaly_score) >= 2.0) ||
+            (threat.risk_score && Number(threat.risk_score) >= 70);
+
+          const isWarning =
+            !isCritical &&
+            (threat.severity === 'medium' ||
+              (threat.anomaly_score && Number(threat.anomaly_score) >= 1.5) ||
+              (threat.risk_score && Number(threat.risk_score) >= 50));
+
+          const color = isCritical ? '#F07178' : isWarning ? '#FFCB6B' : '#82AAFF';
           const locationLabel = [meta.city, meta.region, meta.country].filter(Boolean).join(', ');
 
           return (
-            <CircleMarker
-              key={key}
-              center={coords}
-              radius={isCritical ? 7 : 4.5}
-              pathOptions={{
-                color: color,
-                fillColor: color,
-                fillOpacity: isCritical ? 0.9 : 0.6,
-                weight: isCritical ? 2 : 1,
-              }}
-            >
-              <Popup>
-                <div className="text-xs space-y-1.5 p-1 font-sans">
-                  <div className="flex items-center justify-between gap-2 border-b border-[#2A2E37] pb-1">
-                    <p className="font-mono text-[10px] font-bold text-[#F07178] uppercase tracking-wider">
-                      {String(threat.attack_type || 'ANOMALY VECTOR').replace(/_/g, ' ')}
+            <React.Fragment key={key}>
+              {/* Radiating concentric sonar ripple for high/warning threats */}
+              {(isCritical || isWarning) && (
+                <Marker
+                  position={coords}
+                  icon={isCritical ? criticalSonarIcon : warningSonarIcon}
+                  interactive={false}
+                />
+              )}
+
+              {/* Clickable vector marker with details popup */}
+              <CircleMarker
+                center={coords}
+                radius={isCritical ? 7 : 4.5}
+                pathOptions={{
+                  color: color,
+                  fillColor: color,
+                  fillOpacity: isCritical ? 0.95 : 0.65,
+                  weight: isCritical ? 2 : 1,
+                }}
+              >
+                <Popup>
+                  <div className="text-xs space-y-1.5 p-1 font-sans">
+                    <div className="flex items-center justify-between gap-2 border-b border-[#2A2E37] pb-1">
+                      <p className="font-mono text-[10px] font-bold text-[#F07178] uppercase tracking-wider">
+                        {String(threat.attack_type || 'ANOMALY VECTOR').replace(/_/g, ' ')}
+                      </p>
+                      <span className="font-mono text-[10px] px-1 rounded bg-[#1E2127] text-[#9BA1AC]">
+                        {threat.severity || 'flagged'}
+                      </span>
+                    </div>
+                    <p className="font-mono text-xs text-[#E6E8EB]">
+                      IP: {threat.ip || threat.source_ip || '127.0.0.1'}
                     </p>
-                    <span className="font-mono text-[10px] px-1 rounded bg-[#1E2127] text-[#9BA1AC]">{threat.severity || 'flagged'}</span>
+                    {locationLabel && (
+                      <p className="text-[11px] text-[#C3E88D] font-mono flex items-center space-x-1">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span>{locationLabel}</span>
+                      </p>
+                    )}
+                    <p className="text-[11px] text-[#9BA1AC] truncate max-w-[180px]">
+                      Endpoint: {threat.endpoint || '/api'}
+                    </p>
+                    <p className="font-mono text-[10px] text-[#C792EA]">
+                      Anomaly Score:{' '}
+                      {threat.anomaly_score?.toFixed
+                        ? threat.anomaly_score.toFixed(3)
+                        : threat.anomaly_score || '0.92'}
+                    </p>
+                    {threat.risk_score !== undefined && (
+                      <p className="font-mono text-[10px] text-[#FFCB6B]">
+                        Risk Score: {threat.risk_score} / 100
+                      </p>
+                    )}
                   </div>
-                  <p className="font-mono text-xs text-[#E6E8EB]">IP: {threat.ip || threat.source_ip || '127.0.0.1'}</p>
-                  {locationLabel && (
-                    <p className="text-[11px] text-[#C3E88D] font-mono flex items-center space-x-1">
-                      <MapPin className="w-3 h-3 flex-shrink-0" />
-                      <span>{locationLabel}</span>
-                    </p>
-                  )}
-                  <p className="text-[11px] text-[#9BA1AC] truncate max-w-[180px]">Endpoint: {threat.endpoint || '/api'}</p>
-                  <p className="font-mono text-[10px] text-[#C792EA]">Anomaly Score: {threat.anomaly_score?.toFixed ? threat.anomaly_score.toFixed(3) : threat.anomaly_score || '0.92'}</p>
-                </div>
-              </Popup>
-            </CircleMarker>
+                </Popup>
+              </CircleMarker>
+            </React.Fragment>
           );
         })}
       </MapContainer>
+
+      {/* Cyber War Room HUD Status Overlay */}
+      <div className="absolute top-2 right-2 z-[400] bg-[#101216]/90 border border-[#1E2127] rounded px-2.5 py-1 text-[10px] font-mono flex items-center space-x-2 shadow-lg backdrop-blur-xs">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F07178] opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F07178]"></span>
+        </span>
+        <span className="text-[#E6E8EB] font-semibold tracking-wider uppercase">CYBER RADAR</span>
+        {criticalCount > 0 ? (
+          <span className="text-[#F07178] font-bold">[{criticalCount} ACTIVE SHOCKWAVES]</span>
+        ) : (
+          <span className="text-[#C3E88D]">GRID NORMAL</span>
+        )}
+      </div>
 
       {/* Overlay: Zero Hostile Ingress Threats */}
       {threats.length === 0 && (
@@ -129,6 +227,13 @@ export const ThreatMap = ({ threats = [] }) => {
 
       {/* Map Legend & Summary Footer */}
       <div className="absolute bottom-2 left-2 z-[400] bg-[#101216]/95 border border-[#1E2127] rounded px-3 py-1.5 text-[10px] font-mono text-[#9BA1AC] flex items-center space-x-3.5 shadow-2xl backdrop-blur-xs">
+        <span className="flex items-center space-x-1.5">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F07178] opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F07178]"></span>
+          </span>
+          <span className="text-[#F07178] font-medium">RADAR SHOCKWAVE</span>
+        </span>
         <span className="flex items-center space-x-1.5">
           <span className="w-2 h-2 rounded-full bg-[#F07178] shadow-[0_0_6px_rgba(240,113,120,0.6)]"></span>
           <span className="text-[#E6E8EB]">CRITICAL/HIGH</span>
