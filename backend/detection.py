@@ -76,6 +76,22 @@ def _init_isolation_forest():
 
 ml_model = _init_isolation_forest()
 
+
+def reload_model():
+    """Hot-reload the Isolation Forest model from disk after a retrain."""
+    global ml_model
+    if joblib is None:
+        return False
+    if os.path.exists(MODEL_PATH):
+        try:
+            ml_model = joblib.load(MODEL_PATH)
+            print(f"SUCCESS: Isolation Forest ML model reloaded at {time.strftime('%Y-%m-%d %H:%M:%S')}!")
+            return True
+        except Exception as e:
+            print(f"WARNING: Error reloading ML model from {MODEL_PATH}: {e}")
+            return False
+    return False
+
 # ---- Thresholds ----
 BRUTE_FORCE_WINDOW_SEC = 60
 BRUTE_FORCE_THRESHOLD = 5          # >5 failed auths / 60s

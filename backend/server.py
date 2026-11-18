@@ -27,6 +27,7 @@ import uuid
 import zipfile
 import secrets
 import hmac
+import threading
 from typing import Tuple, Optional
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for, has_request_context
@@ -2169,6 +2170,66 @@ def simulation_status():
     if err:
         return err
     return jsonify(simulator.get_status(project_id)), 200
+
+
+# ── Machine Learning Retraining & Self-Learning APIs ────────────────────────
+_retrain_lock = threading.Lock()
+_retrain_in_progress = False
+
+
+@app.route("/api/training_status", methods=["GET"])
+def training_status():
+    """Return current state, timestamp, and metadata of the Isolation Forest ML model."""
+    model_path = os.path.join(os.path.dirname(__file__), "isolation_forest_model.joblib")
+    is_trained = os.path.exists(model_path)
+    last_trained = os.path.getmtime(model_path) if is_trained else None
+
+    return jsonify({
+        "status": "training" if _retrain_in_progress else "active",
+        "model_type": "IsolationForest",
+        "is_trained": is_trained,
+        "last_trained": last_trained,
+        "features": [
+            "latency_ms",
+            "failed_auth_count",
+            "unique_endpoints",
+            "request_count_10s"
+        ],
+        "in_progress": _retrain_in_progress
+    }), 200
+
+
+@app.route("/api/retrain", methods=["POST"])
+@login_required
+def trigger_retrain():
+    """Asynchronously retrain the Isolation Forest model on recent database traffic."""
+    global _retrain_in_progress
+    if _retrain_lock.locked() or _retrain_in_progress:
+        return jsonify({
+            "status": "already_training",
+            "message": "Model retraining is already running in background."
+        }), 409
+
+    def _async_retrain():
+        global _retrain_in_progress
+        with _retrain_lock:
+            _retrain_in_progress = True
+            try:
+                import train_model
+                result = train_model.retrain_from_db()
+                logger.info(f"Model retraining completed successfully: {result}")
+            except Exception as err:
+                logger.error(f"Error during async model retraining: {err}", exc_info=True)
+            finally:
+                _retrain_in_progress = False
+
+    worker = threading.Thread(target=_async_retrain, name="ml-retrain-worker", daemon=True)
+    worker.start()
+
+    return jsonify({
+        "status": "initiated",
+        "message": "Autonomous model retraining initiated on latest traffic patterns."
+    }), 202
 
 
 @app.route("/alerts/stats", methods=["GET"])

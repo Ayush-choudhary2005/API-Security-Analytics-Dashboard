@@ -1,74 +1,89 @@
+"""
+train_model.py — Isolation Forest Model Training & Self-Learning Engine.
+Supports continuous autonomous retraining across both SQLite & PostgreSQL.
+"""
+
 import os
-import sqlite3
+import time
+import logging
+from collections import defaultdict, deque
+import joblib
+import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-import joblib
 
-# Import existing backend modules for feature engineering
 import db
 import detection
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "events.db")
+logger = logging.getLogger("api_security.train_model")
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "isolation_forest_model.joblib")
+FEATURES = ['latency_ms', 'failed_auth_count', 'unique_endpoints', 'request_count_10s']
 
-def extract_features():
-    print("1. Extracting raw events from the database...")
+
+def extract_features(limit: int = 3000) -> pd.DataFrame:
+    """Extract recent event features from database with rolling 60s window per IP."""
     conn = db.get_conn()
-    
-    # Fetch all events chronologically
-    rows = conn.execute("SELECT * FROM events ORDER BY timestamp ASC").fetchall()
-    events = [db._row_to_dict(r) for r in rows]
+    rows = conn.execute("SELECT * FROM events ORDER BY timestamp DESC LIMIT ?", (limit,)).fetchall()
+    events = [db._row_to_dict(r) for r in rows][::-1]
     conn.close()
 
-    if len(events) < 10:
-        print("Warning: Very little data found. Generating a model anyway, but you might want to run generators.py more.")
+    if len(events) < 15:
+        # Synthesize baseline normal distribution if database has minimal traffic
+        np.random.seed(42)
+        n = 300
+        latencies = np.clip(np.random.lognormal(mean=4.0, sigma=0.5, size=n), 10.0, 350.0)
+        failed_auth = np.random.choice([0, 1], size=n, p=[0.98, 0.02])
+        unique_endpoints = np.random.randint(1, 4, size=n)
+        request_count_10s = np.random.randint(1, 6, size=n)
+        return pd.DataFrame({
+            "latency_ms": latencies,
+            "failed_auth_count": failed_auth,
+            "unique_endpoints": unique_endpoints,
+            "request_count_10s": request_count_10s,
+        })
 
-    print(f"2. Building feature set for {len(events)} events (this simulates the live feature extraction)...")
+    # Fast sliding window extraction per IP
+    ip_windows = defaultdict(deque)
     feature_list = []
-    
-    # For every event, we calculate what its features looked like at the time it occurred.
-    for i, event in enumerate(events):
-        ip = event["ip"]
-        now_ts = event["timestamp"]
-        
-        # A simple way to get history for this event: look at the events we've processed so far
-        # that belong to the same IP and occurred within the last 60 seconds.
-        history = [e for e in events[:i] if e["ip"] == ip and (now_ts - e["timestamp"] <= 60)]
-        
-        # Re-use your existing Phase 1 feature extraction logic!
-        features = detection.compute_features(ip, now_ts, history)
-        
-        # Add latency as a feature
-        features["latency_ms"] = event["latency_ms"]
-        feature_list.append(features)
 
-    # Convert to a Pandas DataFrame
-    df = pd.DataFrame(feature_list)
-    return df
+    for e in events:
+        ip = e.get("ip") or e.get("source_ip", "127.0.0.1")
+        now_ts = float(e.get("timestamp", time.time()))
 
-def train_model(df):
-    print("3. Training the Isolation Forest model...")
-    # These are the exact features the model will use to isolate anomalies
-    features = ['latency_ms', 'failed_auth_count', 'unique_endpoints', 'request_count_10s']
-    X = df[features]
-    
-    # Initialize the model. 
-    # 'contamination' is our expected percentage of attacks. We set it to 0.05 (5%).
-    # Since you only generated "normal" traffic, the model will learn exactly what normal looks like.
-    model = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
-    
-    # Train it!
+        q = ip_windows[ip]
+        q.append(e)
+        while q and (now_ts - float(q[0].get("timestamp", 0))) > 60:
+            q.popleft()
+
+        history = list(q)[:-1]
+        feats = detection.compute_features(ip, now_ts, history)
+        feats["latency_ms"] = float(e.get("latency_ms", 25.0))
+        feature_list.append(feats)
+
+    return pd.DataFrame(feature_list)
+
+
+def retrain_from_db(contamination: float = 0.04) -> dict:
+    """Retrain the Isolation Forest model on latest database events and hot-reload."""
+    df = extract_features(limit=3000)
+    X = df[FEATURES]
+
+    model = IsolationForest(n_estimators=100, contamination=contamination, random_state=42)
     model.fit(X)
-    
-    # Save the trained model to a file
+
     joblib.dump(model, MODEL_PATH)
-    print(f"4. Model trained successfully and saved to: {MODEL_PATH}")
+    detection.reload_model()
+
+    last_ts = os.path.getmtime(MODEL_PATH)
+    logger.info(f"Model retrained with {len(df)} samples. Timestamp: {last_ts}")
+    return {
+        "success": True,
+        "samples_trained": len(df),
+        "timestamp": last_ts,
+        "features": FEATURES
+    }
+
 
 if __name__ == "__main__":
-    df = extract_features()
-    
-    print("\n--- Sample of the features extracted from 'normal' traffic ---")
-    print(df.head())
-    print("--------------------------------------------------------------\n")
-    
-    train_model(df)
+    res = retrain_from_db()
+    print(f"Retrain completed: {res}")
