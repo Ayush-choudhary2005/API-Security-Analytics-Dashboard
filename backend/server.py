@@ -1975,6 +1975,7 @@ def _execute_ingest_pipeline(project_id: str, raw_payload: dict, remote_addr: st
 
         event_id = db.insert_event(scored_event)
         scored_event["id"] = event_id
+        record_ingest_for_learning()
 
         # Push to dashboard via WebSocket (strictly scoped to project room)
         try:
@@ -2175,6 +2176,16 @@ def simulation_status():
 # ── Machine Learning Retraining & Self-Learning APIs ────────────────────────
 _retrain_lock = threading.Lock()
 _retrain_in_progress = False
+AUTONOMOUS_TRAIN_INTERVAL_SEC = 3600  # 1 hour periodic learning window
+EVENT_THRESHOLD_RETRAIN = 250        # Or retrain upon ingesting 250 new events
+_new_events_since_retrain = 0
+_last_autonomous_retrain = time.time()
+
+
+def record_ingest_for_learning():
+    """Increment learning counter on each ingested telemetry event."""
+    global _new_events_since_retrain
+    _new_events_since_retrain += 1
 
 
 @app.route("/api/training_status", methods=["GET"])
@@ -2195,7 +2206,10 @@ def training_status():
             "unique_endpoints",
             "request_count_10s"
         ],
-        "in_progress": _retrain_in_progress
+        "in_progress": _retrain_in_progress,
+        "events_since_last_train": _new_events_since_retrain,
+        "threshold_events": EVENT_THRESHOLD_RETRAIN,
+        "interval_sec": AUTONOMOUS_TRAIN_INTERVAL_SEC
     }), 200
 
 
@@ -2456,7 +2470,6 @@ def get_alert_report(alert_id):
 
 
 # ── Kill Chain Background Resolver ──────────────────────────────────────────
-import threading as _threading
 def _chain_resolver_loop():
     """Resolve stale attack chains every 5 minutes."""
     while True:
@@ -2465,8 +2478,52 @@ def _chain_resolver_loop():
             attack_correlator.resolve_stale_chains(db)
         except Exception:
             pass
-_chain_resolver_thread = _threading.Thread(target=_chain_resolver_loop, daemon=True)
+_chain_resolver_thread = threading.Thread(target=_chain_resolver_loop, daemon=True)
 _chain_resolver_thread.start()
+
+
+# ── Autonomous Machine Learning Self-Learning Daemon ────────────────────────
+def _autonomous_learning_loop():
+    """
+    Background daemon continuously observing traffic volume and clock intervals.
+    Autonomously retrains the Isolation Forest model when traffic thresholds (250 events)
+    or time intervals (1 hour) are reached, ensuring hands-free adaptation to changing API profiles.
+    """
+    global _new_events_since_retrain, _last_autonomous_retrain, _retrain_in_progress
+    while True:
+        time.sleep(60)
+        try:
+            now = time.time()
+            time_elapsed = now - _last_autonomous_retrain
+            threshold_met = _new_events_since_retrain >= EVENT_THRESHOLD_RETRAIN
+            time_met = time_elapsed >= AUTONOMOUS_TRAIN_INTERVAL_SEC
+
+            if (threshold_met or time_met) and not _retrain_in_progress:
+                with _retrain_lock:
+                    _retrain_in_progress = True
+                    try:
+                        logger.info(
+                            f"[Autonomous Learning] Triggering retraining: threshold_met={threshold_met} "
+                            f"({_new_events_since_retrain} events), time_met={time_met} ({int(time_elapsed)}s elapsed)"
+                        )
+                        import train_model
+                        res = train_model.retrain_from_db()
+                        logger.info(f"[Autonomous Learning] Retrain succeeded: {res}")
+                        _new_events_since_retrain = 0
+                        _last_autonomous_retrain = now
+                    except Exception as e:
+                        logger.error(f"[Autonomous Learning] Error during retraining: {e}", exc_info=True)
+                    finally:
+                        _retrain_in_progress = False
+        except Exception as loop_err:
+            logger.error(f"[Autonomous Learning] Loop error: {loop_err}", exc_info=True)
+
+_autonomous_learning_thread = threading.Thread(
+    target=_autonomous_learning_loop,
+    name="autonomous-ml-daemon",
+    daemon=True
+)
+_autonomous_learning_thread.start()
 
 
 if __name__ == "__main__":

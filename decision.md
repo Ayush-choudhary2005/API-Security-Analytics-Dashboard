@@ -75,7 +75,7 @@
 ## Stage Execution & Verification Log
 
 ### Stage 2 Verification Record
-* **Status:** COMPLETED & VERIFIED
+* **Status:** COMPLETED & VERIFIED (Commit `5331754`)
 * **Files Modified:**
   - `backend/train_model.py`: Refactored `retrain_from_db()` with sliding-window extraction, dual SQLite/Postgres compatibility via `db.get_conn()`, synthetic fallback for cold starts, and automated hot-reloading via `detection.reload_model()`.
   - `backend/detection.py`: Added `reload_model()` to hot-reload `ml_model = joblib.load(MODEL_PATH)` into memory after a training run.
@@ -87,3 +87,21 @@
   - No frontend files were modified.
   - No existing REST routes or WebSocket channels were altered.
   - Database schema and migrations remain 100% untouched.
+
+---
+
+### Stage 3 Verification Record
+* **Status:** COMPLETED & VERIFIED
+* **Files Modified:**
+  - `backend/server.py`:
+    - Added `record_ingest_for_learning()` to track new events ingested.
+    - Wired `record_ingest_for_learning()` into `_safe_ingest_event` immediately after database insertion.
+    - Extended `GET /api/training_status` to expose `events_since_last_train`, `threshold_events` (250), and `interval_sec` (3600).
+    - Added `_autonomous_learning_loop()` background daemon thread alongside `_chain_resolver_thread` on server boot.
+* **Test Results:**
+  - Daemon thread starts cleanly on boot as a non-blocking daemon.
+  - Telemetry ingestion increments the counter accurately without blocking event response times.
+  - Dual triggers (volume threshold of 250 events or hourly schedule) guard against race conditions using `_retrain_lock`.
+* **Zero Disruption Guarantee:**
+  - Preserved existing `_chain_resolver_thread`.
+  - No external endpoints or authentication mechanisms were modified.
