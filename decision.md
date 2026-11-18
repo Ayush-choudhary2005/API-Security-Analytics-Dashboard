@@ -212,3 +212,9 @@
 
 ### Authentication Note & Demo Accounts
 * Both `demo@mlo11y.local` (password `demopassword123`) and `demo@example.com` (password `DemoPassword123!`) are permanently seeded in the local SQLite database (`events.db`) with full owner access to the demo workspace and projects.
+
+---
+
+### Live Attack Simulation & Radar Bugfix Record
+* **Bugfix:** Corrected internal variable reference in `backend/rate_limiter.py:get_warning_ips()` from undefined `_requests` to `_request_log`, ensuring `GET /api/threat-radar` executes cleanly without 500 errors.
+* **Turnkey Attack Scenario:** Added [demo_attack_scenario.py](file:///Users/ojaswigupta/Desktop/college/capstone/API-Security-Analytics-Dashboard/demo_attack_scenario.py) demonstrating legitimate traffic baselines, credential stuffing attacks (triggering ML anomaly alerts & webhooks), and volumetric request bursts (triggering the Early Warning Threat Radar and auto-blocking).
