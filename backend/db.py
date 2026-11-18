@@ -50,6 +50,18 @@ def _seed_default_demo_account(conn):
         user_id = user_row["id"]
         conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
 
+    # Also ensure demo@example.com exists for convenience
+    user_row_ex = conn.execute("SELECT id FROM users WHERE email = 'demo@example.com'").fetchone()
+    if not user_row_ex:
+        user_id_ex = "usr_demo_example"
+        conn.execute(
+            "INSERT INTO users (id, email, password_hash, created_at, email_verified, name) VALUES (?, ?, ?, ?, 1, 'Demo User')",
+            (user_id_ex, "demo@example.com", generate_password_hash("DemoPassword123!"), now)
+        )
+    else:
+        user_id_ex = user_row_ex["id"]
+        conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id_ex,))
+
     # 2. Check if demo organization exists
     org_id = "org_demo_default"
     org_row = conn.execute("SELECT id FROM organizations WHERE id = ?", (org_id,)).fetchone()
@@ -64,6 +76,12 @@ def _seed_default_demo_account(conn):
         conn.execute(
             "INSERT INTO organization_members (id, organization_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', ?)",
             (f"mem_{uuid.uuid4().hex[:12]}", org_id, user_id, now)
+        )
+    mem_row_ex = conn.execute("SELECT id FROM organization_members WHERE organization_id = ? AND user_id = ?", (org_id, user_id_ex)).fetchone()
+    if not mem_row_ex:
+        conn.execute(
+            "INSERT INTO organization_members (id, organization_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', ?)",
+            (f"mem_{uuid.uuid4().hex[:12]}", org_id, user_id_ex, now)
         )
 
     # 3. Check if demo project exists
