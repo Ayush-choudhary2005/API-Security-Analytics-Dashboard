@@ -138,7 +138,7 @@ def get_warning_ips(project_id: str = None) -> list:
     now = time.time()
     result = []
     with _lock:
-        for (proj, ip), timestamps in _requests.items():
+        for (proj, ip), timestamps in _request_log.items():
             if project_id and proj not in (project_id, "default", "proj_demo_default"):
                 continue
             recent = [t for t in timestamps if now - t <= WINDOW_SEC]
