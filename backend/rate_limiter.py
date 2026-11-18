@@ -133,6 +133,31 @@ def get_blocked_ips(project_id: str = None) -> list:
     return result
 
 
+def get_warning_ips(project_id: str = None) -> list:
+    """Return all host IPs currently in the warning zone (15 <= count <= MAX_REQUESTS)."""
+    now = time.time()
+    result = []
+    with _lock:
+        for (proj, ip), timestamps in _requests.items():
+            if project_id and proj not in (project_id, "default", "proj_demo_default"):
+                continue
+            recent = [t for t in timestamps if now - t <= WINDOW_SEC]
+            count = len(recent)
+            if WARNING_THRESHOLD <= count <= MAX_REQUESTS:
+                # Exclude if already in active blocked set
+                if (proj, ip) not in _blocked_ips or now >= _blocked_ips[(proj, ip)].get("expires_at", 0):
+                    result.append({
+                        "ip": ip,
+                        "project_id": proj,
+                        "count": count,
+                        "limit": MAX_REQUESTS,
+                        "warning_threshold": WARNING_THRESHOLD,
+                        "risk_level": "elevated",
+                        "last_seen": max(recent) if recent else now
+                    })
+    return sorted(result, key=lambda x: x["count"], reverse=True)
+
+
 def unblock_ip(ip: str, project_id: str = "default") -> bool:
     """Manually unblock an IP for a specific project. Returns True if it was blocked."""
     key = (project_id, ip)

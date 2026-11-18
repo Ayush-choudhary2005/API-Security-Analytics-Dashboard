@@ -123,6 +123,7 @@ export const telemetryService = {
   getAlertStats: (projectId, window) => api.get(`/alerts/stats?project_id=${projectId}${window ? `&window=${window}` : ''}`),
   getHistory: (projectId, window = '1h') => api.get(`/history?project_id=${projectId}&window=${window}`),
   getBlockedIPs: (projectId) => api.get(`/blocked-ips?project_id=${projectId}`),
+  getThreatRadar: (projectId) => api.get(`/api/threat-radar?project_id=${projectId}`),
   blockIP: (data) => api.post('/block-ip', data),
   unblockIP: (data) => api.post('/unblock-ip', data),
 };

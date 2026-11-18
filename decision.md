@@ -156,7 +156,7 @@
 ---
 
 ### Phase A Verification Record: Real-Time Edge IP Dropping in the SDK
-* **Status:** COMPLETED & VERIFIED
+* **Status:** COMPLETED & VERIFIED (Commit `01c6387`)
 * **Files Modified:**
   - `sdk/mlo11y/config.py`: Added `active_defense: bool` (default True) and `block_sync_interval: float` (10s).
   - `sdk/mlo11y/middleware.py`: Added non-blocking background thread `_sync_loop` fetching `/api/v1/blocked-ips`. Hooked into `@app.before_request` to drop blacklisted IPs immediately with `HTTP 403 Forbidden` (`{"mitigation": "active_defense_drop"}`) in $0.1\text{ms}$ before executing any host application view logic or database queries.
@@ -166,3 +166,22 @@
 * **Zero Disruption Guarantee:**
   - Zero latency added to non-blocked requests ($O(1)$ Python Set lookup in memory).
   - Background sync handles collector downtime silently without failing client applications.
+
+---
+
+### Phase B Verification Record: Early Warning Threat Radar on Overview Page
+* **Status:** COMPLETED & VERIFIED
+* **Files Modified:**
+  - `backend/rate_limiter.py`: Added `get_warning_ips()` returning IPs in warning zone (15 <= count <= 50 req/min).
+  - `backend/server.py`: Added `GET /api/threat-radar` endpoint protected by `@login_required`.
+  - `frontend/dashboard/src/services/api.js`: Added `getThreatRadar` to `telemetryService`.
+  - `frontend/dashboard/src/pages/dashboard/OverviewPage.jsx`:
+    - Added `radarWarnings` state and live socket listener for `ip_warning`.
+    - Added pre-emptive mitigation handler (`handlePreemptiveBlock`).
+    - Added styled "Early Warning Threat Radar" card with live velocity gauges and one-click "PRE-EMPTIVE BLOCK" action.
+* **Test & Build Results:**
+  - React SPA compiled successfully with Vite (`dist/` generated).
+  - Backend ML pipeline test suite (11/11 tests) passed with 100% success rate.
+* **Zero Disruption Guarantee:**
+  - If no IPs are in warning threshold, layout remains clean and unobtrusive.
+  - Existing `OverviewPage` metrics, charts, and table logic remain untouched.

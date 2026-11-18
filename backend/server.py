@@ -2293,6 +2293,21 @@ def blocked_ips():
     return jsonify(rate_limiter.get_blocked_ips(project_id=project_id))
 
 
+@app.route("/api/threat-radar", methods=["GET"])
+@login_required
+def threat_radar():
+    """Return active host IPs approaching rate limit threshold in the early warning zone."""
+    project_id, err = _resolve_and_verify_project(g.current_user["id"])
+    if err:
+        return err
+    return jsonify({
+        "project_id": project_id,
+        "warnings": rate_limiter.get_warning_ips(project_id=project_id),
+        "warning_threshold": rate_limiter.WARNING_THRESHOLD,
+        "block_threshold": rate_limiter.MAX_REQUESTS
+    }), 200
+
+
 @app.route("/api/v1/blocked-ips", methods=["GET"])
 def sdk_blocked_ips():
     """

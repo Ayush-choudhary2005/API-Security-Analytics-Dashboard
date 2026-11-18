@@ -52,6 +52,7 @@ export const OverviewPage = () => {
   const [alerts, setAlerts] = useState([]);
   const [blockedIPs, setBlockedIPs] = useState([]);
   const [historyData, setHistoryData] = useState([]);
+  const [radarWarnings, setRadarWarnings] = useState([]);
 
   const fetchData = useCallback(async () => {
     if (!currentProject?.id) {
@@ -60,12 +61,13 @@ export const OverviewPage = () => {
     }
     setLoading(true);
     try {
-      const [statsRes, eventsRes, alertsRes, blockedRes, histRes] = await Promise.allSettled([
+      const [statsRes, eventsRes, alertsRes, blockedRes, histRes, radarRes] = await Promise.allSettled([
         telemetryService.getAlertStats(currentProject.id),
         telemetryService.getRecentEvents(currentProject.id, 25),
         telemetryService.getAlerts(currentProject.id, 15),
         telemetryService.getBlockedIPs(currentProject.id),
         telemetryService.getHistory(currentProject.id),
+        telemetryService.getThreatRadar(currentProject.id),
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -106,6 +108,12 @@ export const OverviewPage = () => {
         setHistoryData(Array.isArray(val) ? val : (val?.timeline || val?.history || []));
       } else {
         setHistoryData([]);
+      }
+      if (radarRes.status === 'fulfilled') {
+        const val = radarRes.value.data;
+        setRadarWarnings(val?.warnings || []);
+      } else {
+        setRadarWarnings([]);
       }
     } catch (err) {
       console.error('Error loading dashboard overview:', err);
@@ -167,24 +175,53 @@ export const OverviewPage = () => {
 
     const onBlocked = (item) => {
       setBlockedIPs((prev) => [item, ...prev]);
+      setRadarWarnings((prev) => prev.filter((w) => w.ip !== item.ip));
     };
 
     const onUnblocked = (item) => {
       setBlockedIPs((prev) => prev.filter((b) => b.ip !== item.ip));
     };
 
+    const onIpWarning = (item) => {
+      if (item && item.ip) {
+        setRadarWarnings((prev) => {
+          const filtered = prev.filter((w) => w.ip !== item.ip);
+          return [item, ...filtered];
+        });
+      }
+    };
+
     socket.on('new_event', onNewEvent);
     socket.on('new_alert', onNewAlert);
     socket.on('ip_blocked', onBlocked);
     socket.on('ip_unblocked', onUnblocked);
+    socket.on('ip_warning', onIpWarning);
 
     return () => {
       socket.off('new_event', onNewEvent);
       socket.off('new_alert', onNewAlert);
       socket.off('ip_blocked', onBlocked);
       socket.off('ip_unblocked', onUnblocked);
+      socket.off('ip_warning', onIpWarning);
     };
   }, [currentProject?.id]);
+
+  const handlePreemptiveBlock = async (ip) => {
+    if (!currentProject?.id || !ip) return;
+    try {
+      await telemetryService.blockIP({
+        ip,
+        reason: 'Pre-emptively blocked via Early Warning Threat Radar',
+        duration: 600,
+        project_id: currentProject.id,
+      });
+      setRadarWarnings((prev) => prev.filter((w) => w.ip !== ip));
+      const res = await telemetryService.getBlockedIPs(currentProject.id);
+      setBlockedIPs(Array.isArray(res.data) ? res.data : (res.data?.blocked_ips || []));
+    } catch (err) {
+      console.error('Failed to pre-emptively block IP:', err);
+    }
+  };
 
   const handleUnblock = async (ip) => {
     if (!currentProject?.id) return;
@@ -645,6 +682,64 @@ export const OverviewPage = () => {
           </div>
         </div>
       </div>
+
+      {/* EARLY WARNING THREAT RADAR */}
+      {radarWarnings.length > 0 && (
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#FFCB6B]/30 hover:border-[#FFCB6B]/50 transition-all duration-200 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#FFCB6B] to-transparent animate-pulse"></div>
+          <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
+            <div className="flex items-center space-x-2">
+              <Radio className="w-4 h-4 text-[#FFCB6B] animate-pulse" />
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
+                Early Warning Threat Radar
+              </h3>
+              <span className="text-[10px] font-mono text-[#FFCB6B] bg-[#FFCB6B]/10 border border-[#FFCB6B]/30 px-2 py-0.5 rounded-full">
+                ELEVATED BURST VELOCITY
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-[#9BA1AC]">
+              Threshold: ≥15 req/min (Pre-Block Zone)
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {radarWarnings.map((w) => {
+              const pct = Math.min(100, Math.round(((w.count || 15) / (w.limit || 50)) * 100));
+              return (
+                <div
+                  key={w.ip}
+                  className="p-3.5 rounded-xl bg-[#16181D] border border-[#FFCB6B]/20 hover:border-[#FFCB6B]/40 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-xs font-bold text-[#FFCB6B]">{w.ip}</span>
+                    <span className="text-[10px] font-mono text-[#9BA1AC]">{w.count} / {w.limit || 50} req/min</span>
+                  </div>
+
+                  <div className="w-full h-1.5 bg-[#101216] rounded-full overflow-hidden mb-3 border border-[#1E2127]">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#FFCB6B] to-[#F07178] rounded-full transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-[#F07178] font-medium flex items-center">
+                      <Zap className="w-3 h-3 mr-1" />
+                      <span>{pct}% TO AUTO-BLOCK</span>
+                    </span>
+                    <button
+                      onClick={() => handlePreemptiveBlock(w.ip)}
+                      className="px-3 py-1 rounded-full bg-[#F07178]/10 hover:bg-[#F07178] text-[#F07178] hover:text-[#0A0B0D] text-[10px] font-mono font-semibold border border-[#F07178]/30 hover:border-transparent transition-all duration-150 cursor-pointer"
+                    >
+                      PRE-EMPTIVE BLOCK
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* BLOCKED IPS MANAGEMENT */}
       {blockedIPs.length > 0 && (
