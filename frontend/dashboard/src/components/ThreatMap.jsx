@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin, ShieldCheck, ShieldAlert, Radio } from 'lucide-react';
+import { MapPin, ShieldCheck, ShieldAlert, Radio, Globe, Layers } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // Safely parse metadata if formatted as JSON string
@@ -28,6 +28,7 @@ const getCoordinatesForIP = (threat, rawMetadata = {}) => {
 
 export const ThreatMap = ({ threats = [] }) => {
   const center = [22.0, 77.0]; // Centered on South Asia / Global view
+  const [mapTheme, setMapTheme] = useState('osm'); // 'osm' (vivid OpenStreetMap) or 'dark' (high-contrast dark slate)
 
   // Module-level styled divIcons for cyber shockwaves / sonar ripple beacons
   const criticalSonarIcon = useMemo(
@@ -99,13 +100,29 @@ export const ThreatMap = ({ threats = [] }) => {
         scrollWheelZoom={false}
         className="w-full h-full"
       >
-        {/* Crisp, high-contrast dark basemap with legible country boundaries, continents & cities */}
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          maxZoom={19}
-        />
+        {/* Free Tile Layers: Clear Vivid OpenStreetMap (default) or Dark Slate with Country Labels */}
+        {mapTheme === 'osm' ? (
+          <TileLayer
+            key="layer-osm"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={19}
+          />
+        ) : (
+          <>
+            <TileLayer
+              key="layer-esri-base"
+              attribution='Tiles &copy; Esri &mdash; Esri, DeLorme, TomTom'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+              maxZoom={16}
+            />
+            <TileLayer
+              key="layer-esri-ref"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+              maxZoom={16}
+            />
+          </>
+        )}
 
         {geocoded.map(({ threat, meta, coords, key }) => {
           const isCritical =
@@ -227,18 +244,47 @@ export const ThreatMap = ({ threats = [] }) => {
         </div>
       )}
 
-      {/* Cyber War Room HUD Status Overlay */}
-      <div className="absolute top-2 right-2 z-[400] bg-[#101216]/90 border border-[#1E2127] rounded px-2.5 py-1 text-[10px] font-mono flex items-center space-x-2 shadow-lg backdrop-blur-xs">
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F07178] opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F07178]"></span>
-        </span>
-        <span className="text-[#E6E8EB] font-semibold tracking-wider uppercase">CYBER RADAR</span>
-        {criticalCount > 0 ? (
-          <span className="text-[#F07178] font-bold">[{criticalCount} ACTIVE SHOCKWAVES]</span>
-        ) : (
-          <span className="text-[#C3E88D]">GRID NORMAL</span>
-        )}
+      {/* Controls & Status Bar (Top Right) */}
+      <div className="absolute top-2 right-2 z-[400] flex items-center space-x-2">
+        {/* Free Basemap Theme Switcher */}
+        <div className="bg-[#101216]/95 border border-[#1E2127] rounded-md p-0.5 flex items-center shadow-lg backdrop-blur-xs">
+          <button
+            type="button"
+            onClick={() => setMapTheme('osm')}
+            className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer ${
+              mapTheme === 'osm'
+                ? 'bg-[#82AAFF] text-[#0A0B0D] font-bold shadow-xs'
+                : 'text-[#9BA1AC] hover:text-[#E6E8EB]'
+            }`}
+          >
+            Vivid Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setMapTheme('dark')}
+            className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer ${
+              mapTheme === 'dark'
+                ? 'bg-[#C792EA] text-[#0A0B0D] font-bold shadow-xs'
+                : 'text-[#9BA1AC] hover:text-[#E6E8EB]'
+            }`}
+          >
+            Dark Slate
+          </button>
+        </div>
+
+        {/* Cyber War Room HUD Status Overlay */}
+        <div className="bg-[#101216]/90 border border-[#1E2127] rounded px-2.5 py-1 text-[10px] font-mono flex items-center space-x-2 shadow-lg backdrop-blur-xs">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F07178] opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F07178]"></span>
+          </span>
+          <span className="text-[#E6E8EB] font-semibold tracking-wider uppercase">CYBER RADAR</span>
+          {criticalCount > 0 ? (
+            <span className="text-[#F07178] font-bold">[{criticalCount} ACTIVE SHOCKWAVES]</span>
+          ) : (
+            <span className="text-[#C3E88D]">GRID NORMAL</span>
+          )}
+        </div>
       </div>
 
       {/* Overlay: Zero Hostile Ingress Threats */}
