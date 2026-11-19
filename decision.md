@@ -251,3 +251,21 @@
   - **Overview Page:** Added an "Actionable Mitigations: Recommended IP Blocks" card above the threat radar that aggregates detected hostile IPs not yet blocked, complete with risk score, attack type, endpoint, and a 1-click `BLOCK HOSTILE IP` button.
   - **Recent Detections & Threats Tables:** Added direct `BLOCK IP` action buttons and `ENFORCED` status badges to every threat alert row in both `OverviewPage.jsx` and `ThreatsPage.jsx`.
 
+---
+
+### Authentication Hash Resolution & Quick Demo Login UI
+
+* **Issue (Root Cause of "Invalid email or password"):**
+  - When switching the backend runtime to Python 3.9, macOS's system Python build (`/usr/bin/python3`) is compiled against Apple's LibreSSL 2.8.3, which lacks `hashlib.scrypt`.
+  - When Werkzeug's `check_password_hash` attempted to verify pre-seeded passwords stored with `scrypt:`, it raised `AttributeError: module 'hashlib' has no attribute 'scrypt'`, which was caught as an exception and returned `False`.
+* **Fixes Applied:**
+  1. **Polyfill & Robust Verification ([backend/auth.py](file:///Users/ojaswigupta/Desktop/college/capstone/API-Security-Analytics-Dashboard/backend/auth.py)):**
+     - Polyfilled `hashlib.scrypt` using `cryptography.hazmat.primitives.kdf.scrypt.Scrypt`.
+     - Added secondary direct `cryptography` fallback in `verify_password`.
+     - Standardized `hash_password()` to use `pbkdf2:sha256` which is universally supported across all Python runtimes.
+  2. **Database Re-Seeding ([backend/db.py](file:///Users/ojaswigupta/Desktop/college/capstone/API-Security-Analytics-Dashboard/backend/db.py)):**
+     - Re-hashed demo accounts (`demo@mlo11y.local` with `demopassword123` and `demo@example.com` with `DemoPassword123!`) with `pbkdf2:sha256`.
+  3. **1-Click Demo Login UI ([LoginPage.jsx](file:///Users/ojaswigupta/Desktop/college/capstone/API-Security-Analytics-Dashboard/frontend/dashboard/src/pages/auth/LoginPage.jsx)):**
+     - Added a "⚡ Quick Demo Access (Click to Fill)" panel directly above the login form, displaying both pre-seeded accounts and allowing 1-click credential auto-fill.
+
+

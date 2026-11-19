@@ -45,11 +45,14 @@ def _seed_default_demo_account(conn):
         user_id = "usr_demo_default"
         conn.execute(
             "INSERT INTO users (id, email, password_hash, created_at, email_verified, name) VALUES (?, ?, ?, ?, 1, 'Demo Operator')",
-            (user_id, "demo@mlo11y.local", generate_password_hash("demopassword123"), now)
+            (user_id, "demo@mlo11y.local", generate_password_hash("demopassword123", method="pbkdf2:sha256"), now)
         )
     else:
         user_id = user_row["id"]
-        conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
+        conn.execute(
+            "UPDATE users SET email_verified = 1, password_hash = ? WHERE id = ?",
+            (generate_password_hash("demopassword123", method="pbkdf2:sha256"), user_id)
+        )
 
     # Also ensure demo@example.com exists for convenience
     user_row_ex = conn.execute("SELECT id FROM users WHERE email = 'demo@example.com'").fetchone()
@@ -57,11 +60,14 @@ def _seed_default_demo_account(conn):
         user_id_ex = "usr_demo_example"
         conn.execute(
             "INSERT INTO users (id, email, password_hash, created_at, email_verified, name) VALUES (?, ?, ?, ?, 1, 'Demo User')",
-            (user_id_ex, "demo@example.com", generate_password_hash("DemoPassword123!"), now)
+            (user_id_ex, "demo@example.com", generate_password_hash("DemoPassword123!", method="pbkdf2:sha256"), now)
         )
     else:
         user_id_ex = user_row_ex["id"]
-        conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id_ex,))
+        conn.execute(
+            "UPDATE users SET email_verified = 1, password_hash = ? WHERE id = ?",
+            (generate_password_hash("DemoPassword123!", method="pbkdf2:sha256"), user_id_ex)
+        )
 
     # 2. Check if demo organization exists
     org_id = "org_demo_default"
