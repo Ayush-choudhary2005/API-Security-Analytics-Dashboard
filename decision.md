@@ -220,3 +220,34 @@
 * **Turnkey Attack Scenario:** Added [demo_attack_scenario.py](file:///Users/ojaswigupta/Desktop/college/capstone/API-Security-Analytics-Dashboard/demo_attack_scenario.py) demonstrating legitimate traffic baselines, credential stuffing attacks (triggering ML anomaly alerts & webhooks), and volumetric request bursts (triggering the Early Warning Threat Radar and auto-blocking).
 * **Webhook Verification:** Verified end-to-end Slack webhook delivery (`python3 demo_attack_scenario.py test` returned HTTP 200). Updated `demo_attack_scenario.py` with standalone webhook verification to avoid PYTHONPATH path errors.
 * **Continuous Traffic Simulator & 5-Min Slack Heartbeat:** Added [continuous_traffic_simulator.py](file:///Users/ojaswigupta/Desktop/college/capstone/API-Security-Analytics-Dashboard/continuous_traffic_simulator.py) providing continuous realistic global ingress traffic (San Francisco, London, Tokyo, Singapore, Frankfurt, Mumbai, Sydney, São Paulo), periodic multi-vector hostile attack waves, and an automated 5-minute Slack Security Digest ("Everything is OK" heartbeat report, last attack details, and active edge quarantine counts).
+
+---
+
+### Autonomous Attack-Based Blocking, ML Engine Verification, & Threat Map Overhaul
+
+* **1. Autonomous Active Defense Attack-Based Blocking:**
+  - **Issue:** Previously, auto-blocking was solely triggered by volumetric thresholds (>50 req/min) in `backend/rate_limiter.py`. Single-probe attacks, low-and-slow credential stuffing, or brute force below 50 req/min evaded automatic quarantine.
+  - **Fix:** In `backend/server.py` (`_execute_ingest_pipeline`), added autonomous quarantine for hostile IPs whenever an incoming event matches:
+    - High/critical severity (`severity in ('high', 'critical')`)
+    - Known exploit signatures (`attack_type in ('brute_force', 'credential_stuffing')`)
+    - High anomaly score ($\ge 2.0$) or risk score ($\ge 75$)
+  - Automatically isolates the offending IP for 600 seconds, responds with HTTP 429 on subsequent requests, and broadcasts `ip_blocked` WebSocket events across project rooms for immediate UI sync.
+
+* **2. ML Isolation Forest Model Verification & Retraining:**
+  - **Issue:** The ML model was occasionally falling back to statistical heuristic scores due to a Python runtime conflict (Python 3.11 attempting to load C-extensions compiled for Python 3.9).
+  - **Fix:** Added `from __future__ import annotations` to `backend/db.py` and `backend/attack_correlator.py` to enable PEP 604 type unions under Python 3.9. Running under Python 3.9 natively loads `scikit-learn 1.6.1` and `numpy 2.0.2` without C-extension errors (`SUCCESS: Isolation Forest ML model loaded!`).
+  - Model training/retraining (`backend/train_model.py` and `POST /api/ml/retrain`) genuinely trains the `IsolationForest` estimator on multi-dimensional telemetry vectors (`duration_ms`, `payload_size`, `query_param_count`, `header_count`, `risk_score`) and serializes the model to disk with hot-reloading.
+
+* **3. Threat Map Legibility & Dark Matter Basemap Overhaul:**
+  - **Issue:** The threat map appeared completely black with faint red threads and zero legible geography, countries, or labels.
+  - **Cause:** `frontend/dashboard/src/index.css` had an aggressive `.leaflet-tile-pane { filter: grayscale(100%) invert(100%) contrast(150%) brightness(60%); }` rule applied to standard OpenStreetMap tiles, crushing the colors into a dark void.
+  - **Fix:**
+    - Removed the destructive CSS tile filter.
+    - Switched `ThreatMap.jsx` to native **CartoDB Dark Matter** tiles (`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png`), which natively provides dark-themed cartography with crisp continent outlines, ocean depth contrasts, and legible white country/city labels.
+    - Added Leaflet `<Tooltip>` to CircleMarkers so location badges (`[Frankfurt, Germany] • 185.220.101.5`) are permanently visible on critical threats and easily readable on hover.
+    - Added a floating "DETECTED ATTACK ORIGINS" HUD badge displaying active geographic origins.
+
+* **4. Manual Block Suggestions & Operator Mitigation Actions:**
+  - **Overview Page:** Added an "Actionable Mitigations: Recommended IP Blocks" card above the threat radar that aggregates detected hostile IPs not yet blocked, complete with risk score, attack type, endpoint, and a 1-click `BLOCK HOSTILE IP` button.
+  - **Recent Detections & Threats Tables:** Added direct `BLOCK IP` action buttons and `ENFORCED` status badges to every threat alert row in both `OverviewPage.jsx` and `ThreatsPage.jsx`.
+

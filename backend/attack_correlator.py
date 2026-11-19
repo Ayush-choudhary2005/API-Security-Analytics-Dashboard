@@ -6,6 +6,8 @@ Called by server.py after every medium/high severity alert.
 Thread-safe. Never raises — errors are silently swallowed so the
 ingest pipeline is never blocked.
 """
+from __future__ import annotations
+
 import uuid
 import time
 import json

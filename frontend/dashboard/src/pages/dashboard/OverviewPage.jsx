@@ -206,12 +206,12 @@ export const OverviewPage = () => {
     };
   }, [currentProject?.id]);
 
-  const handlePreemptiveBlock = async (ip) => {
+  const handleBlockIP = async (ip, reason = 'Manually blocked by operator') => {
     if (!currentProject?.id || !ip) return;
     try {
       await telemetryService.blockIP({
         ip,
-        reason: 'Pre-emptively blocked via Early Warning Threat Radar',
+        reason,
         duration: 600,
         project_id: currentProject.id,
       });
@@ -219,8 +219,12 @@ export const OverviewPage = () => {
       const res = await telemetryService.getBlockedIPs(currentProject.id);
       setBlockedIPs(Array.isArray(res.data) ? res.data : (res.data?.blocked_ips || []));
     } catch (err) {
-      console.error('Failed to pre-emptively block IP:', err);
+      console.error('Failed to block IP:', err);
     }
+  };
+
+  const handlePreemptiveBlock = async (ip) => {
+    await handleBlockIP(ip, 'Pre-emptively blocked via Early Warning Threat Radar');
   };
 
   const handleUnblock = async (ip) => {
@@ -232,6 +236,22 @@ export const OverviewPage = () => {
       console.error('Failed to unblock IP:', err);
     }
   };
+
+  const blockedIPSet = useMemo(() => new Set(blockedIPs.map((b) => b.ip)), [blockedIPs]);
+
+  const suggestedBlocks = useMemo(() => {
+    const seen = new Set();
+    const suggestions = [];
+    for (const alt of alerts) {
+      const ip = alt.ip || alt.source_ip;
+      if (ip && !blockedIPSet.has(ip) && !seen.has(ip)) {
+        seen.add(ip);
+        suggestions.push(alt);
+        if (suggestions.length >= 4) break;
+      }
+    }
+    return suggestions;
+  }, [alerts, blockedIPSet]);
 
   const rawDist = stats?.attack_distribution || (stats && typeof stats === 'object' && !Array.isArray(stats) ? stats : null);
   const attackDistribution = rawDist
@@ -660,10 +680,22 @@ export const OverviewPage = () => {
                       {alt.anomaly_score != null ? Number(alt.anomaly_score).toFixed(2) : '0.00'}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-[#7B818B]">{alt.ip || alt.source_ip || '-'}</td>
-                    <td className="py-2.5 px-3 text-right">
+                    <td className="py-2.5 px-3 text-right font-mono whitespace-nowrap">
+                      {blockedIPSet.has(alt.ip || alt.source_ip) ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#C3E88D]/15 text-[#C3E88D] border border-[#C3E88D]/30 mr-2">
+                          ENFORCED
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleBlockIP(alt.ip || alt.source_ip, `Operator manual block on ${alt.attack_type || 'hostile anomaly'}`)}
+                          className="px-2.5 py-0.5 rounded bg-[#F07178]/15 hover:bg-[#F07178] text-[#F07178] hover:text-[#0A0B0D] text-[10px] font-bold border border-[#F07178]/30 hover:border-transparent transition-all cursor-pointer mr-2"
+                        >
+                          BLOCK IP
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
-                        className="text-[11px] text-[#82AAFF] hover:underline font-mono cursor-pointer"
+                        className="text-[11px] text-[#82AAFF] hover:underline cursor-pointer"
                       >
                         Investigate &rarr;
                       </button>
@@ -682,6 +714,66 @@ export const OverviewPage = () => {
           </div>
         </div>
       </div>
+
+      {/* ACTIONABLE THREAT MITIGATION SUGGESTIONS */}
+      {suggestedBlocks.length > 0 && (
+        <div className="p-5 rounded-2xl bg-[#101216] border border-[#F07178]/30 hover:border-[#F07178]/50 transition-all duration-200 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#F07178] to-transparent animate-pulse"></div>
+          <div className="flex items-center justify-between mb-3 border-b border-[#1E2127] pb-2">
+            <div className="flex items-center space-x-2">
+              <ShieldAlert className="w-4 h-4 text-[#F07178] animate-pulse" />
+              <h3 className="text-xs font-mono font-semibold text-[#E6E8EB] uppercase tracking-wider">
+                Actionable Mitigations: Recommended IP Blocks
+              </h3>
+              <span className="text-[10px] font-mono text-[#F07178] bg-[#F07178]/10 border border-[#F07178]/30 px-2 py-0.5 rounded-full">
+                {suggestedBlocks.length} DETECTED THREAT ORIGIN{suggestedBlocks.length > 1 ? 'S' : ''}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-[#9BA1AC]">
+              Hostile ingress flagged by ML detection pending active defense quarantine
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {suggestedBlocks.map((sug) => {
+              const ip = sug.ip || sug.source_ip;
+              const atk = (sug.attack_type || 'Anomaly').replace(/_/g, ' ');
+              return (
+                <div
+                  key={`sug-${ip}`}
+                  className="p-3.5 rounded-xl bg-[#16181D] border border-[#F07178]/20 hover:border-[#F07178]/40 transition-colors flex flex-col justify-between"
+                >
+                  <div className="mb-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-bold text-[#F07178]">{ip}</span>
+                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-[#F07178]/15 text-[#F07178] border border-[#F07178]/30">
+                        {sug.severity || 'high'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#E6E8EB] mt-1 font-medium truncate">
+                      {atk}
+                    </div>
+                    <div className="text-[10px] font-mono text-[#9BA1AC] mt-0.5">
+                      Endpoint: {sug.endpoint || '/api'}
+                    </div>
+                    <div className="text-[10px] font-mono text-[#C792EA] mt-0.5">
+                      Anomaly Score: {sug.anomaly_score != null ? Number(sug.anomaly_score).toFixed(2) : '1.50+'}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleBlockIP(ip, `Operator manual block: Detected ${atk}`)}
+                    className="w-full py-1.5 rounded-lg bg-[#F07178] hover:bg-[#ff858c] text-[#0A0B0D] text-[11px] font-mono font-bold tracking-wider transition-all duration-150 shadow-xs cursor-pointer flex items-center justify-center space-x-1"
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>BLOCK HOSTILE IP</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* EARLY WARNING THREAT RADAR */}
       {radarWarnings.length > 0 && (

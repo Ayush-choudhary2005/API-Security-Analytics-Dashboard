@@ -92,6 +92,23 @@ export const ThreatsPage = () => {
     }
   };
 
+  const handleQuickBlock = async (ip, reason) => {
+    if (!currentProject?.id || !ip) return;
+    try {
+      await telemetryService.blockIP({
+        ip,
+        reason: reason || 'Manually blocked from Threat Log',
+        duration: 600,
+        project_id: currentProject.id,
+      });
+      fetchThreatData();
+    } catch (err) {
+      console.error('Failed to quick block IP:', err);
+    }
+  };
+
+  const blockedIPSet = new Set(blockedIPs.map((b) => b.ip));
+
   const handleSimulateAttack = async () => {
     if (!currentProject?.id) return;
     setSimulatingAttack(true);
@@ -285,7 +302,19 @@ export const ThreatsPage = () => {
                   <td className="py-2 px-3 text-[#7B818B] font-mono text-[11px]">
                     {alt.timestamp ? new Date(alt.timestamp * 1000).toLocaleString() : 'Recent'}
                   </td>
-                  <td className="py-2 px-3 text-right">
+                  <td className="py-2 px-3 text-right whitespace-nowrap font-mono">
+                    {blockedIPSet.has(alt.ip || alt.source_ip) ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#C3E88D]/15 text-[#C3E88D] border border-[#C3E88D]/30 mr-2">
+                        ENFORCED
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleQuickBlock(alt.ip || alt.source_ip, `Operator manual block: ${alt.attack_type || 'Anomaly'}`)}
+                        className="px-2.5 py-0.5 rounded bg-[#F07178]/15 hover:bg-[#F07178] text-[#F07178] hover:text-[#0A0B0D] text-[10px] font-bold border border-[#F07178]/30 hover:border-transparent transition-all cursor-pointer mr-2"
+                      >
+                        BLOCK IP
+                      </button>
+                    )}
                     <button
                       onClick={() => navigate(`/app/investigations?alert_id=${alt.id}`)}
                       className="inline-flex items-center space-x-1 text-[#82AAFF] hover:underline text-xs font-mono cursor-pointer"

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import { MapPin, ShieldCheck, ShieldAlert, Radio } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
@@ -90,7 +90,7 @@ export const ThreatMap = ({ threats = [] }) => {
   }).length;
 
   return (
-    <div className="w-full h-80 rounded-md overflow-hidden border border-[#1E2127] bg-[#0A0B0D] relative">
+    <div className="w-full h-88 rounded-md overflow-hidden border border-[#1E2127] bg-[#0A0B0D] relative">
       <MapContainer
         center={center}
         zoom={2}
@@ -99,9 +99,12 @@ export const ThreatMap = ({ threats = [] }) => {
         scrollWheelZoom={false}
         className="w-full h-full"
       >
+        {/* Crisp, high-contrast dark basemap with legible country boundaries, continents & cities */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={19}
         />
 
         {geocoded.map(({ threat, meta, coords, key }) => {
@@ -131,17 +134,35 @@ export const ThreatMap = ({ threats = [] }) => {
                 />
               )}
 
-              {/* Clickable vector marker with details popup */}
+              {/* Clickable vector marker with visible location tooltip & detailed popup */}
               <CircleMarker
                 center={coords}
-                radius={isCritical ? 7 : 4.5}
+                radius={isCritical ? 7.5 : 5}
                 pathOptions={{
                   color: color,
                   fillColor: color,
-                  fillOpacity: isCritical ? 0.95 : 0.65,
+                  fillOpacity: isCritical ? 0.95 : 0.7,
                   weight: isCritical ? 2 : 1,
                 }}
               >
+                {/* Clean hover / permanent badge so location is always clearly legible */}
+                <Tooltip
+                  direction="top"
+                  offset={[0, -8]}
+                  opacity={0.95}
+                  permanent={isCritical}
+                  className="threat-map-tooltip"
+                >
+                  <div className="font-mono text-[10px]">
+                    <span className="font-bold text-[#F07178]">
+                      {locationLabel || 'External VPC'}
+                    </span>
+                    <span className="text-[#9BA1AC] ml-1.5">
+                      [{threat.ip || threat.source_ip || '127.0.0.1'}]
+                    </span>
+                  </div>
+                </Tooltip>
+
                 <Popup>
                   <div className="text-xs space-y-1.5 p-1 font-sans">
                     <div className="flex items-center justify-between gap-2 border-b border-[#2A2E37] pb-1">
@@ -182,6 +203,29 @@ export const ThreatMap = ({ threats = [] }) => {
           );
         })}
       </MapContainer>
+
+      {/* Active Attack Geolocation Origins Overlay */}
+      {geocoded.length > 0 && (
+        <div className="absolute top-2 left-2 z-[400] bg-[#101216]/90 border border-[#1E2127] rounded-lg px-2.5 py-1.5 text-[10px] font-mono shadow-lg backdrop-blur-xs max-w-xs">
+          <div className="text-[9px] uppercase tracking-wider text-[#7B818B] mb-1 font-bold">
+            DETECTED ATTACK ORIGINS ({geocoded.length})
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+            {geocoded.slice(0, 5).map(({ threat, meta, key }) => {
+              const loc = [meta.city, meta.country].filter(Boolean).join(', ') || 'Remote Origin';
+              return (
+                <span
+                  key={`pill-${key}`}
+                  className="px-1.5 py-0.5 rounded bg-[#16181D] border border-[#2A2E37] text-[#E6E8EB] flex items-center space-x-1"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#F07178]"></span>
+                  <span className="font-medium text-[9px]">{loc}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Cyber War Room HUD Status Overlay */}
       <div className="absolute top-2 right-2 z-[400] bg-[#101216]/90 border border-[#1E2127] rounded px-2.5 py-1 text-[10px] font-mono flex items-center space-x-2 shadow-lg backdrop-blur-xs">

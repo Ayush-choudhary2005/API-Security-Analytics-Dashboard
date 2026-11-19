@@ -2010,6 +2010,33 @@ def _execute_ingest_pipeline(project_id: str, raw_payload: dict, remote_addr: st
                     # External notification failures must never impede detection
                     pass
 
+            # Autonomous Active Defense: Auto-quarantine IP on detected severe attack signatures or high anomaly scores
+            is_severe_attack = (
+                scored_event.get("severity") in ("high", "critical")
+                or scored_event.get("attack_type") in ("brute_force", "credential_stuffing")
+                or (scored_event.get("anomaly_score") is not None and float(scored_event.get("anomaly_score", 0)) >= 2.0)
+                or (scored_event.get("risk_score") is not None and float(scored_event.get("risk_score", 0)) >= 75)
+            )
+            if is_severe_attack and not rate_limiter.is_blocked(ip, project_id=project_id):
+                attack_name = (scored_event.get("attack_type") or "hostile anomaly").replace("_", " ").title()
+                block_reason = f"Autonomous Active Defense: Quarantined on {attack_name} (Severity: {scored_event.get('severity', 'high').upper()})"
+                rate_limiter.block_ip(ip, duration_sec=600, reason=block_reason, project_id=project_id)
+                try:
+                    socketio.emit(f'ip_blocked_{project_id}', {
+                        "ip": ip,
+                        "reason": block_reason,
+                        "project_id": project_id,
+                        "auto_blocked": True,
+                    }, room=room_name)
+                    socketio.emit('ip_blocked', {
+                        "ip": ip,
+                        "reason": block_reason,
+                        "project_id": project_id,
+                        "auto_blocked": True,
+                    }, room=room_name)
+                except Exception:
+                    pass
+
         # Kill Chain Stitching — correlate alerts and post-attack Initial Access into a multi-stage chain
         try:
             chain = attack_correlator.correlate(scored_event, db)

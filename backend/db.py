@@ -4,6 +4,7 @@ db.py — SQLite storage layer for API Security Analytics Platform.
 Maintains multi-tenant isolation across users, projects, API keys,
 webhooks, and telemetry events.
 """
+from __future__ import annotations
 
 import sqlite3
 import json
