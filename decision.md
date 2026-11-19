@@ -218,3 +218,4 @@
 ### Live Attack Simulation & Radar Bugfix Record
 * **Bugfix:** Corrected internal variable reference in `backend/rate_limiter.py:get_warning_ips()` from undefined `_requests` to `_request_log`, ensuring `GET /api/threat-radar` executes cleanly without 500 errors.
 * **Turnkey Attack Scenario:** Added [demo_attack_scenario.py](file:///Users/ojaswigupta/Desktop/college/capstone/API-Security-Analytics-Dashboard/demo_attack_scenario.py) demonstrating legitimate traffic baselines, credential stuffing attacks (triggering ML anomaly alerts & webhooks), and volumetric request bursts (triggering the Early Warning Threat Radar and auto-blocking).
+* **Webhook Verification:** Verified end-to-end Slack webhook delivery (`python3 demo_attack_scenario.py test` returned HTTP 200). Updated `demo_attack_scenario.py` with standalone webhook verification to avoid PYTHONPATH path errors.

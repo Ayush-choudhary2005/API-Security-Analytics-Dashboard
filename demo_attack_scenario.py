@@ -134,6 +134,32 @@ def run_volumetric_burst_attack():
     print("  -> You can click 'PRE-EMPTIVE BLOCK' in the UI, or continue to trigger Auto-Block.")
 
 
+def test_webhook_connection():
+    import os
+    backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+    if backend_path not in sys.path:
+        sys.path.insert(0, backend_path)
+    print("\n[VERIFICATION] Testing Configured Webhook Connection...")
+    try:
+        from integrations.service import notification_service
+        import sqlite3
+        db_path = os.path.join(backend_path, "events.db")
+        conn = sqlite3.connect(db_path)
+        row = conn.execute(
+            "SELECT provider, webhook_url FROM webhook_configs WHERE project_id='proj_demo_default' AND enabled=1 ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            print("  [!] No active webhook configured in the database for project 'proj_demo_default'.")
+            return
+        prov, url = row
+        print(f"  Testing active {prov.upper()} destination: {url[:38]}...")
+        success, msg = notification_service.test_connection(url, project_name="Production E-Commerce API", provider_id=prov)
+        print("  Status: ", "SUCCESS ✓" if success else "FAILED ✗")
+        print("  Details:", msg)
+    except Exception as e:
+        print("  [!] Connection test exception:", e)
+
+
 if __name__ == "__main__":
     print("=" * 70)
     print(" API SECURITY ANALYTICS & ACTIVE DEFENSE — LIVE ATTACK DEMO")
@@ -143,9 +169,11 @@ if __name__ == "__main__":
     
     arg = sys.argv[1].lower() if len(sys.argv) > 1 else "all"
     
-    if arg in ("1", "normal"):
+    if arg in ("test", "--test", "webhook", "-t"):
+        test_webhook_connection()
+    elif arg in ("1", "normal"):
         run_normal_traffic()
-    elif arg in ("2", "brute", "webhook"):
+    elif arg in ("2", "brute"):
         run_credential_stuffing_attack()
     elif arg in ("3", "burst", "radar"):
         run_volumetric_burst_attack()
