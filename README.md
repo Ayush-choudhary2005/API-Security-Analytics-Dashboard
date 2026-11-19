@@ -416,6 +416,196 @@ When designing anomaly detection for a multi-tenant observability platform, the 
 
 ---
 
+### 2. Mathematical Formalism & Isolation Forest Foundations
+
+The platform's anomaly detection core is built upon an unsupervised **Isolation Forest** ensemble ($iForest$), which operates on the structural principle that anomalous data points are few and different, making them susceptible to rapid isolation under recursive random partitioning.
+
+```text
+                  Root Feature Partition [q, p]
+                         /           \
+             [q < p]   /               \   [q >= p]
+                     /                   \
+          Dense Cluster Subtree       Isolated Anomaly (Leaf)
+          (Deeper Path Length)        (Short Path Length: h(x) << c(n))
+```
+
+#### A. Recursive Binary Space Partitioning (iTrees)
+Given an observational dataset $X = \{\mathbf{x}_1, \dots, \mathbf{x}_n\}$ where each instance $\mathbf{x} \in \mathbb{R}^d$:
+1. An Isolation Tree ($iTree$) recursively constructs binary partitions by randomly selecting a feature dimension $q \in \{1, \dots, d\}$ from the available features.
+2. A random split point $p$ is uniformly chosen within the feature's observational bounds:
+   $$p \sim \text{Uniform}(\min(\mathbf{x}_q), \max(\mathbf{x}_q))$$
+3. The coordinate space is divided into two distinct subspaces: $\mathbf{x}_q < p$ and $\mathbf{x}_q \ge p$.
+4. Recursion terminates when either:
+   - The tree reaches its maximum depth limit: $h_{\max} = \lceil \log_2(n) \rceil$.
+   - The partition subspace contains a single isolated point: $|X| \le 1$.
+   - All sample coordinates within the subspace become identical: $\min(\mathbf{x}_q) = \max(\mathbf{x}_q)$.
+
+#### B. Path Length Derivation & Tree Traversal Expectations
+For any given input vector $\mathbf{x}$, the path length $h(\mathbf{x})$ is defined as the number of edges traversed from the root node to the terminating leaf node.
+
+Because an $iTree$ possesses an equivalent mathematical structure to a Binary Search Tree (BST), the average path length of unsuccessful searches in a sample of size $n$ serves as the theoretical normalizer:
+$$c(n) = 2 \ln(n - 1) + 2 \gamma - \frac{2(n - 1)}{n}$$
+where:
+- $\ln(\cdot)$ is the natural logarithm.
+- $\gamma \approx 0.5772156649$ is the **Euler-Mascheroni constant**.
+- $c(n)$ represents the average depth of instances in a randomized BST of size $n$.
+
+For an ensemble of $T = 100$ isolation trees, the expected path length $\mathbb{E}(h(\mathbf{x}))$ across the ensemble is:
+$$\mathbb{E}(h(\mathbf{x})) = \frac{1}{T} \sum_{t=1}^T h_t(\mathbf{x})$$
+
+#### C. Unsupervised Anomaly Scoring Function
+The calibrated anomaly score $s(\mathbf{x}, n) \in [0, 1]$ is formulated as an exponential monotonic mapping:
+$$s(\mathbf{x}, n) = 2^{-\frac{\mathbb{E}(h(\mathbf{x}))}{c(n)}}$$
+
+**Asymptotic Properties of the Score:**
+- **Extreme Anomaly:** As $\mathbb{E}(h(\mathbf{x})) \to 0$, $s(\mathbf{x}, n) \to 2^0 = 1$. The data point is isolated with very few random cuts, indicating extreme deviation from normal distribution clusters.
+- **Extreme Inlier:** As $\mathbb{E}(h(\mathbf{x})) \to n - 1$, $s(\mathbf{x}, n) \to 0$. The instance requires exhaustive hierarchical partitioning to isolate, residing in the densest cluster.
+- **Structural Uniformity:** If $\mathbb{E}(h(\mathbf{x})) \to c(n)$, $s(\mathbf{x}, n) \to 2^{-1} = 0.5$. The instance exhibits no statistically meaningful anomaly characteristics compared to the overall population.
+
+#### D. Production Affine Score Transform
+Standard scikit-learn Isolation Forest implementations output offset-shifted raw scores via `score_samples(X)`. To provide human-readable, calibrated continuous scales for security analysts, the platform applies a monotonic affine projection in `backend/detection.py`:
+$$\text{Score}_{\text{global}} = \max\left(0.0, \left(-\text{raw\_score} - 0.42\right) \times 20.0\right)$$
+
+**Empirical Calibration Ranges:**
+- **Baseline Inlier Traffic:** $\text{raw\_score} \approx -0.40 \implies -(-0.40) - 0.42 = -0.02 \implies \text{Score}_{\text{global}} = 0.0$.
+- **Suspicious Behavior:** $\text{raw\_score} \approx -0.55 \implies (0.55 - 0.42) \times 20 = 2.60$ (Crosses Medium Severity threshold $\ge 2.5$).
+- **Aggressive Attack Spikes:** $\text{raw\_score} \approx -0.75 \implies (0.75 - 0.42) \times 20 = 6.60$ (Crosses High Severity threshold $\ge 5.0$).
+
+---
+
+### 3. 4-Dimensional Feature Engineering & Spatial Representation
+
+On every incoming telemetry transaction, the pipeline extracts a 4-dimensional temporal feature vector $\mathbf{x} = [x_1, x_2, x_3, x_4]^T \in \mathbb{R}^4$ computed across sliding observation windows for that client IP within the target project:
+
+```text
+Incoming HTTP Event: [timestamp t, client_ip, endpoint, status_code, latency_ms]
+                                      │
+            ┌─────────────────────────┴─────────────────────────┐
+            ▼                                                   ▼
+Sliding Window: W_60 = [t - 60s, t]                 Sliding Window: W_10 = [t - 10s, t]
+  ├── x1: Current Event Latency (ms)                  └── x4: Request Burst Density (Count)
+  ├── x2: Failed Auth Cardinality (401/403)
+  └── x3: Unique API Endpoint Spread (non-static)
+```
+
+$$\mathbf{x} = \begin{bmatrix} x_{\text{latency}} \\ x_{\text{failed\_auth}} \\ x_{\text{unique\_endpoints}} \\ x_{\text{request\_burst}} \end{bmatrix} = \begin{bmatrix} \text{latency\_ms} \\ \sum_{e \in W_{60}(\text{ip})} \mathbb{I}(e.\text{status} \in \{401, 403\}) \\ \left| \{ e.\text{path} \mid e \in W_{60}(\text{ip}) \land e.\text{path} \notin \mathcal{E}_{\text{static}} \} \right| \\ \left| W_{10}(\text{ip}) \right| \end{bmatrix}$$
+
+- **$x_{\text{latency}}$ (Response Latency):** Measures execution duration in milliseconds. Detects denial-of-service degradation, expensive database queries, and algorithmic complexity attacks.
+- **$x_{\text{failed\_auth}}$ (Authentication Failures):** Counts unauthorized responses ($401$ Unauthorized, $403$ Forbidden) within a sliding 60-second window ($W_{60}$). Directly flags credential stuffing, password spray, and unauthorized privilege escalation.
+- **$x_{\text{unique\_endpoints}}$ (Endpoint Cardinality):** Evaluates non-static API paths accessed by the IP within $W_{60}$. Static assets (scripts, stylesheets, images, source maps) are filtered via set $\mathcal{E}_{\text{static}}$ to eliminate false positives on cloud deployments. High cardinality reveals automated directory traversal and vulnerability scanning.
+- **$x_{\text{request\_burst}}$ (Volumetric Velocity):** Evaluates request density over a tight 10-second window ($W_{10}$). Catches rapid scraping, API abuse bursts, and layer-7 HTTP floods.
+
+---
+
+### 4. Project-Specific Adaptive Z-Score & Dynamic Normalization
+
+Different APIs exhibit drastically different latency profiles: a microservice catalog endpoint averages $15\text{ms}$, while an asynchronous payment capture or report generation endpoint averages $650\text{ms}$. Evaluating all services against a single static threshold results in unacceptable false alarms or missed anomalies.
+
+The `ProjectBaselineTracker` maintains an in-memory, thread-safe rolling statistical distribution of latency observations $\mathcal{L}_P = \{l_1, l_2, \dots, l_k\}$ (bounded at $k \le 300$) for each project $P$:
+
+$$\mu_P = \frac{1}{k} \sum_{i=1}^k l_i, \qquad \sigma_P = \max\left(25.0, \sqrt{\frac{1}{k} \sum_{i=1}^k (l_i - \mu_P)^2}\right)$$
+
+The project-relative latency Z-score is:
+$$Z_P(l) = \frac{|l - \mu_P|}{\sigma_P}$$
+
+A minimum standard deviation floor ($\sigma_{\min} = 25.0\text{ms}$) prevents numerical volatility and runaway Z-scores when a project's latency is hyper-consistent (e.g. static responses with $\sigma < 1\text{ms}$).
+
+---
+
+### 5. Option C Dynamic Blending Schedule & Cold-Start Guard
+
+To seamlessly bridge cold starts with established projects, the platform calculates an adaptive blending factor $\alpha(N_P)$ based on the cumulative request count $N_P$ observed for project $P$:
+
+$$\alpha(N_P) = \begin{cases} 0.0 & \text{if } N_P < 5 \\ \min\left(0.75, \frac{N_P - 4}{25.0}\right) & \text{if } N_P \ge 5 \end{cases}$$
+
+```text
+  Blending Weight (alpha)
+    0.75 ┤                                ╭──────────────────────── (Max 75% Project Weight)
+         │                              ╭─╯
+    0.50 ┤                            ╭─╯
+         │                          ╭─╯
+    0.25 ┤                        ╭─╯
+    0.00 ┴───────┬────────────────┴───────────────────────
+         0       5               23                       N_project (Requests)
+       [Cold Prior Only]  [Linear Adaptive Transition]  [Mature Adaptive Baseline]
+```
+
+The unified hybrid anomaly score is computed as:
+$$\text{Score}_{\text{combined}} = \begin{cases} \text{Score}_{\text{global}} & \text{if } \alpha = 0 \\ (1 - \alpha) \cdot \text{Score}_{\text{global}} + \alpha \cdot \max\left(0.5 \cdot \text{Score}_{\text{global}}, Z_P\right) & \text{if } \alpha > 0 \end{cases}$$
+
+#### Cold-Start Benign Cloud Inlier Guard
+When an instrumented application launches on edge or cloud platforms (e.g., AWS Lambda, Vercel, Render), cold-start initialization can cause legitimate traffic to experience minor latency variations while $N_P < 10$. If an event demonstrates zero security red flags:
+$$\text{is\_benign} = (x_{\text{failed\_auth}} = 0) \land (x_{\text{unique\_endpoints}} \le 5) \land (x_{\text{request\_burst}} \le 10) \land (x_{\text{latency}} \le 500\text{ms})$$
+The engine clamps the global score to prevent cold-start false positives:
+$$\text{Score}_{\text{global}} \gets \min(\text{Score}_{\text{global}}, 1.2), \qquad Z_P \gets \min(Z_P, 1.2)$$
+
+---
+
+### 6. Mathematical Continuous Risk & Calibrated Confidence Equations
+
+Rather than relying on opaque binary flags, the platform computes continuous, mathematically grounded Risk and Confidence metrics for every transaction:
+
+#### A. Baseline Normal Traffic Risk Formulation
+When no deterministic security rules are violated ($T_{\text{attack}} = \text{"normal"}$):
+$$\text{Risk}_{\text{normal}} = \min\left(25.0, \max\left(2.0, \frac{x_{\text{latency}}}{120.0} \times 8.0 + \text{Score}_{\text{combined}} \times 3.0\right)\right)$$
+$$\text{Confidence}_{\text{normal}} = 0.92$$
+This anchors normal traffic strictly within the $[2.0, 25.0]$ green zone while providing continuous variation based on microservice latency and model agreement.
+
+#### B. Hostile & Suspicious Attack Risk Formulation
+When heuristic rules breach thresholds or statistical anomalies emerge ($T_{\text{attack}} \neq \text{"normal"}$):
+$$\text{Risk}_{\text{base}} = \min\left(40.0, 10.0 \times \text{Score}_{\text{combined}}\right)$$
+$$\text{Risk}_{\text{rules}} = R_{\text{bf}} + R_{\text{scan}} + R_{\text{burst}}$$
+
+Where each rule penalty is non-linearly scaled:
+$$R_{\text{bf}} = \begin{cases} 45.0 + \min(3.0 \times x_{\text{failed\_auth}}, 30.0) & \text{if } \text{"brute\_force"} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}$$
+$$R_{\text{scan}} = \begin{cases} 40.0 + \min(2.0 \times x_{\text{unique\_endpoints}}, 30.0) & \text{if } \text{"endpoint\_scan"} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}$$
+$$R_{\text{burst}} = \begin{cases} 35.0 + \min(1.5 \times x_{\text{request\_burst}}, 30.0) & \text{if } \text{"request\_burst"} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}$$
+
+The total continuous risk score is clamped:
+$$\text{Risk}_{\text{total}} = \min\left(100.0, \max\left(35.0, \text{Risk}_{\text{base}} + \text{Risk}_{\text{rules}}\right)\right)$$
+
+#### C. Continuous Confidence Estimation
+$$\text{Confidence} = \begin{cases} 0.95 & \text{if } |\text{flags}| \ge 2 \quad \text{(Multi-rule deterministic convergence)} \\ 0.88 & \text{if } |\text{flags}| = 1 \quad \text{(Single rule deterministic hit)} \\ \min\left(0.85, 0.65 + \frac{\text{Score}_{\text{combined}}}{25.0}\right) & \text{if } |\text{flags}| = 0 \quad \text{(Unsupervised ML statistical drift)} \end{cases}$$
+
+---
+
+### 7. Autonomous Continuous Model Retraining & Self-Learning Engine
+
+The platform does not rely on a static, frozen ML model. It incorporates an **autonomous online retraining pipeline** (`backend/train_model.py` and `backend/server.py`) that enables the Isolation Forest model to continuously learn, evolve, and refine its baseline from real production traffic.
+
+```text
+[POST /ingest] ──▶ record_ingest_for_learning() ──▶ Accumulator: Δ_events += 1
+                                                            │
+                            ┌───────────────────────────────┴───────────────────────────────┐
+                            ▼                                                               ▼
+        Condition A: Δ_events >= 500 events                         Condition B: Elapsed Time >= 3600 seconds
+                            │                                                               │
+                            └───────────────────────┬───────────────────────────────────────┘
+                                                    ▼
+                                  Asynchronous Daemon Worker Thread
+                                         (_async_retrain())
+                                                    │
+                                                    ├── Acquire non-blocking _retrain_lock
+                                                    ├── Extract K = 3,000 recent events from DB
+                                                    ├── Reconstruct 60s sliding feature vectors
+                                                    ├── Fit IsolationForest(n_estimators=100, contamination=0.04)
+                                                    ├── Atomic serialization: isolation_forest_model.joblib
+                                                    └── Hot-Reload: detection.reload_model() (Zero Downtime)
+```
+
+#### Retraining Dynamics & Guarantees:
+1. **Incremental Ingestion Tracking:** Every successfully processed event increments an atomic memory counter (`_new_events_since_retrain`).
+2. **Dual-Condition Autonomous Trigger:** Retraining triggers automatically when:
+   $$\Delta_{\text{events}} \ge 500 \quad \lor \quad (t_{\text{now}} - t_{\text{last\_trained}}) \ge 3600\text{s}$$
+3. **Sliding-Window Feature Reconstruction:** `extract_features(limit=3000)` rebuilds historical 60-second temporal windows for every unique IP address across the database, calculating accurate temporal feature vectors matching the live pipeline.
+4. **Non-Blocking Background Concurrency:** Training executes in a detached daemon thread (`ml-retrain-worker`) protected by `_retrain_lock` and atomic flags (`_retrain_in_progress`). Ingestion requests continue uninterrupted with sub-millisecond response times.
+5. **Zero-Downtime Hot Reloading:** Once the new model is serialized to disk, `detection.reload_model()` atomically swaps the in-memory `ml_model` reference without restarting the server or dropping connections.
+6. **Model Introspection & Manual Trigger Endpoints:**
+   - `GET /api/training_status`: Returns current ML state, timestamp, active features, events since last retrain, and retrain thresholds.
+   - `POST /api/retrain`: Authenticated endpoint allowing security operators to trigger an immediate background retrain on demand.
+
+---
+
 ### 2. Threat Taxonomy & Detection Capabilities
 
 The engine continuously evaluates telemetry streams across threat vectors:
@@ -485,6 +675,89 @@ Every detection and telemetry event retains canonical, server-verified tenant me
 
 * **Project-Scoped Auto-Blocking:** The active rate limiter tracks request counts strictly per `(project_id, ip)`. An abusive IP blocked in Project A is never blocked in Project B.
 * **External Service Fault Tolerance:** Ingestion and detection execution are fully decoupled from third-party services. Disconnected WebSockets, slow Slack webhooks, or unavailable Gemini AI endpoints will never block or fail telemetry ingestion (`HTTP 201 Created` is guaranteed).
+
+---
+
+
+## Autonomous Attack-Based Auto-Blocking & IP Defense Engine
+
+The platform operates an active, closed-loop defense architecture (`backend/rate_limiter.py` and `backend/server.py`). Rather than merely alerting security operators after the damage is done, the ingestion pipeline continuously intercepts abusive traffic, quarantines offending IP addresses, and provides instant manual and automated response tools.
+
+```text
+Inbound Event (IP) ──▶ Check Whitelist ──▶ Check Active Quarantine (_blocked_ips)
+                                                  │
+                       ┌──────────────────────────┴──────────────────────────┐
+                       ▼                                                     ▼
+                  [QUARANTINED]                                         [NOT BLOCKED]
+          HTTP 429 Too Many Requests                                          │
+            (or HTTP 403 Forbidden)                             Record Request in Sliding Window
+          Header: Retry-After: <sec>                                          │
+          Telemetry Persisted with Flag                         Evaluate Dual-Tier Thresholds
+                                                                              │
+                                              ┌───────────────────────────────┴───────────────────────────────┐
+                                              ▼                                                               ▼
+                                    Count >= 15 req/60s                                             Count > 50 req/60s
+                                    (Warning Threshold)                                          (Auto-Block Quarantine)
+                                              │                                                               │
+                                  Emit Proactive UI Warning                                   Quarantine IP for 300 seconds
+                                  Banner (30% Capacity)                                       Emit High-Severity Security Alert
+                                                                                              WebSocket Broadcast to Room
+```
+
+### 1. Sliding-Window Volumetric Rate Limiter Algorithm
+For every incoming request from $(P_{\text{id}}, \text{ip})$, the rate limiter records the current high-resolution timestamp $t_{\text{now}}$:
+$$\mathcal{T}_{P, \text{ip}} = \{ t \in \mathcal{T}_{P, \text{ip}} \mid t > t_{\text{now}} - 60.0 \}$$
+The active request velocity is the cardinality $C_{P, \text{ip}} = |\mathcal{T}_{P, \text{ip}}|$.
+
+- **Warning Threshold ($C \ge 15$ requests / 60s):** Alerts dashboard operators via proactive UI banners when an IP reaches 30% of maximum threshold, enabling preemptive mitigation before attacks peak.
+- **Auto-Block Threshold ($C > 50$ requests / 60s):** Automatically places the IP in the active quarantine blacklist.
+- **Quarantine Duration:** By default, quarantined IPs remain locked out for $D_{\text{quarantine}} = 300$ seconds (5 minutes).
+- **Automatic Garbage Collection:** Expired IP entries are automatically pruned on subsequent evaluations, preventing memory leaks during distributed attacks.
+
+### 2. Multi-Vector Attack Auto-Quarantine Triggers
+Auto-quarantine is triggered not only by pure volumetric floods, but also by behavioral exploit signatures evaluated by the ML and rule engines:
+- **Credential Stuffing / Brute Force:** $> 5$ authentication failures within 60 seconds (`status_code` 401/403).
+- **Vulnerability / Endpoint Scanning:** $> 15$ unique non-static API endpoints queried within 60 seconds.
+- **Microburst Flooding:** $> 30$ requests within a compact 10-second window.
+- **Extreme Statistical Drift:** Isolation Forest anomaly score $> 5.0$.
+
+### 3. Server-Side Tenant Scoping & Isolation
+Rate limits and quarantine states are strictly keyed by $(P_{\text{id}}, \text{ip})$:
+- An IP address quarantined for aggressive brute-force attacks against Project A **is never blocked** from communicating with Project B on the same server.
+- Prevents cross-tenant denial-of-service interference where an attacker could attempt to exhaust shared rate limit quotas.
+
+### 4. CSRF-Hardened Manual IP Defense & Management APIs
+Security analysts can inspect, manually quarantine, and release IP addresses directly from the dashboard:
+
+| Endpoint | Method | Security & RBAC | Description |
+|---|---|---|---|
+| `/api/v1/blocked-ips` | `GET` | Authenticated + Scoped | Lists all currently quarantined IPs, remaining block duration (seconds), block reason, and block type (`auto` vs `manual`). |
+| `/api/v1/block-ip` | `POST` | Authenticated + CSRF Verified | Manually quarantines an IP for custom duration with custom reason. Rejects forged requests without valid `X-CSRF-Token`. |
+| `/api/v1/unblock-ip` | `POST` | Authenticated + CSRF Verified | Instantly releases an IP from quarantine. Verifies CSRF token matching the `api_sec_csrf` cookie. |
+
+#### Live Verification Commands (Terminal):
+1. **Trigger Automated Quarantine (5 rapid SQLi / brute-force payloads):**
+   ```bash
+   for i in {1..5}; do
+     curl -s -X POST http://127.0.0.1:5001/ingest \
+       -H "Content-Type: application/json" \
+       -H "Authorization: Bearer ask_your_project_key" \
+       -d '{"ip":"198.51.100.42","endpoint":"/api/login","method":"POST","status_code":401,"payload":"admin''' OR 1=1--"}'
+   done
+   ```
+2. **Verify Quarantined Status:**
+   ```bash
+   curl -s http://127.0.0.1:5001/api/v1/blocked-ips
+   ```
+   *Output: `{"blocked_ips":["198.51.100.42"],"count":1,"details":[{"ip":"198.51.100.42","block_type":"auto","remaining_sec":298}]}`*
+3. **Subsequent API Request from Blocked IP:**
+   ```bash
+   curl -i -X POST http://127.0.0.1:5001/ingest \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer ask_your_project_key" \
+     -d '{"ip":"198.51.100.42","endpoint":"/api/products","method":"GET","status_code":200}'
+   ```
+   *Output: `HTTP/1.1 429 TOO MANY REQUESTS` with header `Retry-After: 295`.*
 
 ---
 
@@ -614,6 +887,71 @@ Each attack vector is specifically calibrated against backend detection threshol
 
 ---
 
+## Continuous Production Traffic & Attack Simulator with 5-Minute Slack Digest
+
+To facilitate live demonstrations, red-team exercises, and continuous defense validation without manual intervention, the platform provides an automated production traffic orchestrator: [`continuous_traffic_simulator.py`](continuous_traffic_simulator.py).
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│              CONTINUOUS TRAFFIC & HOSTILE ATTACK ORCHESTRATOR                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  [Thread 1: Legitimate Visitor Traffic]                                         │
+│    ├── Realistic mix: 9 endpoints (/products, /cart, /checkout, /search, etc.) │
+│    ├── Authentic GeoIP pool: 9 metropolitan hubs (Tokyo, London, SF, Mumbai)    │
+│    └── Microservice latency jitter: 20ms - 110ms normal distribution            │
+│                                                                                 │
+│  [Thread 2: Coordinated Attack Waves]                                           │
+│    ├── Vector A: Credential Stuffing (admin' OR '1'='1, 401 Unauthorized)       │
+│    ├── Vector B: Automated Endpoint Scan (/wp-admin, /.env, /actuator, 404)     │
+│    └── Vector C: Volumetric Request Burst (Flooding /api/products, 429)        │
+│                                                                                 │
+│  [Thread 3: 5-Minute Slack Security Heartbeat & Digest]                         │
+│    ├── Periodic Block Kit message dispatched every 300s                         │
+│    ├── Overall Status: [NORMAL - ALL SERVICES HEALTHY] vs [ACTIVE ATTACKS]      │
+│    ├── Cumulative request counter and currently quarantined IP count            │
+│    └── Exact timestamp, source IP, and vector of the most recent attack         │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. Legitimate Traffic Emulation
+Simulates genuine customer traffic across 9 global metropolitan centers with authentic public IP blocks, coordinates, and latency profiles:
+- **San Francisco, USA** (`198.51.100.x`, Latency: 35ms - 75ms)
+- **New York, USA** (`198.51.101.x`, Latency: 30ms - 70ms)
+- **London, United Kingdom** (`82.165.197.x`, Latency: 40ms - 85ms)
+- **Frankfurt, Germany** (`185.12.112.x`, Latency: 35ms - 80ms)
+- **Tokyo, Japan** (`133.242.18.x`, Latency: 45ms - 90ms)
+- **Singapore** (`103.252.118.x`, Latency: 50ms - 95ms)
+- **Mumbai, India** (`103.115.196.x`, Latency: 25ms - 65ms)
+- **Sydney, Australia** (`139.130.4.x`, Latency: 60ms - 110ms)
+- **São Paulo, Brazil** (`177.18.200.x`, Latency: 55ms - 100ms)
+
+### 2. Coordinated Attack Waves
+Periodically intersperses hostile attack patterns designed to trigger the platform's multi-layered defenses:
+- **Credential Stuffing:** Rapid failed login attempts targeting `/api/v1/auth/login` with SQL injection fragments (`admin' OR 1=1--`). Triggers `brute_force` detection and automated IP quarantine.
+- **Vulnerability Scanning:** Enumerates common sensitive paths (`/.env`, `/wp-admin`, `/actuator/health`, `/.git/config`, `/backup.sql`). Triggers `endpoint_scan` rule.
+- **Volumetric Burst Flood:** Inundates checkout or search endpoints with high-velocity bursts. Crosses rate limit thresholds, activating automatic `HTTP 429 Too Many Requests` mitigation.
+
+### 3. Automated 5-Minute Slack Security Heartbeat & Digest
+Every 300 seconds (configurable via `--report-interval`), the simulator constructs and dispatches a rich Slack Block Kit report:
+- **Health Badge:** `🟢 [NORMAL - ALL SERVICES HEALTHY]` when traffic is clean, or `🔴 [ELEVATED - ACTIVE ATTACKS INTERCEPTED]` when threats were flagged in the window.
+- **Traffic Counters:** Total legitimate requests processed, flagged security alerts, and currently enforced IP quarantines.
+- **Last Attack Details:** Source IP address, geographic location, target endpoint, attack vector, and elapsed time since the incident.
+
+```bash
+# Run simulator with default 5-minute Slack heartbeat
+python3 continuous_traffic_simulator.py
+
+# Accelerated demo mode: Heartbeat every 60 seconds, attack wave every 30 seconds
+python3 continuous_traffic_simulator.py --report-interval 60 --attack-interval 30
+
+# Baseline evaluation mode: 100% legitimate traffic, zero attacks
+python3 continuous_traffic_simulator.py --no-attacks
+```
+
+---
+
+
 ## Production Integrations & Notification Service
 
 The platform implements an extensible notification architecture designed to dispatch real-time security alerts to developer communication platforms without tightly coupling providers into the detection pipeline.
@@ -703,9 +1041,13 @@ NotificationService (backend/integrations/service.py)
 * **Traffic & Latency Timeline:** Chronological dual-axis area chart plotting request volume (left axis) against flagged anomalies and mean response latency in milliseconds (right axis), powered by contiguous zero-filled time buckets.
 * **Attack Distribution Pie Chart:** Interactive visualization grouping classified threats by vector (Brute Force, Endpoint Scan, Request Burst, Composite Attack, and ML Statistical Anomaly).
 * **Authentic Hostile Ingress Geolocation Map (ThreatMap):**
-  * Plots only verified, real-world `[latitude, longitude]` coordinates derived from GeoIP metadata.
-  * Fabricated coordinate hashing has been eliminated: un-geocoded or private/loopback IPs (`127.0.0.1`, VPC subnets) are safely handled and indicated via an internal network overlay and count chips.
-  * Zero-threat clean state: displays a clean-traffic security overlay when zero threats are detected, never plotting benign traffic as anomalies.
+  * **Dynamic Dual-Layer Keyless Architecture:**
+    * **Vivid Map (Default):** OpenStreetMap standard raster tiles ($100\%$ free, zero API key requirement, vibrant blue oceans, colored landmasses, and clear geographic labels). Immune to black canvas voids.
+    * **Dark Slate:** Esri ArcGIS World Dark Gray Canvas (`Canvas/World_Dark_Gray_Base` + `Canvas/World_Dark_Gray_Reference` overlay for high-contrast white country boundaries and city text, zero API keys required).
+  * **Integrated HUD Switcher:** Responsive pill toggle (`Vivid Map` / `Dark Slate`) placed in the top-right HUD bar alongside the `[CYBER RADAR]` badge, avoiding collisions with the bottom-left legend across all viewport widths.
+  * **Cyber Sonar Radar Beacons:** Animated CSS pulsating shockwaves (`animate-ping`) centered on authentic attack coordinates, with severity-based coloring (Red for Critical/High, Orange for Suspicious, Blue for Anomaly).
+  * **Authentic GeoIP Coordinates:** Plots verified real-world latitude and longitude coordinates. Fabricated coordinate hashing has been eliminated: un-geocoded or private/loopback IPs (`127.0.0.1`, VPC subnets) are safely indicated via dedicated internal network overlays (`+ X INTERNAL / VPC`).
+  * **Zero-Threat Clean State:** Displays a clean-traffic security overlay when zero threats are detected, never plotting benign traffic as anomalies.
 * **Live Ingest Feed:** Real-time table streaming the latest raw HTTP telemetry transactions with HTTP method, endpoint, status code, latency, and client IP.
 * **Recent Threat Detections Feed:** Chronological security audit table displaying recent alerts with severity badges, attack types, anomaly scores, source IPs, and direct "Investigate" action triggers.
 * **Active IP Defense Management:** Real-time cards displaying blocked IPs with duration timestamps and one-click unblock capabilities.
@@ -757,53 +1099,115 @@ NotificationService (backend/integrations/service.py)
 
 ```text
 API-Security-Analytics-Dashboard/
-|-- backend/
-|   |-- attack_correlator.py    # Multi-alert Kill Chain stitching engine & MITRE ATT&CK mapper
-|   |-- auth.py                 # User authentication, registration, hashing & decorators
-|   |-- config.py               # Environment profiles (development, staging, production)
-|   |-- database.py             # PostgreSQL & SQLite persistence engine & connection pool
-|   |-- db.py                   # Multi-tenant data layer & true chronological queries
-|   |-- detection.py            # ML scoring & Isolation Forest dynamic thresholding
-|   |-- investigator.py         # Google Gemini GenAI threat investigation & heuristic fallbacks
-|   |-- logging_config.py       # Structured logging & automatic secret scrubbing
-|   |-- migrations.py           # Schema migrations & production indexing engine
-|   |-- rate_limiter.py         # Ingestion rate limiter & login brute-force defense
-|   |-- simulator.py            # Red Team simulation engine & controlled attack generator
-|   |-- google_auth.py          # Google OAuth 2.0 / OpenID Connect client integration
-|   |-- server.py               # Main Flask & SocketIO application server
-|   |-- webhook.py              # Backward-compatible webhook dispatcher facade
-|   |-- integrations/           # Extensible Notification Service & Provider Adapters
-|   |   |-- base.py             # Abstract BaseNotificationProvider interface
-|   |   |-- slack.py            # Slack Block Kit notification adapter
-|   |   |-- discord.py          # Discord Embed notification adapter
-|   |   +-- service.py          # NotificationService router & async dispatcher
-|   |-- train_model.py          # Isolation Forest model training script
-|   |-- test_e2e_production_readiness.py          # 54-scenario End-to-End Production Readiness suite
-|   |-- test_production_tenant_isolation_suite.py # 11-test Tenant Isolation & IDOR suite
-|   |-- test_integrations_production_suite.py     # 10-test Notification Service suite
-|   |-- test_ml_detection_pipeline_suite.py       # 11-test ML detection pipeline suite
-|   |-- test_telemetry_ingestion_suite.py         # 11-test Ingestion & rate-limiting suite
-|   |-- test_security_audit.py  # 86-test security audit verification suite
-|   +-- test_google_oauth_suite.py # 14-scenario Google OAuth verification suite
-|-- sdk/
-|   +-- middleware.py           # Zero-Latency asynchronous Python SDK
-|-- frontend/
-|   +-- dashboard/              # Production React + Vite SaaS Frontend Application
-|       |-- src/
-|       |   |-- components/
-|       |   |   |-- RedTeamPanel.jsx  # Collapsible Red Team attack simulation panel
-|       |   |   +-- common/
-|       |   |       +-- ErrorBoundary.jsx # React Error Boundary for fault recovery
-|       |   +-- pages/
-|       |       +-- dashboard/  # OverviewPage, LiveMonitoringPage, KillChainPage, AnalyticsPage, etc.
-|-- demo/
-|   |-- sample_app.py           # Instrumented mock E-Commerce API (Port 5002)
-|   +-- generators.py           # Realistic attack & normal traffic simulation suite
-|-- Dockerfile                  # Hardened production container image
-|-- docker-compose.yml          # Multi-container orchestration (Platform + PostgreSQL)
-|-- gunicorn_config.py          # Production WSGI server configuration
-|-- .env.example                # Example environment configuration template
-+-- requirements.txt            # Python dependencies
+├── backend/
+│   ├── attack_correlator.py                 # Multi-alert Kill Chain stitching engine & MITRE ATT&CK mapper
+│   ├── auth.py                              # User authentication, registration, hashing & decorators
+│   ├── config.py                            # Environment profiles (development, staging, production)
+│   ├── database.py                          # PostgreSQL & SQLite persistence engine & connection pool
+│   ├── db.py                                # Multi-tenant data layer & true chronological queries
+│   ├── detection.py                         # ML scoring, Isolation Forest & ProjectBaselineTracker
+│   ├── email_service.py                     # Transactional email service & verification token manager
+│   ├── events.db                            # SQLite persistent datastore (in development mode)
+│   ├── google_auth.py                       # Google OAuth 2.0 / OpenID Connect client integration
+│   ├── ingestion.py                         # Telemetry ingestion validator, DLP sanitizer & de-duplication
+│   ├── integrations/                        # Extensible Notification Service & Provider Adapters
+│   │   ├── base.py                          # Abstract BaseNotificationProvider interface
+│   │   ├── discord.py                       # Discord Embed notification adapter
+│   │   ├── service.py                       # NotificationService router & async dispatcher
+│   │   └── slack.py                         # Slack Block Kit notification adapter
+│   ├── investigator.py                      # Google Gemini GenAI threat analyst & autonomous heuristics
+│   ├── isolation_forest_model.joblib        # Serialized Isolation Forest ML model weights
+│   ├── logging_config.py                    # Structured logging & automatic secret scrubbing
+│   ├── migrations.py                        # Schema migrations & production indexing engine
+│   ├── rate_limiter.py                      # Sliding-window IP rate limiter & auto-block quarantine
+│   ├── server.py                            # Central Flask & SocketIO application server
+│   ├── simulator.py                         # Red Team simulation engine & controlled attack generator
+│   ├── train_model.py                       # Isolation Forest autonomous retraining & feature extractor
+│   ├── webhook.py                           # Backward-compatible webhook dispatcher facade
+│   ├── test_auth_suite.py                   # Multi-tenancy regression & RBAC test suite (260 tests)
+│   ├── test_e2e_production_readiness.py     # 54-scenario End-to-End Production Readiness suite
+│   ├── test_google_oauth_suite.py           # 14-scenario Google OAuth & OpenID Connect suite
+│   ├── test_integrations_production_suite.py# 10-test Notification Service & Webhook suite
+│   ├── test_ml_detection_pipeline_suite.py  # 11-test ML detection & hybrid baseline suite
+│   ├── test_multitenant_org_suite.py        # 7-scenario Organization & Workspace suite
+│   ├── test_onboarding_wizard_suite.py      # 5-scenario Guided Developer Onboarding Wizard suite
+│   ├── test_production_sdk_suite.py         # 8-scenario Developer SDK integration suite
+│   ├── test_production_tenant_isolation_suite.py # 11-test Tenant Isolation & IDOR defense suite
+│   ├── test_saas_auth_suite.py              # 12-scenario SaaS Authentication & Session security suite
+│   ├── test_sdk_credentials_hardening.py    # 8-scenario SDK credential hashing & isolation suite
+│   ├── test_security_audit.py               # 86-test comprehensive security audit suite
+│   └── test_telemetry_ingestion_suite.py    # 11-test Ingestion, DLP & rate-limiting suite
+├── frontend/
+│   └── dashboard/                           # Production React + Vite SaaS Frontend Application
+│       ├── src/
+│       │   ├── App.jsx                      # Root application component with routing
+│       │   ├── App.css                      # Global styles & Leaflet overrides
+│       │   ├── index.css                    # Tailwind CSS v4 design tokens
+│       │   ├── main.jsx                     # Application bootstrap entrypoint
+│       │   ├── context/
+│       │   │   ├── AuthContext.jsx          # Session state, login/logout, user profiles
+│       │   │   └── ProjectContext.jsx       # Multi-tenant organization & project selection
+│       │   ├── layouts/
+│       │   │   ├── AppLayout.jsx            # Authenticated application shell & navigation
+│       │   │   ├── AuthLayout.jsx           # Clean authentication pages layout
+│       │   │   └── PublicLayout.jsx         # Landing page public layout
+│       │   ├── components/
+│       │   │   ├── ProtectedRoute.jsx       # Route guard enforcing authentication
+│       │   │   ├── RedTeamPanel.jsx         # In-dashboard Red Team adversary simulator panel
+│       │   │   ├── ThreatMap.jsx            # Dual-layer Leaflet threat map (OSM Vivid + Esri Dark)
+│       │   │   ├── common/
+│       │   │   │   └── ErrorBoundary.jsx    # Component-level React error boundary
+│       │   │   ├── landing/
+│       │   │   │   ├── FloatingToast.jsx    # Real-time interactive toast notifications
+│       │   │   │   ├── Hero.jsx             # High-impact landing page hero section
+│       │   │   │   └── ThreatPanel.jsx      # Interactive live threat demonstration card
+│       │   │   └── sdk/
+│       │   │       └── SdkDownloadModal.jsx # Quickstart SDK package modal
+│       │   ├── pages/
+│       │   │   ├── auth/
+│       │   │   │   ├── ForgotPasswordPage.jsx # Self-service password reset request
+│       │   │   │   ├── LoginPage.jsx        # Secure email/password & Google sign-in
+│       │   │   │   ├── ResetPasswordPage.jsx  # Single-use token password reset
+│       │   │   │   ├── SignupPage.jsx       # New organization & user registration
+│       │   │   │   └── VerifyEmailPage.jsx  # Tokenized email address verification
+│       │   │   ├── dashboard/
+│       │   │   │   ├── AnalyticsPage.jsx    # Deep-dive time-windowed security telemetry
+│       │   │   │   ├── IntegrationsPage.jsx # Slack & Discord webhook configuration
+│       │   │   │   ├── InvestigationsPage.jsx # AI threat dossiers & PDF export
+│       │   │   │   ├── KillChainPage.jsx    # MITRE ATT&CK attack timeline & stages
+│       │   │   │   ├── LiveMonitoringPage.jsx # 1-FPS real-time oscilloscope & simulator
+│       │   │   │   ├── OverviewPage.jsx     # Master security pulse & KPI dashboard
+│       │   │   │   ├── ProjectsPage.jsx     # Project management & SDK key provisioning
+│       │   │   │   ├── SdkOnboardingPage.jsx# 7-step guided quickstart wizard
+│       │   │   │   ├── SettingsPage.jsx     # Organization members & workspace settings
+│       │   │   │   └── ThreatsPage.jsx      # Quarantined IP management & alert log
+│       │   │   └── public/
+│       │   │       └── LandingPage.jsx      # Public product landing page
+│       │   └── services/
+│       │       ├── api.js                   # Axios HTTP client with CSRF token interceptor
+│       │       └── socket.js                # Socket.IO client with project room binding
+├── sdk/
+│   ├── middleware.py                        # Zero-Latency asynchronous Flask/WSGI SDK
+│   ├── sample_app.py                        # Standalone instrumented example application
+│   ├── setup.py                             # Standard Python setuptools packaging
+│   ├── pyproject.toml                       # Modern PEP 517/518 build specification
+│   ├── README.md                            # Dedicated SDK developer documentation
+│   ├── mlo11y/                              # Packaged namespace module
+│   └── security_sdk/                        # Alternative import alias namespace
+├── demo/
+│   ├── sample_app.py                        # Mock E-Commerce target application (Port 5002)
+│   ├── generators.py                        # Standalone traffic & attack wave simulator
+│   └── simulate_traffic.py                  # High-concurrency traffic generator utility
+├── continuous_traffic_simulator.py          # Real-world traffic simulator with 5-min Slack digest
+├── demo_attack_scenario.py                  # Scripted demonstration attack scenario
+├── decision.md                              # Comprehensive architectural decisions record
+├── understand.md                            # Deep-dive system documentation & telemetry guide
+├── Dockerfile                               # Hardened multi-stage production container image
+├── docker-compose.yml                       # Multi-service stack (Platform + PostgreSQL)
+├── gunicorn_config.py                       # Production WSGI server configuration
+├── build.sh                                 # Unified frontend build & packaging script
+├── requirements.txt                         # Central Python backend dependencies
+└── .env.example                             # Environment configuration template
 ```
 
 ---
@@ -929,11 +1333,12 @@ Runs a sample e-commerce API (listening on port **5002**), instrumented with the
 python demo/sample_app.py
 ```
 
-### Terminal 3 -- The Attack & Traffic Simulator
-Simulates normal web visitors alongside automated hackers executing Brute Force logins, Endpoint Scans, and Request Bursts:
+### Terminal 3 -- Continuous Traffic Simulator with 5-Minute Slack Digest (Recommended)
+Simulates realistic global visitors across 9 metropolitan centers alongside automated hackers executing Brute Force logins, Endpoint Scans, and Volumetric Bursts, plus dispatches a 5-minute health digest to your Slack channel:
 ```bash
-python demo/generators.py continuous
+python3 continuous_traffic_simulator.py
 ```
+*(Or run the lightweight demo generator: `python demo/generators.py continuous`)*
 
 ### Alternative: In-Dashboard Red Team Simulator (Zero External Terminals)
 You can also launch controlled adversary attacks directly from the web interface without running Terminals 2 or 3:
@@ -982,6 +1387,11 @@ python -m unittest backend/test_onboarding_wizard_suite.py
 ### Production Developer SDK Integration Suite (8 Scenarios)
 ```bash
 python -m unittest backend/test_production_sdk_suite.py
+```
+
+### SDK Credential Hardening & Isolation Suite (8 Scenarios)
+```bash
+python -m unittest backend/test_sdk_credentials_hardening.py
 ```
 
 ### Multi-Tenant Organization & Workspace Suite (7 Scenarios)
