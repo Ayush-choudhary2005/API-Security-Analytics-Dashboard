@@ -27,6 +27,7 @@ import uuid
 import zipfile
 import secrets
 import hmac
+import threading
 from typing import Tuple, Optional
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_from_directory, send_file, session, g, redirect, url_for, has_request_context
@@ -1974,6 +1975,7 @@ def _execute_ingest_pipeline(project_id: str, raw_payload: dict, remote_addr: st
 
         event_id = db.insert_event(scored_event)
         scored_event["id"] = event_id
+        record_ingest_for_learning()
 
         # Push to dashboard via WebSocket (strictly scoped to project room)
         try:
@@ -2006,6 +2008,33 @@ def _execute_ingest_pipeline(project_id: str, raw_payload: dict, remote_addr: st
                     )
                 except Exception:
                     # External notification failures must never impede detection
+                    pass
+
+            # Autonomous Active Defense: Auto-quarantine IP on detected severe attack signatures or high anomaly scores
+            is_severe_attack = (
+                scored_event.get("severity") in ("high", "critical")
+                or scored_event.get("attack_type") in ("brute_force", "credential_stuffing")
+                or (scored_event.get("anomaly_score") is not None and float(scored_event.get("anomaly_score", 0)) >= 2.0)
+                or (scored_event.get("risk_score") is not None and float(scored_event.get("risk_score", 0)) >= 75)
+            )
+            if is_severe_attack and not rate_limiter.is_blocked(ip, project_id=project_id):
+                attack_name = (scored_event.get("attack_type") or "hostile anomaly").replace("_", " ").title()
+                block_reason = f"Autonomous Active Defense: Quarantined on {attack_name} (Severity: {scored_event.get('severity', 'high').upper()})"
+                rate_limiter.block_ip(ip, duration_sec=600, reason=block_reason, project_id=project_id)
+                try:
+                    socketio.emit(f'ip_blocked_{project_id}', {
+                        "ip": ip,
+                        "reason": block_reason,
+                        "project_id": project_id,
+                        "auto_blocked": True,
+                    }, room=room_name)
+                    socketio.emit('ip_blocked', {
+                        "ip": ip,
+                        "reason": block_reason,
+                        "project_id": project_id,
+                        "auto_blocked": True,
+                    }, room=room_name)
+                except Exception:
                     pass
 
         # Kill Chain Stitching — correlate alerts and post-attack Initial Access into a multi-stage chain
@@ -2171,6 +2200,79 @@ def simulation_status():
     return jsonify(simulator.get_status(project_id)), 200
 
 
+# ── Machine Learning Retraining & Self-Learning APIs ────────────────────────
+_retrain_lock = threading.Lock()
+_retrain_in_progress = False
+AUTONOMOUS_TRAIN_INTERVAL_SEC = 3600  # 1 hour periodic learning window
+EVENT_THRESHOLD_RETRAIN = 250        # Or retrain upon ingesting 250 new events
+_new_events_since_retrain = 0
+_last_autonomous_retrain = time.time()
+
+
+def record_ingest_for_learning():
+    """Increment learning counter on each ingested telemetry event."""
+    global _new_events_since_retrain
+    _new_events_since_retrain += 1
+
+
+@app.route("/api/training_status", methods=["GET"])
+def training_status():
+    """Return current state, timestamp, and metadata of the Isolation Forest ML model."""
+    model_path = os.path.join(os.path.dirname(__file__), "isolation_forest_model.joblib")
+    is_trained = os.path.exists(model_path)
+    last_trained = os.path.getmtime(model_path) if is_trained else None
+
+    return jsonify({
+        "status": "training" if _retrain_in_progress else "active",
+        "model_type": "IsolationForest",
+        "is_trained": is_trained,
+        "last_trained": last_trained,
+        "features": [
+            "latency_ms",
+            "failed_auth_count",
+            "unique_endpoints",
+            "request_count_10s"
+        ],
+        "in_progress": _retrain_in_progress,
+        "events_since_last_train": _new_events_since_retrain,
+        "threshold_events": EVENT_THRESHOLD_RETRAIN,
+        "interval_sec": AUTONOMOUS_TRAIN_INTERVAL_SEC
+    }), 200
+
+
+@app.route("/api/retrain", methods=["POST"])
+@login_required
+def trigger_retrain():
+    """Asynchronously retrain the Isolation Forest model on recent database traffic."""
+    global _retrain_in_progress
+    if _retrain_lock.locked() or _retrain_in_progress:
+        return jsonify({
+            "status": "already_training",
+            "message": "Model retraining is already running in background."
+        }), 409
+
+    def _async_retrain():
+        global _retrain_in_progress
+        with _retrain_lock:
+            _retrain_in_progress = True
+            try:
+                import train_model
+                result = train_model.retrain_from_db()
+                logger.info(f"Model retraining completed successfully: {result}")
+            except Exception as err:
+                logger.error(f"Error during async model retraining: {err}", exc_info=True)
+            finally:
+                _retrain_in_progress = False
+
+    worker = threading.Thread(target=_async_retrain, name="ml-retrain-worker", daemon=True)
+    worker.start()
+
+    return jsonify({
+        "status": "initiated",
+        "message": "Autonomous model retraining initiated on latest traffic patterns."
+    }), 202
+
+
 @app.route("/alerts/stats", methods=["GET"])
 @login_required
 def alerts_stats():
@@ -2216,6 +2318,21 @@ def blocked_ips():
     if err:
         return err
     return jsonify(rate_limiter.get_blocked_ips(project_id=project_id))
+
+
+@app.route("/api/threat-radar", methods=["GET"])
+@login_required
+def threat_radar():
+    """Return active host IPs approaching rate limit threshold in the early warning zone."""
+    project_id, err = _resolve_and_verify_project(g.current_user["id"])
+    if err:
+        return err
+    return jsonify({
+        "project_id": project_id,
+        "warnings": rate_limiter.get_warning_ips(project_id=project_id),
+        "warning_threshold": rate_limiter.WARNING_THRESHOLD,
+        "block_threshold": rate_limiter.MAX_REQUESTS
+    }), 200
 
 
 @app.route("/api/v1/blocked-ips", methods=["GET"])
@@ -2395,7 +2512,6 @@ def get_alert_report(alert_id):
 
 
 # ── Kill Chain Background Resolver ──────────────────────────────────────────
-import threading as _threading
 def _chain_resolver_loop():
     """Resolve stale attack chains every 5 minutes."""
     while True:
@@ -2404,8 +2520,52 @@ def _chain_resolver_loop():
             attack_correlator.resolve_stale_chains(db)
         except Exception:
             pass
-_chain_resolver_thread = _threading.Thread(target=_chain_resolver_loop, daemon=True)
+_chain_resolver_thread = threading.Thread(target=_chain_resolver_loop, daemon=True)
 _chain_resolver_thread.start()
+
+
+# ── Autonomous Machine Learning Self-Learning Daemon ────────────────────────
+def _autonomous_learning_loop():
+    """
+    Background daemon continuously observing traffic volume and clock intervals.
+    Autonomously retrains the Isolation Forest model when traffic thresholds (250 events)
+    or time intervals (1 hour) are reached, ensuring hands-free adaptation to changing API profiles.
+    """
+    global _new_events_since_retrain, _last_autonomous_retrain, _retrain_in_progress
+    while True:
+        time.sleep(60)
+        try:
+            now = time.time()
+            time_elapsed = now - _last_autonomous_retrain
+            threshold_met = _new_events_since_retrain >= EVENT_THRESHOLD_RETRAIN
+            time_met = time_elapsed >= AUTONOMOUS_TRAIN_INTERVAL_SEC
+
+            if (threshold_met or time_met) and not _retrain_in_progress:
+                with _retrain_lock:
+                    _retrain_in_progress = True
+                    try:
+                        logger.info(
+                            f"[Autonomous Learning] Triggering retraining: threshold_met={threshold_met} "
+                            f"({_new_events_since_retrain} events), time_met={time_met} ({int(time_elapsed)}s elapsed)"
+                        )
+                        import train_model
+                        res = train_model.retrain_from_db()
+                        logger.info(f"[Autonomous Learning] Retrain succeeded: {res}")
+                        _new_events_since_retrain = 0
+                        _last_autonomous_retrain = now
+                    except Exception as e:
+                        logger.error(f"[Autonomous Learning] Error during retraining: {e}", exc_info=True)
+                    finally:
+                        _retrain_in_progress = False
+        except Exception as loop_err:
+            logger.error(f"[Autonomous Learning] Loop error: {loop_err}", exc_info=True)
+
+_autonomous_learning_thread = threading.Thread(
+    target=_autonomous_learning_loop,
+    name="autonomous-ml-daemon",
+    daemon=True
+)
+_autonomous_learning_thread.start()
 
 
 if __name__ == "__main__":

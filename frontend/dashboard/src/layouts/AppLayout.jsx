@@ -21,6 +21,7 @@ import {
   ExternalLink,
   ChevronRight,
   Radio,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useProject } from '../context/ProjectContext';

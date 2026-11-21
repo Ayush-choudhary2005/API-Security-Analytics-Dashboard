@@ -11,8 +11,11 @@ Hooks into Flask request lifecycle:
 """
 
 import time
-from typing import Optional, Any
+import json
+import threading
+from typing import Optional, Any, Set
 
+import requests
 from flask import request, g, Flask, Response
 
 from .config import SecurityConfig
@@ -97,8 +100,63 @@ class SecurityMiddleware:
     def __init__(self, app: Optional[Flask] = None, **kwargs):
         self.config = SecurityConfig(**kwargs)
         self.transport = TelemetryTransport(self.config)
+        self._blocked_ips: Set[str] = set()
+        self._blocked_ips_lock = threading.Lock()
+        self._sync_thread = None
+
+        if self.config.enabled and self.config.active_defense:
+            self._start_blocked_ip_sync()
+
         if app is not None:
             self.init_app(app)
+
+    def _start_blocked_ip_sync(self):
+        """Start non-blocking background daemon to periodically sync active blocked IPs."""
+        def _sync_loop():
+            self.sync_blocked_ips()
+            while self.config.enabled:
+                time.sleep(self.config.block_sync_interval)
+                try:
+                    self.sync_blocked_ips()
+                except Exception:
+                    pass
+
+        self._sync_thread = threading.Thread(
+            target=_sync_loop,
+            name="mlo11y-active-defense-sync",
+            daemon=True
+        )
+        self._sync_thread.start()
+
+    def sync_blocked_ips(self):
+        """Fetch active blocked IP set from collector using the configured API key."""
+        if not self.config.api_key:
+            return
+        sync_url = f"{self.config.collector_url}/api/v1/blocked-ips"
+        headers = {
+            "Authorization": f"Bearer {self.config.api_key}",
+            "X-Requested-With": "XMLHttpRequest"
+        }
+        try:
+            resp = requests.get(sync_url, headers=headers, timeout=self.config.timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                ips = set(data.get("blocked_ips") or [])
+                with self._blocked_ips_lock:
+                    self._blocked_ips = ips
+        except Exception:
+            # Collector unreachable or network error must NEVER crash the client app
+            pass
+
+    def block_ip_locally(self, ip: str):
+        """Manually add an IP to the local firewall set (for testing / instant mitigation)."""
+        with self._blocked_ips_lock:
+            self._blocked_ips.add(ip)
+
+    def is_ip_blocked(self, ip: str) -> bool:
+        """Check if an IP is currently blacklisted in the local cache."""
+        with self._blocked_ips_lock:
+            return ip in self._blocked_ips
 
     def init_app(self, app: Flask):
         """Register hooks on a Flask application instance."""
@@ -109,6 +167,18 @@ class SecurityMiddleware:
         def _mlo11y_before_request():
             try:
                 g._mlo11y_start = time.perf_counter()
+
+                # Active Defense: Instantly drop blacklisted IPs before business logic execution
+                if self.config.active_defense:
+                    client_ip = _extract_client_ip(request)
+                    if self.is_ip_blocked(client_ip):
+                        blocked_payload = json.dumps({
+                            "error": "Forbidden",
+                            "message": "Access denied: Host IP is blacklisted by ML-O11Y Active Defense firewall.",
+                            "blocked_ip": client_ip,
+                            "mitigation": "active_defense_drop"
+                        })
+                        return Response(blocked_payload, status=403, mimetype="application/json")
             except Exception:
                 pass
 

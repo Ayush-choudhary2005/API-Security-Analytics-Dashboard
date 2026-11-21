@@ -65,6 +65,8 @@ class SecurityConfig:
         app_name: Optional[str] = None,
         user_id_callback: Optional[Callable[[Any], Optional[str]]] = None,
         debug: Optional[bool] = None,
+        active_defense: Optional[bool] = None,
+        block_sync_interval: Optional[float] = None,
     ):
         # 1. API Key / SDK Credential
         resolved_key = (
@@ -141,6 +143,18 @@ class SecurityConfig:
             self.debug: bool = bool(debug)
         else:
             self.debug = _get_env_bool("SECURITY_SDK_DEBUG", False) or _get_env_bool("MLO11Y_DEBUG", False)
+
+        # 10. Active Defense & In-Memory Edge Firewall
+        if active_defense is not None:
+            self.active_defense: bool = bool(active_defense)
+        else:
+            self.active_defense = _get_env_bool("SECURITY_SDK_ACTIVE_DEFENSE", True)
+
+        # 11. Blocked IP Synchronization Interval (seconds)
+        if block_sync_interval is not None:
+            self.block_sync_interval: float = float(block_sync_interval)
+        else:
+            self.block_sync_interval = _get_env_float("SECURITY_SDK_BLOCK_SYNC_INTERVAL", 10.0)
 
     def is_configured(self) -> bool:
         """Check if SDK has required credentials to operate."""

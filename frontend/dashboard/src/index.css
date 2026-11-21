@@ -112,8 +112,19 @@ code, pre, .font-mono {
   border-radius: 0.375rem;
 }
 
-.leaflet-tile-pane {
-  filter: grayscale(100%) invert(100%) contrast(150%) brightness(60%);
+/* Tooltip styles for threat map locations */
+.threat-map-tooltip {
+  background: #101216 !important;
+  color: #E6E8EB !important;
+  border: 1px solid #2A2E37 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8) !important;
+  padding: 3px 8px !important;
+  font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+}
+
+.threat-map-tooltip:before {
+  border-top-color: #2A2E37 !important;
 }
 
 .leaflet-popup-content-wrapper {
@@ -127,4 +138,100 @@ code, pre, .font-mono {
 .leaflet-popup-tip {
   background: #16181D !important;
 }
+
+/* ==========================================================================
+   Cyber War Room: Sonar Ripples & Threat Shockwaves
+   ========================================================================== */
+.custom-sonar-marker {
+  background: transparent !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
+.sonar-beacon {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sonar-wave {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.sonar-ripple-critical .sonar-wave-1 {
+  border: 2px solid rgba(240, 113, 120, 0.9);
+  box-shadow: 0 0 14px rgba(240, 113, 120, 0.6);
+  animation: sonarPulse 2s cubic-bezier(0.1, 0.7, 0.1, 1) infinite;
+}
+
+.sonar-ripple-critical .sonar-wave-2 {
+  border: 1.5px solid rgba(240, 113, 120, 0.6);
+  box-shadow: 0 0 10px rgba(240, 113, 120, 0.4);
+  animation: sonarPulse 2s cubic-bezier(0.1, 0.7, 0.1, 1) infinite 1s;
+}
+
+.sonar-ripple-warning .sonar-wave-1 {
+  border: 2px solid rgba(255, 203, 107, 0.85);
+  box-shadow: 0 0 12px rgba(255, 203, 107, 0.5);
+  animation: sonarPulse 2.6s cubic-bezier(0.1, 0.7, 0.1, 1) infinite;
+}
+
+.sonar-ripple-warning .sonar-wave-2 {
+  border: 1.5px solid rgba(255, 203, 107, 0.5);
+  box-shadow: 0 0 8px rgba(255, 203, 107, 0.3);
+  animation: sonarPulse 2.6s cubic-bezier(0.1, 0.7, 0.1, 1) infinite 1.3s;
+}
+
+.sonar-core {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.sonar-ripple-critical .sonar-core {
+  background-color: #F07178;
+  box-shadow: 0 0 10px #F07178, 0 0 20px rgba(240, 113, 120, 0.8);
+}
+
+.sonar-ripple-warning .sonar-core {
+  background-color: #FFCB6B;
+  box-shadow: 0 0 8px #FFCB6B, 0 0 16px rgba(255, 203, 107, 0.6);
+}
+
+@keyframes sonarPulse {
+  0% {
+    transform: scale(0.15);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sonar-ripple-critical .sonar-wave-1,
+  .sonar-ripple-critical .sonar-wave-2,
+  .sonar-ripple-warning .sonar-wave-1,
+  .sonar-ripple-warning .sonar-wave-2 {
+    animation: none !important;
+  }
+}
+
 

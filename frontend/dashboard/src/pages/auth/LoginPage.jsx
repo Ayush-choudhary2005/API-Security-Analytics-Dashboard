@@ -97,6 +97,44 @@ export const LoginPage = () => {
         <span>Continue with Google</span>
       </button>
 
+      {/* Quick Demo Access Box */}
+      <div className="mb-4 p-3 rounded-xl bg-[#16181D] border border-[#C792EA]/30 text-xs">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#C792EA] font-bold">
+            ⚡ Quick Demo Access (Click to Fill)
+          </span>
+          <span className="text-[9px] font-mono text-[#7B818B]">Instant Sign-in</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setEmail('demo@mlo11y.local');
+              setPassword('demopassword123');
+              setError(null);
+            }}
+            className="p-2 rounded-lg bg-[#1F242C] hover:bg-[#2A2E37] border border-[#2A2E37] hover:border-[#C792EA]/50 text-left transition-all cursor-pointer"
+          >
+            <div className="text-[10px] font-bold text-[#E6E8EB] truncate">Demo Operator</div>
+            <div className="text-[9px] font-mono text-[#82AAFF] truncate">demo@mlo11y.local</div>
+            <div className="text-[9px] font-mono text-[#9BA1AC] mt-0.5">pwd: demopassword123</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail('demo@example.com');
+              setPassword('DemoPassword123!');
+              setError(null);
+            }}
+            className="p-2 rounded-lg bg-[#1F242C] hover:bg-[#2A2E37] border border-[#2A2E37] hover:border-[#C792EA]/50 text-left transition-all cursor-pointer"
+          >
+            <div className="text-[10px] font-bold text-[#E6E8EB] truncate">Demo User</div>
+            <div className="text-[9px] font-mono text-[#82AAFF] truncate">demo@example.com</div>
+            <div className="text-[9px] font-mono text-[#9BA1AC] mt-0.5">pwd: DemoPassword123!</div>
+          </button>
+        </div>
+      </div>
+
       <div className="relative my-4">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-[#1E2127]" />

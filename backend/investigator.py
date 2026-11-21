@@ -7,15 +7,26 @@ graceful offline/error fallbacks, and server-side secret protection.
 import os
 import json
 import time
+import logging
 from db import get_conn, _row_to_dict, user_has_project_access
+
+logger = logging.getLogger("api_security.investigator")
 
 try:
     from google import genai
 except ImportError:
     genai = None
 
-# Production Gemini Models (with automatic failover)
-GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+# Production Gemini Models (with resilient automatic failover priority cascade)
+GEMINI_MODELS = [
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-pro',
+    'gemini-1.0-pro',
+    'gemini-2.0-flash-lite',
+    'gemini-2.5-pro'
+]
 
 
 def is_valid_gemini_key(key: str) -> bool:
@@ -257,8 +268,10 @@ def generate_threat_report(event_id: int, user_id: str = None) -> str:
                         contents=prompt,
                     )
                     if response and response.text:
+                        logger.info(f"GenAI report generated successfully using model: {model_name}")
                         return response.text
                 except Exception as model_err:
+                    logger.warning(f"Gemini model '{model_name}' failed: {model_err}. Trying next fallback model...")
                     last_error = str(model_err)
                     continue
 
