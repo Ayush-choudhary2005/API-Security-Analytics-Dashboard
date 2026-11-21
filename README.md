@@ -410,7 +410,11 @@ When designing anomaly detection for a multi-tenant observability platform, the 
 1. **Universal Structural Prior:** An initial pre-trained Isolation Forest (`isolation_forest_model.joblib`) captures multidimensional anomaly topology across request volumes, error counts, endpoint spreads, and latency deviations from the very first request ($N < 50$).
 2. **Project-Specific Adaptive Normalizer (`ProjectBaselineTracker`):** A lightweight rolling online statistics tracker maintains per-project latency means, standard deviations, and throughput baselines.
 3. **Dynamic Calibration:** As a project accumulates history, project-calibrated z-scores modulate the anomaly score:
-   $$\text{Anomaly Score} = (1 - \alpha) \cdot \text{Score}_{\text{global}} + \alpha \cdot \max(\text{Score}_{\text{global}}, Z_{\text{project}})$$
+   
+$$
+\text{Anomaly Score} = (1 - \alpha) \cdot \text{Score}_{\text{global}} + \alpha \cdot \max(\text{Score}_{\text{global}}, Z_{\text{project}})
+$$
+
    where $\alpha = \min(0.6, N_{\text{project}} / 200)$. This guarantees that a slow batch export API running at 600ms is not falsely flagged as anomalous, while a sudden 600ms latency spike in a 10ms microservice is immediately caught.
 4. **Zero Cross-Tenant Contamination:** Telemetry from Organization A never enters or distorts the baseline calculations of Organization B.
 
@@ -433,7 +437,11 @@ The platform's anomaly detection core is built upon an unsupervised **Isolation 
 Given an observational dataset $X = \{\mathbf{x}_1, \dots, \mathbf{x}_n\}$ where each instance $\mathbf{x} \in \mathbb{R}^d$:
 1. An Isolation Tree ($iTree$) recursively constructs binary partitions by randomly selecting a feature dimension $q \in \{1, \dots, d\}$ from the available features.
 2. A random split point $p$ is uniformly chosen within the feature's observational bounds:
-   $$p \sim \text{Uniform}(\min(\mathbf{x}_q), \max(\mathbf{x}_q))$$
+   
+$$
+p \sim \text{Uniform}(\min(\mathbf{x}_q), \max(\mathbf{x}_q))
+$$
+
 3. The coordinate space is divided into two distinct subspaces: $\mathbf{x}_q < p$ and $\mathbf{x}_q \ge p$.
 4. Recursion terminates when either:
    - The tree reaches its maximum depth limit: $h_{\max} = \lceil \log_2(n) \rceil$.
@@ -444,18 +452,30 @@ Given an observational dataset $X = \{\mathbf{x}_1, \dots, \mathbf{x}_n\}$ where
 For any given input vector $\mathbf{x}$, the path length $h(\mathbf{x})$ is defined as the number of edges traversed from the root node to the terminating leaf node.
 
 Because an $iTree$ possesses an equivalent mathematical structure to a Binary Search Tree (BST), the average path length of unsuccessful searches in a sample of size $n$ serves as the theoretical normalizer:
-$$c(n) = 2 \ln(n - 1) + 2 \gamma - \frac{2(n - 1)}{n}$$
+
+$$
+c(n) = 2 \ln(n - 1) + 2 \gamma - \frac{2(n - 1)}{n}
+$$
+
 where:
 - $\ln(\cdot)$ is the natural logarithm.
 - $\gamma \approx 0.5772156649$ is the **Euler-Mascheroni constant**.
 - $c(n)$ represents the average depth of instances in a randomized BST of size $n$.
 
 For an ensemble of $T = 100$ isolation trees, the expected path length $\mathbb{E}(h(\mathbf{x}))$ across the ensemble is:
-$$\mathbb{E}(h(\mathbf{x})) = \frac{1}{T} \sum_{t=1}^T h_t(\mathbf{x})$$
+
+$$
+\mathbb{E}(h(\mathbf{x})) = \frac{1}{T} \sum_{t=1}^T h_t(\mathbf{x})
+$$
+
 
 #### C. Unsupervised Anomaly Scoring Function
 The calibrated anomaly score $s(\mathbf{x}, n) \in [0, 1]$ is formulated as an exponential monotonic mapping:
-$$s(\mathbf{x}, n) = 2^{-\frac{\mathbb{E}(h(\mathbf{x}))}{c(n)}}$$
+
+$$
+s(\mathbf{x}, n) = 2^{-\frac{\mathbb{E}(h(\mathbf{x}))}{c(n)}}
+$$
+
 
 **Asymptotic Properties of the Score:**
 - **Extreme Anomaly:** As $\mathbb{E}(h(\mathbf{x})) \to 0$, $s(\mathbf{x}, n) \to 2^0 = 1$. The data point is isolated with very few random cuts, indicating extreme deviation from normal distribution clusters.
@@ -464,12 +484,16 @@ $$s(\mathbf{x}, n) = 2^{-\frac{\mathbb{E}(h(\mathbf{x}))}{c(n)}}$$
 
 #### D. Production Affine Score Transform
 Standard scikit-learn Isolation Forest implementations output offset-shifted raw scores via `score_samples(X)`. To provide human-readable, calibrated continuous scales for security analysts, the platform applies a monotonic affine projection in `backend/detection.py`:
-$$\text{Score}_{\text{global}} = \max\left(0.0, \left(-\text{raw\_score} - 0.42\right) \times 20.0\right)$$
+
+$$
+\text{Score}_{\text{global}} = \max\left(0.0, \left(-s_{\text{raw}} - 0.42\right) \times 20.0\right)
+$$
+
 
 **Empirical Calibration Ranges:**
-- **Baseline Inlier Traffic:** $\text{raw\_score} \approx -0.40 \implies -(-0.40) - 0.42 = -0.02 \implies \text{Score}_{\text{global}} = 0.0$.
-- **Suspicious Behavior:** $\text{raw\_score} \approx -0.55 \implies (0.55 - 0.42) \times 20 = 2.60$ (Crosses Medium Severity threshold $\ge 2.5$).
-- **Aggressive Attack Spikes:** $\text{raw\_score} \approx -0.75 \implies (0.75 - 0.42) \times 20 = 6.60$ (Crosses High Severity threshold $\ge 5.0$).
+- **Baseline Inlier Traffic:** $s_{\text{raw}} \approx -0.40 \implies -(-0.40) - 0.42 = -0.02 \implies \text{Score}_{\text{global}} = 0.0$.
+- **Suspicious Behavior:** $s_{\text{raw}} \approx -0.55 \implies (0.55 - 0.42) \times 20 = 2.60$ (Crosses Medium Severity threshold $\ge 2.5$).
+- **Aggressive Attack Spikes:** $s_{\text{raw}} \approx -0.75 \implies (0.75 - 0.42) \times 20 = 6.60$ (Crosses High Severity threshold $\ge 5.0$).
 
 ---
 
@@ -488,35 +512,66 @@ Sliding Window: W_60 = [t - 60s, t]                 Sliding Window: W_10 = [t - 
   └── x3: Unique API Endpoint Spread (non-static)
 ```
 
-$$\mathbf{x} = \begin{bmatrix} x_{\text{latency}} \\ x_{\text{failed\_auth}} \\ x_{\text{unique\_endpoints}} \\ x_{\text{request\_burst}} \end{bmatrix} = \begin{bmatrix} \text{latency\_ms} \\ \sum_{e \in W_{60}(\text{ip})} \mathbb{I}(e.\text{status} \in \{401, 403\}) \\ \left| \{ e.\text{path} \mid e \in W_{60}(\text{ip}) \land e.\text{path} \notin \mathcal{E}_{\text{static}} \} \right| \\ \left| W_{10}(\text{ip}) \right| \end{bmatrix}$$
+
+$$
+\mathbf{x} = \begin{bmatrix} x_{\text{latency}} \\ x_{\text{auth}} \\ x_{\text{endpoints}} \\ x_{\text{burst}} \end{bmatrix} = \begin{bmatrix} \text{latency (ms)} \\ \sum_{e \in W_{60}(\text{ip})} \mathbb{I}(e.\text{status} \in \{401, 403\}) \\ \left| \{ e.\text{path} \mid e \in W_{60}(\text{ip}) \land e.\text{path} \notin \mathcal{E}_{\text{static}} \} \right| \\ \left| W_{10}(\text{ip}) \right| \end{bmatrix}
+$$
+
 
 - **$x_{\text{latency}}$ (Response Latency):** Measures execution duration in milliseconds. Detects denial-of-service degradation, expensive database queries, and algorithmic complexity attacks.
-- **$x_{\text{failed\_auth}}$ (Authentication Failures):** Counts unauthorized responses ($401$ Unauthorized, $403$ Forbidden) within a sliding 60-second window ($W_{60}$). Directly flags credential stuffing, password spray, and unauthorized privilege escalation.
-- **$x_{\text{unique\_endpoints}}$ (Endpoint Cardinality):** Evaluates non-static API paths accessed by the IP within $W_{60}$. Static assets (scripts, stylesheets, images, source maps) are filtered via set $\mathcal{E}_{\text{static}}$ to eliminate false positives on cloud deployments. High cardinality reveals automated directory traversal and vulnerability scanning.
-- **$x_{\text{request\_burst}}$ (Volumetric Velocity):** Evaluates request density over a tight 10-second window ($W_{10}$). Catches rapid scraping, API abuse bursts, and layer-7 HTTP floods.
+- **$x_{\text{auth}}$ (Authentication Failures):** Counts unauthorized responses ($401$ Unauthorized, $403$ Forbidden) within a sliding 60-second window ($W_{60}$). Directly flags credential stuffing, password spray, and unauthorized privilege escalation.
+- **$x_{\text{endpoints}}$ (Endpoint Cardinality):** Evaluates non-static API paths accessed by the IP within $W_{60}$. Static assets (scripts, stylesheets, images, source maps) are filtered via set $\mathcal{E}_{\text{static}}$ to eliminate false positives on cloud deployments. High cardinality reveals automated directory traversal and vulnerability scanning.
+- **$x_{\text{burst}}$ (Volumetric Velocity):** Evaluates request density over a tight 10-second window ($W_{10}$). Catches rapid scraping, API abuse bursts, and layer-7 HTTP floods.
 
 ---
 
-### 4. Project-Specific Adaptive Z-Score & Dynamic Normalization
+### 4. Threat Taxonomy & Detection Capabilities
+
+The engine continuously evaluates telemetry streams across threat vectors:
+
+| Attack Type | Mechanism | Window | Threshold | Severity |
+|---|---|---|---|---|
+| **Brute Force Login** | Failed authentication status codes (`401`, `403`) | 60s | > 5 failures | `MEDIUM` / `HIGH` |
+| **Endpoint Scanning** | High unique endpoint cardinality from single IP | 60s | > 15 unique paths | `MEDIUM` / `HIGH` |
+| **Request Burst** | Rapid volumetric traffic spikes | 10s | > 30 requests | `MEDIUM` / `HIGH` |
+| **Composite Attack** | Multi-vector exploitation (e.g. scanning + brute force) | 60s | >= 2 rules triggered | `HIGH` |
+| **Statistical Anomaly** | Unsupervised Isolation Forest outlier detection | Dynamic | Anomaly Score > 2.5 | `MEDIUM` / `HIGH` |
+| **Normal Traffic** | Standard API transactions conforming to baseline | Rolling | Within normal distribution | `LOW` |
+
+---
+
+### 5. Project-Specific Adaptive Z-Score & Dynamic Normalization
 
 Different APIs exhibit drastically different latency profiles: a microservice catalog endpoint averages $15\text{ms}$, while an asynchronous payment capture or report generation endpoint averages $650\text{ms}$. Evaluating all services against a single static threshold results in unacceptable false alarms or missed anomalies.
 
 The `ProjectBaselineTracker` maintains an in-memory, thread-safe rolling statistical distribution of latency observations $\mathcal{L}_P = \{l_1, l_2, \dots, l_k\}$ (bounded at $k \le 300$) for each project $P$:
 
-$$\mu_P = \frac{1}{k} \sum_{i=1}^k l_i, \qquad \sigma_P = \max\left(25.0, \sqrt{\frac{1}{k} \sum_{i=1}^k (l_i - \mu_P)^2}\right)$$
+
+$$
+\mu_P = \frac{1}{k} \sum_{i=1}^k l_i, \qquad \sigma_P = \max\left(25.0, \sqrt{\frac{1}{k} \sum_{i=1}^k (l_i - \mu_P)^2}\right)
+$$
+
 
 The project-relative latency Z-score is:
-$$Z_P(l) = \frac{|l - \mu_P|}{\sigma_P}$$
+
+$$
+Z_P(l) = \frac{|l - \mu_P|}{\sigma_P}
+$$
+
 
 A minimum standard deviation floor ($\sigma_{\min} = 25.0\text{ms}$) prevents numerical volatility and runaway Z-scores when a project's latency is hyper-consistent (e.g. static responses with $\sigma < 1\text{ms}$).
 
 ---
 
-### 5. Option C Dynamic Blending Schedule & Cold-Start Guard
+### 6. Option C Dynamic Blending Schedule & Cold-Start Guard
 
 To seamlessly bridge cold starts with established projects, the platform calculates an adaptive blending factor $\alpha(N_P)$ based on the cumulative request count $N_P$ observed for project $P$:
 
-$$\alpha(N_P) = \begin{cases} 0.0 & \text{if } N_P < 5 \\ \min\left(0.75, \frac{N_P - 4}{25.0}\right) & \text{if } N_P \ge 5 \end{cases}$$
+
+$$
+\alpha(N_P) = \begin{cases} 0.0 & \text{if } N_P < 5 \\ \min\left(0.75, \frac{N_P - 4}{25.0}\right) & \text{if } N_P \ge 5 \end{cases}
+$$
+
 
 ```text
   Blending Weight (alpha)
@@ -531,45 +586,107 @@ $$\alpha(N_P) = \begin{cases} 0.0 & \text{if } N_P < 5 \\ \min\left(0.75, \frac{
 ```
 
 The unified hybrid anomaly score is computed as:
-$$\text{Score}_{\text{combined}} = \begin{cases} \text{Score}_{\text{global}} & \text{if } \alpha = 0 \\ (1 - \alpha) \cdot \text{Score}_{\text{global}} + \alpha \cdot \max\left(0.5 \cdot \text{Score}_{\text{global}}, Z_P\right) & \text{if } \alpha > 0 \end{cases}$$
+
+$$
+\text{Score}_{\text{combined}} = \begin{cases} \text{Score}_{\text{global}} & \text{if } \alpha = 0 \\ (1 - \alpha) \cdot \text{Score}_{\text{global}} + \alpha \cdot \max\left(0.5 \cdot \text{Score}_{\text{global}}, Z_P\right) & \text{if } \alpha > 0 \end{cases}
+$$
+
 
 #### Cold-Start Benign Cloud Inlier Guard
 When an instrumented application launches on edge or cloud platforms (e.g., AWS Lambda, Vercel, Render), cold-start initialization can cause legitimate traffic to experience minor latency variations while $N_P < 10$. If an event demonstrates zero security red flags:
-$$\text{is\_benign} = (x_{\text{failed\_auth}} = 0) \land (x_{\text{unique\_endpoints}} \le 5) \land (x_{\text{request\_burst}} \le 10) \land (x_{\text{latency}} \le 500\text{ms})$$
+
+$$
+\text{is-benign} = (x_{\text{auth}} = 0) \land (x_{\text{endpoints}} \le 5) \land (x_{\text{burst}} \le 10) \land (x_{\text{latency}} \le 500\text{ms})
+$$
+
 The engine clamps the global score to prevent cold-start false positives:
-$$\text{Score}_{\text{global}} \gets \min(\text{Score}_{\text{global}}, 1.2), \qquad Z_P \gets \min(Z_P, 1.2)$$
+
+$$
+\text{Score}_{\text{global}} \gets \min(\text{Score}_{\text{global}}, 1.2), \qquad Z_P \gets \min(Z_P, 1.2)
+$$
+
 
 ---
 
-### 6. Mathematical Continuous Risk & Calibrated Confidence Equations
+### 7. Mathematical Continuous Risk & Calibrated Confidence Equations
 
 Rather than relying on opaque binary flags, the platform computes continuous, mathematically grounded Risk and Confidence metrics for every transaction:
 
 #### A. Baseline Normal Traffic Risk Formulation
 When no deterministic security rules are violated ($T_{\text{attack}} = \text{"normal"}$):
-$$\text{Risk}_{\text{normal}} = \min\left(25.0, \max\left(2.0, \frac{x_{\text{latency}}}{120.0} \times 8.0 + \text{Score}_{\text{combined}} \times 3.0\right)\right)$$
-$$\text{Confidence}_{\text{normal}} = 0.92$$
+
+$$
+\text{Risk}_{\text{normal}} = \min\left(25.0, \max\left(2.0, \frac{x_{\text{latency}}}{120.0} \times 8.0 + \text{Score}_{\text{combined}} \times 3.0\right)\right)
+$$
+
+
+$$
+\text{Confidence}_{\text{normal}} = 0.92
+$$
+
 This anchors normal traffic strictly within the $[2.0, 25.0]$ green zone while providing continuous variation based on microservice latency and model agreement.
 
 #### B. Hostile & Suspicious Attack Risk Formulation
 When heuristic rules breach thresholds or statistical anomalies emerge ($T_{\text{attack}} \neq \text{"normal"}$):
-$$\text{Risk}_{\text{base}} = \min\left(40.0, 10.0 \times \text{Score}_{\text{combined}}\right)$$
-$$\text{Risk}_{\text{rules}} = R_{\text{bf}} + R_{\text{scan}} + R_{\text{burst}}$$
+
+$$
+\text{Risk}_{\text{base}} = \min\left(40.0, 10.0 \times \text{Score}_{\text{combined}}\right)
+$$
+
+
+$$
+\text{Risk}_{\text{rules}} = R_{\text{bf}} + R_{\text{scan}} + R_{\text{burst}}
+$$
+
 
 Where each rule penalty is non-linearly scaled:
-$$R_{\text{bf}} = \begin{cases} 45.0 + \min(3.0 \times x_{\text{failed\_auth}}, 30.0) & \text{if } \text{"brute\_force"} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}$$
-$$R_{\text{scan}} = \begin{cases} 40.0 + \min(2.0 \times x_{\text{unique\_endpoints}}, 30.0) & \text{if } \text{"endpoint\_scan"} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}$$
-$$R_{\text{burst}} = \begin{cases} 35.0 + \min(1.5 \times x_{\text{request\_burst}}, 30.0) & \text{if } \text{"request\_burst"} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}$$
+
+$$
+R_{\text{bf}} = \begin{cases} 45.0 + \min(3.0 \times x_{\text{auth}}, 30.0) & \text{if } \text{brute-force} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}
+$$
+
+
+$$
+R_{\text{scan}} = \begin{cases} 40.0 + \min(2.0 \times x_{\text{endpoints}}, 30.0) & \text{if } \text{endpoint-scan} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}
+$$
+
+
+$$
+R_{\text{burst}} = \begin{cases} 35.0 + \min(1.5 \times x_{\text{burst}}, 30.0) & \text{if } \text{request-burst} \in \text{flags} \\ 0.0 & \text{otherwise} \end{cases}
+$$
+
 
 The total continuous risk score is clamped:
-$$\text{Risk}_{\text{total}} = \min\left(100.0, \max\left(35.0, \text{Risk}_{\text{base}} + \text{Risk}_{\text{rules}}\right)\right)$$
+
+$$
+\text{Risk}_{\text{total}} = \min\left(100.0, \max\left(35.0, \text{Risk}_{\text{base}} + \text{Risk}_{\text{rules}}\right)\right)
+$$
+
 
 #### C. Continuous Confidence Estimation
-$$\text{Confidence} = \begin{cases} 0.95 & \text{if } |\text{flags}| \ge 2 \quad \text{(Multi-rule deterministic convergence)} \\ 0.88 & \text{if } |\text{flags}| = 1 \quad \text{(Single rule deterministic hit)} \\ \min\left(0.85, 0.65 + \frac{\text{Score}_{\text{combined}}}{25.0}\right) & \text{if } |\text{flags}| = 0 \quad \text{(Unsupervised ML statistical drift)} \end{cases}$$
+
+$$
+\text{Confidence} = \begin{cases} 0.95 & \text{if } |\text{flags}| \ge 2 \quad \text{(Multi-rule deterministic convergence)} \\ 0.88 & \text{if } |\text{flags}| = 1 \quad \text{(Single rule deterministic hit)} \\ \min\left(0.85, 0.65 + \frac{\text{Score}_{\text{combined}}}{25.0}\right) & \text{if } |\text{flags}| = 0 \quad \text{(Unsupervised ML statistical drift)} \end{cases}
+$$
+
 
 ---
 
-### 7. Autonomous Continuous Model Retraining & Self-Learning Engine
+### 8. Alert Deduplication & Cooldown Manager
+
+During ongoing volumetric attacks (e.g., 200 failed logins in 60 seconds), notifying on every individual request creates alert storms across Slack and webhook channels.
+
+* **Suppression Strategy:** The thread-safe `AlertCooldownManager` tracks keys of `(project_id, attack_type, source_ip)`.
+* **Behavior:**
+  * **Event #1:** Alert is dispatched immediately (`alert_suppressed=False`). Webhooks and high-priority WebSocket alerts fire.
+  * **Subsequent Events (within 60s cooldown):** Events are fully ingested, scored, persisted to the database, and emitted to the live telemetry stream, but `alert_suppressed=True` (`suppression_reason="cooldown_active"`), preventing notification floods.
+  * **Cooldown Expiry:** If the attack persists after 60 seconds, a fresh alert notification is emitted.
+
+---
+
+---
+
+### 9. Autonomous Continuous Model Retraining & Self-Learning Engine
 
 The platform does not rely on a static, frozen ML model. It incorporates an **autonomous online retraining pipeline** (`backend/train_model.py` and `backend/server.py`) that enables the Isolation Forest model to continuously learn, evolve, and refine its baseline from real production traffic.
 
@@ -596,7 +713,11 @@ The platform does not rely on a static, frozen ML model. It incorporates an **au
 #### Retraining Dynamics & Guarantees:
 1. **Incremental Ingestion Tracking:** Every successfully processed event increments an atomic memory counter (`_new_events_since_retrain`).
 2. **Dual-Condition Autonomous Trigger:** Retraining triggers automatically when:
-   $$\Delta_{\text{events}} \ge 500 \quad \lor \quad (t_{\text{now}} - t_{\text{last\_trained}}) \ge 3600\text{s}$$
+   
+$$
+\Delta_{\text{events}} \ge 500 \quad \lor \quad (t_{\text{now}} - t_{\text{train}}) \ge 3600\text{s}
+$$
+
 3. **Sliding-Window Feature Reconstruction:** `extract_features(limit=3000)` rebuilds historical 60-second temporal windows for every unique IP address across the database, calculating accurate temporal feature vectors matching the live pipeline.
 4. **Non-Blocking Background Concurrency:** Training executes in a detached daemon thread (`ml-retrain-worker`) protected by `_retrain_lock` and atomic flags (`_retrain_in_progress`). Ingestion requests continue uninterrupted with sub-millisecond response times.
 5. **Zero-Downtime Hot Reloading:** Once the new model is serialized to disk, `detection.reload_model()` atomically swaps the in-memory `ml_model` reference without restarting the server or dropping connections.
@@ -606,51 +727,9 @@ The platform does not rely on a static, frozen ML model. It incorporates an **au
 
 ---
 
-### 2. Threat Taxonomy & Detection Capabilities
-
-The engine continuously evaluates telemetry streams across threat vectors:
-
-| Attack Type | Mechanism | Window | Threshold | Severity |
-|---|---|---|---|---|
-| **Brute Force Login** | Failed authentication status codes (`401`, `403`) | 60s | > 5 failures | `MEDIUM` / `HIGH` |
-| **Endpoint Scanning** | High unique endpoint cardinality from single IP | 60s | > 15 unique paths | `MEDIUM` / `HIGH` |
-| **Request Burst** | Rapid volumetric traffic spikes | 10s | > 30 requests | `MEDIUM` / `HIGH` |
-| **Composite Attack** | Multi-vector exploitation (e.g. scanning + brute force) | 60s | >= 2 rules triggered | `HIGH` |
-| **Statistical Anomaly** | Unsupervised Isolation Forest outlier detection | Dynamic | Anomaly Score > 2.5 | `MEDIUM` / `HIGH` |
-| **Normal Traffic** | Standard API transactions conforming to baseline | Rolling | Within normal distribution | `LOW` |
-
 ---
 
-### 3. Continuous Risk & Confidence Scoring
-
-Rather than outputting opaque binary classifications, the pipeline outputs calibrated continuous metrics for every event:
-
-* **Severity Levels:** Categorized as `low`, `medium`, or `high`.
-* **Continuous Risk Score (`0.0` - `100.0`):** Combines rule-based severity weights with ML anomaly scores.
-  * Baseline Normal: `0.0` - `25.0`
-  * Suspicious / Warning: `35.0` - `69.0`
-  * Critical Attack: `70.0` - `100.0`
-* **Confidence Metric (`0.10` - `0.98`):**
-  * Deterministic multi-rule hits: `0.95`
-  * Single deterministic rule: `0.88`
-  * Statistical ML anomaly: `0.65` - `0.85` (scaled with deviation depth)
-  * Baseline normal: `0.92` (acknowledges real-world probabilistic traffic variations)
-
----
-
-### 4. Alert Deduplication & Cooldown Manager
-
-During ongoing volumetric attacks (e.g., 200 failed logins in 60 seconds), notifying on every individual request creates alert storms across Slack and webhook channels.
-
-* **Suppression Strategy:** The thread-safe `AlertCooldownManager` tracks keys of `(project_id, attack_type, source_ip)`.
-* **Behavior:**
-  * **Event #1:** Alert is dispatched immediately (`alert_suppressed=False`). Webhooks and high-priority WebSocket alerts fire.
-  * **Subsequent Events (within 60s cooldown):** Events are fully ingested, scored, persisted to the database, and emitted to the live telemetry stream, but `alert_suppressed=True` (`suppression_reason="cooldown_active"`), preventing notification floods.
-  * **Cooldown Expiry:** If the attack persists after 60 seconds, a fresh alert notification is emitted.
-
----
-
-### 5. Multi-Tenant Project Isolation & Data Retention
+### 10. Multi-Tenant Project Isolation & Data Retention
 
 Every detection and telemetry event retains canonical, server-verified tenant metadata:
 
@@ -706,7 +785,11 @@ Inbound Event (IP) ──▶ Check Whitelist ──▶ Check Active Quarantine (
 
 ### 1. Sliding-Window Volumetric Rate Limiter Algorithm
 For every incoming request from $(P_{\text{id}}, \text{ip})$, the rate limiter records the current high-resolution timestamp $t_{\text{now}}$:
-$$\mathcal{T}_{P, \text{ip}} = \{ t \in \mathcal{T}_{P, \text{ip}} \mid t > t_{\text{now}} - 60.0 \}$$
+
+$$
+\mathcal{T}_{P, \text{ip}} = \{ t \in \mathcal{T}_{P, \text{ip}} \mid t > t_{\text{now}} - 60.0 \}
+$$
+
 The active request velocity is the cardinality $C_{P, \text{ip}} = |\mathcal{T}_{P, \text{ip}}|$.
 
 - **Warning Threshold ($C \ge 15$ requests / 60s):** Alerts dashboard operators via proactive UI banners when an IP reaches 30% of maximum threshold, enabling preemptive mitigation before attacks peak.
